@@ -1,0 +1,8 @@
+{
+    "public": {
+        "fcm": {
+            "enabled": true
+          }
+          
+    }
+}
