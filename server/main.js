@@ -41,5 +41,8 @@ Meteor.methods({
   'saveFCMToken'(token) {
     // Save token in your database
     console.log('Received FCM token:', token);
+  },
+  'updateFCMToken'(token) {
+    console.log('Updated the FCM token', token);
   }
 });
