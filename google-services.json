@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "1035643861587",
+    "project_id": "miewebauthapp",
+    "storage_bucket": "miewebauthapp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1035643861587:android:d00fa4ae01ece5717ea4a6",
+        "android_client_info": {
+          "package_name": "com.mie.mieauthapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDScbrSf3gEaRryOWKfu9G9vm_tW56M4Jw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1035643861587:android:85e716ba5a01dee87ea4a6",
+        "android_client_info": {
+          "package_name": "com.mieweb.auth"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDScbrSf3gEaRryOWKfu9G9vm_tW56M4Jw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
