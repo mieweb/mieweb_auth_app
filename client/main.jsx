@@ -8,67 +8,97 @@ Meteor.startup(() => {
   const root = createRoot(container);
 
   if (Meteor.isCordova) {
-    // Wait for Cordova to load
     document.addEventListener('deviceready', () => {
       console.log("Cordova device is ready");
 
-      // Initialize PushNotification plugin
       const push = PushNotification.init({
         android: {
+          // These settings ensure proper foreground notification handling
+          forceShow: true,
+          priority: "high",
           sound: true,
           vibrate: true,
-          clearNotifications: true,
-          forceShow: true, // Ensures notification is shown even when app is in foreground
-          icon: "notification_icon", // Your notification icon name
+          channel: {
+            id: "default",
+            importance: "high",
+            sound: "default",
+            vibration: true
+          }
         },
         ios: {
           alert: true,
           badge: true,
           sound: true,
+          priority: "high",
+          foreground: true
         }
       });
 
-      // Get the FCM token (equivalent to your previous getToken)
+      // Handle registration
       push.on('registration', (data) => {
-        console.log("FCM Token:", data.registrationId);
-        Meteor.call('saveFCMToken', data.registrationId); // Save the token to the backend
+        console.log("Registration ID (token):", data.registrationId);
+        Meteor.call('saveFCMToken', data.registrationId, (error) => {
+          if (error) {
+            console.error("Error saving token:", error);
+          }
+        });
       });
 
-      // Handle token refresh (this is handled automatically by the plugin)
-      // The 'registration' event will fire again with the new token
-
-      // Handle incoming notifications
+      // Handle notification reception
       push.on('notification', (data) => {
-        console.log("Notification received:", data);
+        try {
+          console.log("Received notification:", data);
 
-        // Check if notification was tapped (background)
-        if (data.additionalData.coldstart || data.additionalData.foreground === false) {
-          console.log("Notification tapped in background");
-          
-          // Handle navigation or other actions based on notification data
-          if (data.additionalData.url) {
-            window.location.href = data.additionalData.url;
+          // Handle foreground notifications
+          if (data.additionalData.foreground) {
+            // Show notification even when app is in foreground
+            push.createChannel(
+              {
+                id: "default",
+                description: "Default channel for notifications",
+                importance: 4,
+                vibration: true
+              },
+              () => {
+                console.log('Channel created successfully');
+              },
+              (error) => {
+                console.error('Channel creation failed:', error);
+              }
+            );
+
+            // You can also show an in-app alert or custom UI
+            if (data.message) {
+              // Optional: Show in-app alert
+              navigator.notification.alert(
+                data.message,
+                null,
+                data.title || 'Notification',
+                'OK'
+              );
+            }
           }
-        } else {
-          // Notification received in foreground
-          console.log("Notification received in foreground");
 
-          // Show an alert for foreground notifications
-          alert(`New notification: ${data.message || data.body}`);
+          // Handle background notifications
+          if (data.additionalData.coldstart || !data.additionalData.foreground) {
+            console.log("Notification received in background");
+            // Handle any background-specific logic here
+            if (data.additionalData.url) {
+              window.location.href = data.additionalData.url;
+            }
+          }
+        } catch (error) {
+          console.error("Error handling notification:", error);
         }
       });
 
-      // Handle any errors
+      // Handle errors
       push.on('error', (error) => {
         console.error("Push notification error:", error);
       });
 
-      // For iOS, permission is handled automatically by the plugin
-      // The registration event won't fire until permission is granted
-
     }, false);
   }
 
-  // Render the main React application
   root.render(<App />);
 });

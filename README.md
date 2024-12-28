@@ -3,6 +3,26 @@
 This is a Meteor application that uses React for the frontend and supports Cordova for mobile platforms. It integrates Firebase Cloud Messaging (FCM) for push notifications using the `@havesource/cordova-plugin-push`.
 
 ---
+## Sequence Diagram 
+```mermaid
+sequenceDiagram
+    participant User as User
+    participant PhoneApp as Phone App
+    participant MeteorServer as Meteor Server / Push Gateway
+    participant BashScript as Bash Script
+
+    User->>PhoneApp: Allow Push Notifications
+    PhoneApp->>MeteorServer: Register with FCM Token
+    BashScript->>MeteorServer: Send Push Notification via curl
+    MeteorServer->>PhoneApp: Forward Push Notification
+    PhoneApp->>User: Display Notification (Foreground/Background)
+    User-->>PhoneApp: Interact with Notification (Ok/Cancel)
+    PhoneApp-->>MeteorServer: Notify User Response (Ok/Cancel)
+    MeteorServer-->>BashScript: Return Response (Ok/Cancel)
+
+```
+---
+
 ## Screenshots
 
 ### Push Notification Example
@@ -67,21 +87,39 @@ meteor run android-device
 ---
 
 ## Push Notifications
-- **Registration**: The app automatically registers the device for push notifications.
-- **Incoming Notifications**: Handles notifications in both foreground and background modes.
-- **Configuration**:
-  - Edit `mobile-config.js` for app-specific Cordova settings.
-  - Update notification behavior in `client/main.jsx`.
+
+### Sending Push Notifications to Meteor Server
+To send push notifications, follow these steps:
+
+1. Ensure the server is running locally on `http://localhost:3000`.
+2. Use the following `curl` command to send a push notification:
+   ```bash
+   curl -X POST \
+   -H "Content-Type: application/json" \
+   -d '{
+       "token": "<FCM_TOKEN>",
+       "title": "Test Notification",
+       "body": "This is a test message from Meteor.",
+       "data": {"customKey": "customValue"}
+   }' \
+   http://localhost:3000/send-notification
+   ```
+   Replace `<FCM_TOKEN>` with the actual FCM token obtained during device registration.
+
+3. The server responds with a JSON object confirming the message delivery:
+   ```json
+   {"success":true,"messageId":"projects/miewebauthapp/messages/0:1735348363018943%a09965e2a09965e2"}
+   ```
 
 ---
 
 ## File Overview
-- **`client/main.jsx`**: 
+- **`client/main.jsx`**:
   - Initializes the React app.
   - Configures Cordova and FCM for mobile devices.
   - Manages push notifications (registration, handling, and errors).
 - **`mobile-config.js`**: Cordova app settings (e.g., icons, permissions).
-- **`server/main.js`**: Server-side entry point.
+- **`server/main.js`**: Server-side entry point and notification handling logic.
 
 ---
 
@@ -93,5 +131,8 @@ meteor run android-device
 
 ---
 
-## Questions or Issues?
+## Questions ?
 Feel free to open an issue in the repository if you encounter any problems.
+
+---
+
