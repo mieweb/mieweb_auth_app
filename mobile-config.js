@@ -28,3 +28,7 @@ App.info({
 //     <resource-file src="/Users/anshul/Masters/Internship/POC/Meteor_Mobile/mieweb_push_auth/google-services.json" target="app/google-services.json" />
 //   </platform>
 // `);
+
+App.configurePlugin('cordova-plugin-device', {
+  version: '2.0.5',
+});
