@@ -2,6 +2,12 @@
     "public": {
         "fcm": {
             "enabled": true
+          },
+          "packages":{
+            "accounts":{
+                "clientStorage":"sesssion",
+                "sessionManagement": true
+            }
           }
           
     }
