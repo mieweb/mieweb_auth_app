@@ -77,6 +77,7 @@ export const App = () => {
     });
   }, [capturedDeviceUuid, boolRegisteredDevice, isLoading]);
 
+
   // Show loading spinner while checking registration
   if (isLoading) {
     return (
