@@ -3,7 +3,7 @@
 curl -X POST http://localhost:3000/send-notification \
 -H "Content-Type: application/json" \
 -d '{
-  "token": "eOeRQyCSRdOOzbLOT5uzMf:APA91bGzOX2wTCOlXGFzNETAHRQ6nbJ2OdKMDKPUJZ4K8KaonSIdi7FYJ3yTPY4e58K5qjWppw44LuPrLTBmaieKdZFnzYc7SsrZGjvJObKA3HwIYxsAG8E",
+  "token": "dV4xr4RBQjmjuuiAH_v1bp:APA91bHJPq8W8rJPW994gPStWJC2uipSxbX82TaswiyFXN11X3UPJMz8ZMPn3n5D5srW3fMw1eL69dATHun0m62cF8kSKEZ3gJ7XO7t8NZCdA9xLftNoWAI",
   "title": "Meteor Auth test",
   "body": "This is an authorization push notification. Please approve or reject the request.",
   "actions": [

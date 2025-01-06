@@ -33,6 +33,7 @@ WebApp.connectHandlers.use('/send-notification', async (req, res) => {
       }
 
       // Send the push notification using Firebase
+      
       await sendNotification(token, title, messageBody, actions);
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
