@@ -1,44 +1,37 @@
 import admin from 'firebase-admin';
 import serviceAccount from '../miewebauthapp-97c46635fcd5.json';
 
+
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
 });
-
-export const sendNotification = async (token, title, body, data = {}) => {
-  if (!token || !title || !body) {
-    throw new Error('Missing required fields: token, title, or body');
-  }
-
+/**
+ * Sends a push notification to a specific device.
+ * @param {string} registrationToken - The target device token.
+ * @param {string} title - The notification title.
+ * @param {string} body - The notification body.
+ * @param {Array} actions - The actions to include in the notification.
+ */
+export const sendNotification = async (registrationToken, title, body, actions) => {
   const message = {
-    token,
-    android: {
-      priority: 'high',
-      notification: {
-        channelId: 'push-channel',
-        title,
-        body,
-        icon: 'notification_icon',
-        color: '#0088ff',
-        priority: 'high',
-        defaultSound: true,
-        defaultVibrateTimings: true
-      }
+    token: registrationToken,
+    notification: {
+      title: title,
+      body: body,
     },
     data: {
-      ...data,
-      title,
-      message: body,
-      forceShow: 'true'
-    }
+      actions: JSON.stringify(actions), // Ensure `actions` is passed as a string
+    },
   };
 
   try {
     const response = await admin.messaging().send(message);
-    console.log('Notification sent successfully:', response);
+    console.log('Push notification sent successfully:', response);
     return response;
   } catch (error) {
-    console.error('Firebase send notification error:', error);
+    console.error('Error sending push notification:', error);
     throw error;
   }
 };
+
+export default admin;
