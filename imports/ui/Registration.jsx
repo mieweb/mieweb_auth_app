@@ -20,28 +20,43 @@ export const RegistrationPage = ({ deviceDetails }) => {
     }
 
     setLoading(true);
-    const sessionDeviceInfo = Session.get('capturedDeviceInfo')
-    if (sessionDeviceInfo.uuid == deviceDetails) {
+    const sessionDeviceInfo = Session.get('capturedDeviceInfo');
+    const fcmDeviceToken = Session.get('deviceToken'); // Get FCM token from session
+
+    if (sessionDeviceInfo.uuid === deviceDetails) {
       try {
+        // First register the user with deviceInfo
         await new Promise((resolve, reject) => {
           Meteor.call('users.register', 
-            { ...formData, sessionDeviceInfo }, 
-            err => err ? reject(err) : resolve()
+            { 
+              ...formData,
+              sessionDeviceInfo, fcmDeviceToken
+            }, 
+            (err, result) => {
+              if (err) {
+                console.error("Registration error:", err);
+                reject(err);
+              } else {
+                console.log("Registration success:", result);
+                resolve(result);
+              }
+            }
           );
         });
+
+        // Navigate to login after successful registration
         navigate('/login');
       } catch (err) {
         console.error('Registration failed:', err);
         alert(err.reason || 'Registration failed. Please try again.');
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
-      
+
     } else {
-      alert(err.reason || 'Registration failed. Device uuid is not matched or tampered.');
-      
+      alert('Registration failed. Device uuid is not matched or tampered.');
+      setLoading(false);
     }
-
-
   };
 
   const inputFields = [
