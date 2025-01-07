@@ -10,6 +10,7 @@ import { WelcomePage } from './Welcome';
 import { LandingPage } from './LandingPage';
 
 export const App = () => {
+  
   const [capturedDeviceUuid, setCapturedDeviceUuid] = useState(null);
   const [boolRegisteredDevice, setBoolRegisteredDevice] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -33,7 +34,7 @@ export const App = () => {
       setCapturedDeviceUuid(deviceInfo.uuid);
       
       // Subscribe to deviceLogs
-      const subscriber = Meteor.subscribe('deviceLogs', deviceInfo.uuid, {
+      const subscriber = Meteor.subscribe('deviceLogs.byDevice', deviceInfo.uuid, {
         onStop: (error) => {
           if (error) {
             console.error('Subscription error:', error);
@@ -46,7 +47,7 @@ export const App = () => {
             deviceUUID: deviceInfo.uuid 
           }).fetch();
           
-          console.log('Fetched Device Info:', storedDeviceInfo);
+          console.log('Fetched Device Info:', JSON.stringify({storedDeviceInfo}));
           setBoolRegisteredDevice(storedDeviceInfo.length > 0);
           setIsLoading(false);
         }

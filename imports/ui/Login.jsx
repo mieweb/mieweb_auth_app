@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiMail, FiLock, FiArrowLeft } from 'react-icons/fi';
 import { Meteor } from 'meteor/meteor';
+import { Session } from 'meteor/session';
 
 export const LoginPage = ({ deviceDetails }) => {
   const [email, setEmail] = useState('');
@@ -57,14 +58,13 @@ export const LoginPage = ({ deviceDetails }) => {
           }
         });
       });
-
-      // // Store device details in user's profile if needed
-      // await Meteor.callAsync('users.updateDeviceDetails', {
-      //   deviceId: deviceDetails,
-      //   lastLogin: new Date()
-      // });
+      Session.set('userProfile', {
+        email: email,
+      });
 
       navigate('/dashboard');
+
+      
     } catch (err) {
       setError(err.reason || 'Login failed. Please try again.');
     } finally {

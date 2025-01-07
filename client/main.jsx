@@ -6,9 +6,6 @@ import '../imports/api/deviceLogs';
 import { App } from '../imports/ui/App';
 import { Session } from 'meteor/session';
 
-
-
-
 Meteor.startup(() => {
   const container = document.getElementById('react-target');
   const root = createRoot(container);
@@ -24,7 +21,6 @@ Meteor.startup(() => {
       });
     }
   }
-  console.log(Session.get('capturedDeviceInfo'));
 
   if (Meteor.isCordova) {
     document.addEventListener('deviceready', () => {
@@ -32,7 +28,6 @@ Meteor.startup(() => {
 
       const push = PushNotification.init({
         android: {
-          // These settings ensure proper foreground notification handling
           forceShow: true,
           priority: "high",
           sound: true,
@@ -55,63 +50,32 @@ Meteor.startup(() => {
 
       // Handle registration
       push.on('registration', (data) => {
-        console.log("Registration ID (token):", data.registrationId);
-        Meteor.call('saveFCMToken', data.registrationId, (error) => {
-          if (error) {
-            console.error("Error saving token:", error);
-          }
-        });
+        // Store FCM token in session for later use during registration
+        Session.set('deviceToken', data.registrationId);
       });
 
       // Handle notification reception
       push.on('notification', (data) => {
-        try {
-          console.log("Received notification:", data);
-
-          // Handle foreground notifications
-          if (data.additionalData.foreground) {
-            // Show notification even when app is in foreground
-            push.createChannel(
-              {
-                id: "default",
-                description: "Default channel for notifications",
-                importance: 4,
-                vibration: true
-              },
-              () => {
-                console.log('Channel created successfully');
-              },
-              (error) => {
-                console.error('Channel creation failed:', error);
-              }
-            );
-
-            // You can also show an in-app alert or custom UI
-            if (data.message) {
-              // Optional: Show in-app alert
-              navigator.notification.alert(
-                data.message,
-                null,
-                data.title || 'Notification',
-                'OK'
-              );
-            }
+        if (data.additionalData.actionButtons) {
+          const { actionType } = data.additionalData;
+          if (actionType === 'approve' || actionType === 'reject') {
+            Meteor.call('handleNotificationAction', {
+              action: actionType,
+              userId: Session.get('userProfile').id,
+              timestamp: new Date()
+            });
           }
-
-          // Handle background notifications
-          if (data.additionalData.coldstart || !data.additionalData.foreground) {
-            console.log("Notification received in background");
-            // Handle any background-specific logic here
-            if (data.additionalData.url) {
-              window.location.href = data.additionalData.url;
-            }
-          }
-        } catch (error) {
-          console.error("Error handling notification:", error);
+        }
+    
+        if (!data.additionalData.foreground) {
+          navigator.notification.alert(
+            'Please login to continue',
+            () => window.location.href = '/login',
+            'Action Required'
+          );
         }
       });
 
-      // Handle errors
       push.on('error', (error) => {
         console.error("Push notification error:", error);
       });
