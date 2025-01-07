@@ -25,7 +25,13 @@ sequenceDiagram
 
 ## Screenshots
 
-### Push Notification Example
+
+### App HomePage
+<img width="450" alt="image" src="https://github.com/user-attachments/assets/ceaab48e-3465-4b75-8932-174e2e2ff231" />
+
+
+
+### Push Notification Example (old)
 ![Push Notification](screenshots/push.png)
 
 ---
