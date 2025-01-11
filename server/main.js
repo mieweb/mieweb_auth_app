@@ -91,7 +91,8 @@ WebApp.connectHandlers.use('/send-notification', async (req, res) => {
       }
 
       // Send the push notification using Firebase
-      await sendNotification(fcmToken, title, messageBody, actions);
+      const result = await sendNotification(fcmToken, title, messageBody, actions);
+      console.log("result", result)
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ success: true }));

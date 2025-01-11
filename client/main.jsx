@@ -67,13 +67,13 @@ Meteor.startup(() => {
           }
         }
     
-        if (!data.additionalData.foreground) {
-          navigator.notification.alert(
-            'Please login to continue',
-            () => window.location.href = '/login',
-            'Action Required'
-          );
-        }
+        // if (!data.additionalData.foreground) {
+        //   navigator.notification.alert(
+        //     'Please login to continue',
+        //     () => window.location.href = '/login',
+        //     'Action Required'
+        //   );
+        // }
       });
 
       push.on('error', (error) => {
