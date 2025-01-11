@@ -78,7 +78,6 @@ Meteor.methods({
     check(appId, String);
     
     const deviceLog = await DeviceLogs.findOneAsync({ appId: appId });
-    console.log('device log:', deviceLog); // Now this will show the actual document
     
     if (!deviceLog) {
       throw new Meteor.Error('invalid-app-id', 'No device found with this App ID');
