@@ -128,3 +128,9 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+
+google-services.json
+server/private/miewebauthapp-8ca9b0d375f0.json
+
+
