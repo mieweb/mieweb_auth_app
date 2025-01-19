@@ -6,9 +6,22 @@ import '../imports/api/deviceLogs';
 import { App } from '../imports/ui/App';
 import { Session } from 'meteor/session';
 
+const sendUserAction = (appId, action) => {
+  console.log(`Sending user action: ${action} for appId: ${appId}`);
+
+  Meteor.call('notifications.handleResponse', appId, action, (error, result) => {
+    if (error) {
+      console.error('Error sending notification response:', error);
+    } else {
+      console.log('Server processed action:', result);
+    }
+  });
+}
+
 Meteor.startup(() => {
   const container = document.getElementById('react-target');
   const root = createRoot(container);
+
 
   if (Meteor.isCordova) {
     if (device.cordova) {
@@ -26,9 +39,30 @@ Meteor.startup(() => {
     document.addEventListener('deviceready', () => {
       console.log("Cordova device is ready");
 
+      // Create notification channel
+      PushNotification.createChannel(
+        () => {
+          console.log('Channel created successfully');
+        },
+        () => {
+          console.error('Channel creation failed');
+        },
+        {
+          id: 'default',
+          description: 'Default channel',
+          importance: 4,
+          vibration: true,
+          sound: 'default'
+        }
+      );
+
       const push = PushNotification.init({
         android: {
           forceShow: true,
+          click_action: "NOTIFICATION_CLICK",
+          notification: {
+            click_action: "NOTIFICATION_CLICK",
+          },
           priority: "high",
           sound: true,
           vibrate: true,
@@ -48,37 +82,54 @@ Meteor.startup(() => {
         }
       });
 
-      // Handle registration
-      push.on('registration', (data) => {
-        // Store FCM token in session for later use during registration
-        Session.set('deviceToken', data.registrationId);
-      });
+      try {
+        // Handle registration
+        push.on('registration', (data) => {
+          console.log("Registration handler attached");
+          console.log('Registration data:', data);
+          Session.set('deviceToken', data.registrationId);
+        });
 
-      // Handle notification reception
-      push.on('notification', (data) => {
-        if (data.additionalData.actionButtons) {
-          const { actionType } = data.additionalData;
-          if (actionType === 'approve' || actionType === 'reject') {
-            Meteor.call('handleNotificationAction', {
-              action: actionType,
-              userId: Session.get('userProfile').id,
-              timestamp: new Date()
-            });
+        push.on('notification', (notification) => {
+          console.log('Notification received:', JSON.stringify(notification, null, 2));
+
+          if (notification.additionalData) {
+            const { appId } = notification.additionalData;
+            console.log("Processing notification for appId:", appId);
           }
-        }
-    
-        // if (!data.additionalData.foreground) {
-        //   navigator.notification.alert(
-        //     'Please login to continue',
-        //     () => window.location.href = '/login',
-        //     'Action Required'
-        //   );
-        // }
-      });
+        });
 
-      push.on('error', (error) => {
-        console.error("Push notification error:", error);
-      });
+        push.on('reject', (notification) => {
+          console.log('Notification received:', JSON.stringify(notification, null, 2));
+
+          if (notification.additionalData) {
+            const { appId } = notification.additionalData;
+
+            sendUserAction(appId, 'reject');
+          }
+        });
+
+        push.on('approve', (notification) => {
+          console.log('Notification received:', JSON.stringify(notification, null, 2));
+          if (notification.additionalData) {
+            const { appId } = notification.additionalData;
+
+            sendUserAction(appId, 'approve');
+          }
+        });
+
+        // Handle errors
+        push.on('error', (error) => {
+          console.log("Error handler attached");
+          console.error('Push notification error:', error);
+        });
+
+        console.log("All handlers attached successfully");
+
+      } catch (error) {
+        console.error("Error attaching push notification handlers:", error);
+
+      }
 
     }, false);
   }
