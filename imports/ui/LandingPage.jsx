@@ -2,6 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Shield, LogOut, User, Mail, CheckCircle, XCircle, Clock, Smartphone, Edit, Filter, Search, BellRing, Moon, Sun } from 'lucide-react';
 import { Session } from 'meteor/session';
 import { Meteor } from 'meteor/meteor';
+import ActionsModal from './Modal/ActionsModal';
+import ResultModal from './Modal/ResultModal';
+import { notificationData } from '../api/state';
+import { Tracker } from 'meteor/tracker';
 
 export const LandingPage = () => {
   const userProfile = Session.get('userProfile') || {};
@@ -18,6 +22,9 @@ export const LandingPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [hasFetchedData, setHasFetchedData] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isActionsModalOpen, setIsActionsModalOpen] = useState(false)
+  const [isResultModalOpen, setIsResultModalOpen] = useState(false)
+  const [notificationAppData, setNotificationAppData] = useState(null)
 
   const [deviceInfo, setDeviceInfo] = useState({
     model: capturedDeviceInfo.model || '',
@@ -50,6 +57,35 @@ export const LandingPage = () => {
   //     }
   //   };
   // }, []);
+
+  // useEffect(async() => {
+  //   const fcmToken = await new Promise((resolve, reject) => {
+  //     Meteor.call('deviceLogs.getFCMTokenByDeviceId', capturedDeviceInfo.uuid, (error, result) => {
+  //       if (error) reject(error);
+  //       else resolve(result);
+  //     });
+  //   });
+
+  //   if (fcmToken) {
+  //     setNotificationAppData({appId : fcmToken });
+  //     setIsActionsModalOpen(true); // Open the modal
+  //   }
+  // }, []);
+
+  useEffect(() => {
+    const tracker = Tracker.autorun(() => {
+      const data = notificationData.get();
+      console.log("DATA", data)
+      if (data) {
+        setNotificationAppData(data.appId);
+        setIsActionsModalOpen(true);
+        notificationData.set(null);
+        setIsLoading(false); // Loading complete
+      }
+    });
+  
+    return () => tracker.stop();
+  }, []);
 
   // Dark mode persistence
   useEffect(() => {
@@ -278,15 +314,42 @@ export const LandingPage = () => {
         <Mail className="h-4 w-4 mr-2" />
         {profile.email}
       </p>
+   
     </div>
   );
 
   // Original JSX return remains the same, just update the profile section to use renderProfileSection()
   // Replace the existing profile div with:
   // {renderProfileSection()}
+const sendUserAction = (appId, action) => {
+    console.log(`Sending user action: ${action} for appId: ${appId}`);
+  
+    Meteor.call('notifications.handleResponse', appId, action, (error, result) => {
+      if (error) {
+        console.error('Error sending notification response:', error);
+      } else {
+        console.log('Server processed action:', result);
+      }
+    });
+  }
 
   const handleOnClick = () =>{
     console.log("clicked")
+  }
+  const handleCloseResultModal = () =>{
+    setIsResultModalOpen(false)
+  }
+
+  const handleApprove = () =>{
+    sendUserAction(notificationAppData.appId, "approve")
+    setIsResultModalOpen(true)
+
+    setIsActionsModalOpen(false)
+  }
+
+  const handleReject = () =>{
+    sendUserAction(notificationAppData.appId, "reject")
+    setIsActionsModalOpen(false)
   }
   
   return (
@@ -506,6 +569,8 @@ export const LandingPage = () => {
           </div>
         </div>
       </main>
+      <ActionsModal isOpen={isActionsModalOpen} onApprove ={handleApprove} onReject={handleReject} />
+      <ResultModal isOpen={isResultModalOpen} onClose={handleCloseResultModal} />
     </div>
   );
 };
