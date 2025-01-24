@@ -348,7 +348,7 @@ const sendUserAction = (appId, action) => {
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-3">
               <Shield className="h-8 w-8 text-indigo-600 dark:text-indigo-400" />
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">MieSecure</h1>
+              <h1 onClick={handleOnClick} className="text-xl font-bold text-gray-900 dark:text-white">MieSecure</h1>
             </div>
             <div className="flex items-center space-x-4">
               <button
