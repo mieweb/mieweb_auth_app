@@ -6,8 +6,8 @@ const ResultModal = ({ isOpen, onClose }) => {
     if (isOpen) {
       const timer = setTimeout(() => {
         onClose();
-      }, 3000); // Dismiss after 3 seconds
-      return () => clearTimeout(timer); // Cleanup timeout
+      }, 3000); 
+      return () => clearTimeout(timer);
     }
   }, [isOpen, onClose]);
 
