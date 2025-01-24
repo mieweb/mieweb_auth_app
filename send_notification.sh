@@ -3,7 +3,7 @@
 curl -X POST http://localhost:3000/send-notification \
 -H "Content-Type: application/json" \
 -d '{
-    "appId": "2c142ea8d3c29cdabbe9f6f2043389ac",
+    "appId": "f02af1dadf65e238a326143ff6097106",
     "title": "MIE Sudo Security Alert",
     "body": "Please review and respond to your pending MIE request in the app.",
     "actions": [

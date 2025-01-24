@@ -42,6 +42,7 @@ WebApp.connectHandlers.use('/send-notification', async (req, res) => {
       // Create promise for user response
       const userResponsePromise = new Promise((resolve) => {
         // Store the FCM token as the appId since that's what we'll get back
+        console.log("FCM tokennnnnnnnnnnnn", fcmToken)
         responsePromises.set(fcmToken, resolve);
 
         // Add timeout
@@ -82,6 +83,7 @@ Meteor.methods({
     check(action, String);
 
     console.log(`Handling notification response for appId: ${appId}, action: ${action}`);
+    console.log("Response promises",responsePromises)
 
     // If we have a pending promise for this notification, resolve it
     if (responsePromises.has(appId)) {

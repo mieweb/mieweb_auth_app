@@ -5,6 +5,7 @@ import './main.css';
 import '../imports/api/deviceLogs';
 import { App } from '../imports/ui/App';
 import { Session } from 'meteor/session';
+import { notificationData } from '../imports/api/state';
 
 const sendUserAction = (appId, action) => {
   console.log(`Sending user action: ${action} for appId: ${appId}`);
@@ -34,6 +35,7 @@ Meteor.startup(() => {
       });
     }
   }
+
 
   if (Meteor.isCordova) {
     document.addEventListener('deviceready', () => {
@@ -90,14 +92,45 @@ Meteor.startup(() => {
           Session.set('deviceToken', data.registrationId);
         });
 
-        push.on('notification', (notification) => {
-          console.log('Notification received:', JSON.stringify(notification, null, 2));
+        // push.on('notification', (notification) => {
+        //   console.log('Notification received:', JSON.stringify(notification, null, 2));
 
-          if (notification.additionalData) {
+        //   if (notification.additionalData) {
+        //     const { appId } = notification.additionalData;
+        //     console.log("Processing notification for appId:", appId);
+        //     Session.set('notificationReceivedId', {appId})
+         
+        //   }
+
+        //   // if (window.location.pathname !== '/dashboard') {
+        //     window.location.href = '/dashboard';
+        //   // }
+        // });
+
+        push.on('notification', (notification) => {
+          // console.log('Notification received:', notification);
+          console.log('Notification received:', JSON.stringify(notification, null, 2));
+          // console.log(notification.additionalData)
+        
+          if (notification.additionalData && notification.additionalData.foreground) {
+            // Handle foreground notification
+            console.log('Notification received in foreground:', notification);
+        
+            // Update app state without reloading
             const { appId } = notification.additionalData;
-            console.log("Processing notification for appId:", appId);
+            if (appId) {
+              // Update ReactiveVar, Session, or Context
+              notificationData.set({ appId, data: notification });
+            }
+          } else if (notification.additionalData && notification.additionalData.coldstart) {
+            // App launched by clicking on a notification
+            console.log('Notification received on cold start:', notification);
+        
+            // Navigate to a specific route if needed (React Router example)
+            window.location.href = '/dashboard';
           }
         });
+        
 
         push.on('reject', (notification) => {
           console.log('Notification received:', JSON.stringify(notification, null, 2));

@@ -85,6 +85,17 @@ Meteor.methods({
     
     return deviceLog.fcmToken;
   },
+  'deviceLogs.getFCMTokenByDeviceId': async function(deviceUUID) {
+    check(deviceUUID, String);
+    
+    const deviceLog = await DeviceLogs.findOneAsync({ deviceUUID: deviceUUID });
+    
+    if (!deviceLog) {
+      throw new Meteor.Error('invalid-app-id', 'No device found with this Device ID');
+    }
+    
+    return deviceLog.fcmToken;
+  },
   
   // Also fix the debug method
   'deviceLogs.getByAppId': async function(appId) {
