@@ -21,28 +21,26 @@ export const sendNotification = async (registrationToken, title, body, actions) 
     },
     data: {
       appId: registrationToken,
-      title,
-      body,
+      // title,
+      // body,
       actions: JSON.stringify(actions),
       messageFrom: 'mie',
       notificationType: 'approval',
-      foreground: 'true',
-      coldstart: 'true',
-      content_available: '1',
-      notId: '10',
-      surveyID: "ewtawgreg-gragrag-rgarhthgbad"
+      // content_available: '1',
+      // notId: '10',
+      // surveyID: "ewtawgreg-gragrag-rgarhthgbad"
     },
     android: {
       priority: 'high',
       notification: {
         click_action: 'NOTIFICATION_CLICK',
         icon: "ic_launcher",
-        color: "#4CAF50",
+        // color: "#4CAF50",
         channel_id: "default",
-        sound: "default",
-        priority: "high",
-        visibility: "public",
-        notification_priority: "PRIORITY_MAX"
+        // sound: "default",
+        // priority: "high",
+        // visibility: "public",
+        // notification_priority: "PRIORITY_MAX"
       }
     },
     apns: {
