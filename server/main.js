@@ -4,10 +4,40 @@ import { sendNotification } from './firebase';
 import { Accounts } from 'meteor/accounts-base';
 import '../imports/api/deviceLogs.js'
 import { check } from "meteor/check";
+import { DeviceLogs } from '../imports/api/deviceLogs.js';
+import { NotificationHistory } from '../imports/api/notificationHistory';
 
 // Create a Map to store pending notifications
 const pendingNotifications = new Map();
 const responsePromises = new Map();
+
+const saveUserNotificationHistory = async (notification) => {
+  const { appId, title, body } = notification;
+
+  const deviceLog = await DeviceLogs.findOneAsync({ appId });
+  if (!deviceLog) {
+    console.error("No user found for appId:", appId);
+    return;
+  }
+
+  const userId = deviceLog.userId;
+
+  const data = {
+    userId,
+    appId,
+    title,
+    body
+  };
+
+  Meteor.call('notificationHistory.insert', data, (error, result) => {
+    if (error) {
+      console.error("Error inserting notification:", error);
+    } else {
+      console.log("Notification inserted successfully:", result);
+    }
+  });
+};
+
 
 WebApp.connectHandlers.use('/send-notification', async (req, res) => {
   let body = '';
@@ -38,6 +68,7 @@ WebApp.connectHandlers.use('/send-notification', async (req, res) => {
       // Send notification
       await sendNotification(fcmToken, title, messageBody, actions);
       console.log('Notification sent successfully');
+      saveUserNotificationHistory({appId, title, body: messageBody })
 
       // Create promise for user response
       const userResponsePromise = new Promise((resolve) => {
@@ -75,6 +106,7 @@ WebApp.connectHandlers.use('/send-notification', async (req, res) => {
     }
   });
 });
+
 
 // Meteor methods
 Meteor.methods({
