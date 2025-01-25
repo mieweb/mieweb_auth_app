@@ -10,16 +10,12 @@ curl -X POST http://localhost:3000/send-notification \
     {
       "icon": "approve",
       "title": "Approve",
-      "callback": "approve",
-      "foreground": true,
-      "background": true
+      "callback": "approve"
     },
     {
       "icon": "reject",
       "title": "Reject",
-      "callback": "reject",
-      "foreground": true,
-      "background": true
+      "callback": "reject"
     }
   ]
 }'

@@ -60,10 +60,14 @@ Meteor.startup(() => {
       const push = PushNotification.init({
         android: {
           forceShow: true,
-          click_action: "NOTIFICATION_CLICK",
-          notification: {
-            click_action: "NOTIFICATION_CLICK",
-          },
+          clearNotifications: false,
+          icon: "ic_launcher",
+          iconColor: "#4CAF50",
+          background: true,
+          // click_action: "NOTIFICATION_CLICK",
+          // notification: {
+          //   click_action: "NOTIFICATION_CLICK",
+          // },
           priority: "high",
           sound: true,
           vibrate: true,
@@ -96,31 +100,29 @@ Meteor.startup(() => {
 
           if (notification.additionalData) {
             const { appId } = notification.additionalData;
-            console.log("Processing notification for appId:", appId);
             Session.set('notificationReceivedId', appId)
-          }
-
-          if (window.location.pathname !== '/dashboard') {
-            window.location.href = '/dashboard';
           }
         });
 
         push.on('reject', (notification) => {
-          console.log('Notification received:', JSON.stringify(notification, null, 2));
-
           if (notification.additionalData) {
             const { appId } = notification.additionalData;
-
-            sendUserAction(appId, 'reject');
+            if(Session.get("userProfile")){
+              sendUserAction(appId, 'reject');    
+            } else {
+              Session.set('notificationReceivedId', appId)
+            }
           }
         });
 
         push.on('approve', (notification) => {
-          console.log('Notification received:', JSON.stringify(notification, null, 2));
           if (notification.additionalData) {
             const { appId } = notification.additionalData;
-
-            sendUserAction(appId, 'approve');
+            if(Session.get("userProfile")){
+              sendUserAction(appId, 'approve');    
+            } else {
+              Session.set('notificationReceivedId', appId)
+            }
           }
         });
 
