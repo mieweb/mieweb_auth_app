@@ -5,11 +5,13 @@ import { Meteor } from 'meteor/meteor';
 import ActionsModal from './Modal/ActionsModal';
 import ResultModal from './Modal/ResultModal';
 import { Tracker } from 'meteor/tracker';
+import { formatDateTime } from '../../utils/utils';
 
 export const LandingPage = () => {
   const userProfile = Session.get('userProfile') || {};
   const capturedDeviceInfo = Session.get('capturedDeviceInfo') || {};
   const [notificationActivities, setNotificationActivities] = useState([]);
+  const [notificationHistory, setNotificationHistory] = useState([]);
 
   const [profile, setProfile] = useState({
     firstName: '',
@@ -31,38 +33,35 @@ export const LandingPage = () => {
   });
 
   const [isDarkMode, setIsDarkMode] = useState(false);
-  
-
-  // Notification subscription
-  // useEffect(() => {
-  //   let isMounted = true;
-  //   const notificationSubscriber = Meteor.subscribe('notificationActivities', {
-  //     onReady: () => {
-  //       if (isMounted) {
-  //         const activities = NotificationActivities.find(
-  //           { userId: Meteor.userId() },
-  //           { sort: { timestamp: -1 } }
-  //         ).fetch();
-  //         setNotificationActivities(activities);
-  //         setHasFetchedData(true);
-  //       }
-  //     }
-  //   });
-
-  //   return () => {
-  //     isMounted = false;
-  //     if (notificationSubscriber) {
-  //       notificationSubscriber.stop();
-  //     }
-  //   };
-  // }, []);
 
   useEffect(() => {
     console.log("Initializing Tracker");
-    const tracker = Tracker.autorun(() => {
-      const newNotificationId = Session.get('notificationReceivedId');
-      console.log("Tracker detected change:", newNotificationId);
-      setNotificationId(newNotificationId);
+  
+    const tracker = Tracker.autorun(async () => {
+      const newNotification = Session.get("notificationReceivedId");
+  
+      console.log("Tracker detected change:", newNotification?.appId);
+  
+      if (!newNotification) return;
+  
+      setNotificationId(newNotification.appId);
+  
+      if (newNotification.status === "pending") {
+        setIsActionsModalOpen(true);
+      } else {
+        try {
+          const notfId = await getNotificationId();
+          if (notfId) {
+            console.log("Resolved Notification ID:", notfId);
+            await handleStatusUpdate(notfId, newNotification.status);
+            fetchNotificationHistory();
+          } else {
+            console.warn("No notification ID found.");
+          }
+        } catch (error) {
+          console.error("Error fetching notification ID:", error);
+        }
+      }
     });
   
     return () => {
@@ -70,15 +69,6 @@ export const LandingPage = () => {
       tracker.stop();
     };
   }, []);
-
-  useEffect(() => {
-    if (notificationId) {
-      console.log('Notification received with ID:', notificationId);
-      setIsActionsModalOpen(true);
-    } else {
-      console.log('NOT RECEIVED');
-    }
-  }, [notificationId]);
 
   // Dark mode persistence
   useEffect(() => {
@@ -91,6 +81,26 @@ export const LandingPage = () => {
     }
   }, []);
 
+
+  const getNotificationId = async () => {
+    const notificationId = await Meteor.callAsync("notificationHistory.getLastIdByUser", Meteor.userId());
+    return notificationId;
+  };
+
+  const handleStatusUpdate = async(id, newStatus) => {
+    if (!id) {
+      return;
+    }
+
+    await Meteor.call("notificationHistory.updateStatus", id, newStatus, (error, result) => {
+      if (error) {
+        console.error("Error updating status:", error);
+      } else {
+        console.log("Status updated successfully!");
+      }
+    });
+  };
+
   const toggleDarkMode = () => {
     const newMode = !isDarkMode;
     setIsDarkMode(newMode);
@@ -101,6 +111,15 @@ export const LandingPage = () => {
       document.documentElement.classList.remove('dark');
     }
   };
+
+  useEffect(() => {
+    fetchNotificationHistory();
+  }, [])
+
+  const fetchNotificationHistory = async () => {
+    const response = await Meteor.callAsync('notificationHistory.getByUser', Meteor.userId());
+    setNotificationHistory(response)
+  }
 
   // User profile data fetching
   useEffect(() => {
@@ -163,8 +182,6 @@ export const LandingPage = () => {
     }
   };
 
-  
-
   // Handle logout
   const handleLogout = () => {
     Meteor.logout((error) => {
@@ -181,26 +198,26 @@ export const LandingPage = () => {
   };
 
   const [requests, setRequests] = useState([
-    { 
-      id: 1, 
-      app: 'MyApp Dashboard', 
-      timestamp: '2025-01-03 14:30', 
+    {
+      id: 1,
+      app: 'MyApp Dashboard',
+      timestamp: '2025-01-03 14:30',
       location: 'San Francisco, CA',
       device: 'Chrome on MacOS',
       status: 'pending'
     },
-    { 
-      id: 2, 
-      app: 'MyApp Admin', 
-      timestamp: '2025-01-03 14:25', 
+    {
+      id: 2,
+      app: 'MyApp Admin',
+      timestamp: '2025-01-03 14:25',
       location: 'San Francisco, CA',
       device: 'Firefox on Windows',
       status: 'approved'
     },
-    { 
-      id: 3, 
-      app: 'MyApp Mobile', 
-      timestamp: '2025-01-03 14:20', 
+    {
+      id: 3,
+      app: 'MyApp Mobile',
+      timestamp: '2025-01-03 14:20',
       location: 'New York, NY',
       device: 'Safari on iOS',
       status: 'rejected'
@@ -212,7 +229,7 @@ export const LandingPage = () => {
       alert('Please login to perform this action');
       return;
     }
-  
+
     Meteor.call('storeNotificationActivity', {
       notificationId: id,
       action: response,
@@ -225,8 +242,8 @@ export const LandingPage = () => {
         alert('Failed to process request. Please try again.');
         return;
       }
-  
-      setRequests(requests.map(req => 
+
+      setRequests(requests.map(req =>
         req.id === id ? { ...req, status: response } : req
       ));
 
@@ -264,14 +281,14 @@ export const LandingPage = () => {
           <input
             type="text"
             value={profile.firstName}
-            onChange={e => setProfile({...profile, firstName: e.target.value})}
+            onChange={e => setProfile({ ...profile, firstName: e.target.value })}
             className="w-full px-2 py-1 rounded border dark:bg-gray-700 dark:border-gray-600"
             placeholder="First Name"
           />
           <input
             type="text"
             value={profile.lastName}
-            onChange={e => setProfile({...profile, lastName: e.target.value})}
+            onChange={e => setProfile({ ...profile, lastName: e.target.value })}
             className="w-full px-2 py-1 rounded border dark:bg-gray-700 dark:border-gray-600"
             placeholder="Last Name"
           />
@@ -295,7 +312,7 @@ export const LandingPage = () => {
       ) : (
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center justify-between">
           {`${profile.firstName} ${profile.lastName}`}
-          <button 
+          <button
             onClick={() => setIsEditing(true)}
             className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
           >
@@ -307,13 +324,13 @@ export const LandingPage = () => {
         <Mail className="h-4 w-4 mr-2" />
         {profile.email}
       </p>
-   
+
     </div>
   );
 
-const sendUserAction = (appId, action) => {
+  const sendUserAction = (appId, action) => {
     console.log(`Sending user action: ${action} for appId: ${appId}`);
-  
+
     Meteor.call('notifications.handleResponse', appId, action, (error, result) => {
       if (error) {
         console.error('Error sending notification response:', error);
@@ -325,21 +342,29 @@ const sendUserAction = (appId, action) => {
     });
   }
 
-  const handleCloseResultModal = () =>{
+  const handleCloseResultModal = () => {
     setIsResultModalOpen(false)
   }
 
-  const handleApprove = () =>{
+  const handleApprove = async() => {
     sendUserAction(notificationId, "approve")
+
+    const notfId = await getNotificationId();
+    await handleStatusUpdate(notfId, "approved");
     setIsResultModalOpen(true)
     setIsActionsModalOpen(false)
+    fetchNotificationHistory();
   }
 
-  const handleReject = () =>{
+  const handleReject = async() => {
     sendUserAction(notificationId, "reject")
+    const notfId = await getNotificationId();
+    
+    await handleStatusUpdate(notfId, "rejected");
     setIsActionsModalOpen(false)
+    fetchNotificationHistory();
   }
-  
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 dark:from-gray-900 dark:to-gray-800">
       {/* Header section */}
@@ -362,7 +387,7 @@ const sendUserAction = (appId, action) => {
                   <Moon className="h-6 w-6 text-gray-600 dark:text-gray-400" />
                 )}
               </button>
-              <button 
+              <button
                 onClick={handleLogout}
                 className="flex items-center space-x-2 px-4 py-2 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors"
               >
@@ -385,7 +410,7 @@ const sendUserAction = (appId, action) => {
                 </div>
                 {renderProfileSection()}
               </div>
-              
+
               {/* Rest of the profile card content remains the same */}
               <div className="space-y-4">
                 <div className="border-t dark:border-gray-700 pt-4">
@@ -429,8 +454,8 @@ const sendUserAction = (appId, action) => {
               </div>
             </div>
           </div>
-  {/* Authentication Requests */}
-  <div className="lg:col-span-2 space-y-6">
+          {/* Authentication Requests */}
+          <div className="lg:col-span-2 space-y-6">
             {/* Filters */}
             <div className="bg-white/80 backdrop-blur-sm dark:bg-gray-800/80 rounded-2xl shadow-lg p-4">
               <div className="flex flex-wrap gap-4">
@@ -448,7 +473,7 @@ const sendUserAction = (appId, action) => {
                 </div>
                 <div className="flex items-center space-x-2">
                   <Filter className="h-4 w-4 text-gray-500" />
-                  <select 
+                  <select
                     className="bg-transparent border rounded-lg px-3 py-2 dark:bg-gray-700 dark:border-gray-600"
                     value={filter}
                     onChange={e => setFilter(e.target.value)}
@@ -472,7 +497,7 @@ const sendUserAction = (appId, action) => {
                   </h2>
                 </div>
                 {newRequests.map(request => (
-                  <div 
+                  <div
                     key={request.id}
                     className="bg-white/80 backdrop-blur-sm dark:bg-gray-800/80 rounded-2xl shadow-lg p-6"
                   >
@@ -493,13 +518,13 @@ const sendUserAction = (appId, action) => {
                         </div>
                       </div>
                       <div className="flex space-x-2">
-                        <button 
+                        <button
                           onClick={() => handleResponse(request.id, 'approved')}
                           className="p-2 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors"
                         >
                           <CheckCircle className="h-6 w-6" />
                         </button>
-                        <button 
+                        <button
                           onClick={() => handleResponse(request.id, 'rejected')}
                           className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
                         >
@@ -521,33 +546,36 @@ const sendUserAction = (appId, action) => {
                     History
                   </h2>
                 </div>
-                {historyRequests.map(request => (
-                  <div 
-                    key={request.id}
+                {[...notificationHistory].reverse().map(notification => (
+                  <div
+                    key={notification._id}
                     className="bg-white/80 backdrop-blur-sm dark:bg-gray-800/80 rounded-2xl shadow-lg p-6"
                   >
                     <div className="flex justify-between items-start mb-4">
                       <div>
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                          {request.app}
+                          {notification.title}
                         </h3>
                         <div className="space-y-1">
                           <p className="text-sm text-gray-600 dark:text-gray-300 flex items-center">
                             <Clock className="h-4 w-4 mr-2" />
-                            {request.timestamp}
+                            {formatDateTime(notification.createdAt)}
                           </p>
                           <p className="text-sm text-gray-600 dark:text-gray-300 flex items-center">
                             <Smartphone className="h-4 w-4 mr-2" />
-                            {request.device}
+                            Iphone 16
                           </p>
                         </div>
                       </div>
-                      <div className={`px-3 py-1 rounded-full ${
-                        request.status === 'approved' 
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
-                          : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                      }`}>
-                        {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+                      <div
+                        className={`px-3 py-1 rounded-full text-sm font-medium capitalize ${notification.status === "approved"
+                          ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                          : notification.status === "rejected"
+                            ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                            : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200" // Corrected Pending Case
+                          }`}
+                      >
+                        {notification.status}
                       </div>
                     </div>
                   </div>
@@ -557,7 +585,7 @@ const sendUserAction = (appId, action) => {
           </div>
         </div>
       </main>
-      <ActionsModal isOpen={isActionsModalOpen} onApprove ={handleApprove} onReject={handleReject} />
+      <ActionsModal isOpen={isActionsModalOpen} onApprove={handleApprove} onReject={handleReject} />
       <ResultModal isOpen={isResultModalOpen} onClose={handleCloseResultModal} />
     </div>
   );

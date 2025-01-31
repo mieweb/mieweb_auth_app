@@ -100,7 +100,7 @@ Meteor.startup(() => {
 
           if (notification.additionalData) {
             const { appId } = notification.additionalData;
-            Session.set('notificationReceivedId', appId)
+            Session.set('notificationReceivedId', {appId, status:"pending"})
           }
         });
 
@@ -108,9 +108,10 @@ Meteor.startup(() => {
           if (notification.additionalData) {
             const { appId } = notification.additionalData;
             if(Session.get("userProfile")){
-              sendUserAction(appId, 'reject');    
+              sendUserAction(appId, 'reject');  
+              Session.set('notificationReceivedId', {appId, status:"rejected"})  
             } else {
-              Session.set('notificationReceivedId', appId)
+              Session.set('notificationReceivedId', {appId, status:"pending"})
             }
           }
         });
@@ -120,8 +121,9 @@ Meteor.startup(() => {
             const { appId } = notification.additionalData;
             if(Session.get("userProfile")){
               sendUserAction(appId, 'approve');    
+              Session.set('notificationReceivedId', {appId, status:"approved"})
             } else {
-              Session.set('notificationReceivedId', appId)
+              Session.set('notificationReceivedId', {appId, status:"pending"})
             }
           }
         });
