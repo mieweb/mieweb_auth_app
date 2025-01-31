@@ -15,77 +15,92 @@ if (Meteor.isServer) {
 }
 
 Meteor.methods({
-    // Insert a new notification into the history
-    'notificationHistory.insert': function(data) {
-        check(data, {
-          userId: String,
-          appId: String,
-          title: String,
-          body: String,
-        });
-    
-        // Dynamically generate a unique notificationId
-        const notificationId = Random.id();
-    
-        return NotificationHistory.insertAsync({
-          userId: data.userId,
-          appId: data.appId,
-          notificationId: notificationId,
-          title: data.title,
-          body: data.body,
-          status: 'pending', 
-          createdAt: new Date()
-        });
-      },
-  
-    // Update the status of a notification
-    'notificationHistory.updateStatus': function(notificationId, status) {
-      check(notificationId, String);
-      check(status, String);
-  
-      if (!['pending', 'accepted', 'rejected'].includes(status)) {
-        throw new Meteor.Error('invalid-status', 'Status must be pending, accepted, or rejected');
+  // Insert a new notification into the history
+  'notificationHistory.insert': function (data) {
+    check(data, {
+      userId: String,
+      appId: String,
+      title: String,
+      body: String,
+    });
+
+    // Dynamically generate a unique notificationId
+    const notificationId = Random.id();
+
+    return NotificationHistory.insertAsync({
+      userId: data.userId,
+      appId: data.appId,
+      notificationId: notificationId,
+      title: data.title,
+      body: data.body,
+      status: 'pending',
+      createdAt: new Date()
+    });
+  },
+
+  // Update the status of a notification
+  'notificationHistory.updateStatus': function (notificationId, status) {
+    check(notificationId, String);
+    check(status, String);
+
+    if (!['pending', 'approved', 'rejected'].includes(status)) {
+      throw new Meteor.Error('invalid-status', 'Status must be pending, accepted, or rejected');
+    }
+
+    return NotificationHistory.updateAsync(
+      { notificationId },
+      {
+        $set: {
+          status: status,
+          updatedAt: new Date(), // Timestamp for status update
+        },
       }
-  
-      return NotificationHistory.update(
-        { notificationId },
-        {
-          $set: {
-            status: status,
-            updatedAt: new Date(), // Timestamp for status update
-          },
-        }
-      );
-    },
-  
-    // Fetch all notifications for a user
-    'notificationHistory.getByUser': function(userId) {
-      check(userId, String);
-      return NotificationHistory.find({ userId }).fetch();
-    },
-  
-    // Fetch notifications by their status
-    'notificationHistory.getByStatus': function(status) {
-      check(status, String);
-  
-      if (!['pending', 'accepted', 'rejected'].includes(status)) {
-        throw new Meteor.Error('invalid-status', 'Status must be pending, accepted, or rejected');
-      }
-  
-      return NotificationHistory.find({ status }).fetch();
-    },
+    );
+  },
+
+// Fetch the last notification ID for a specific user
+'notificationHistory.getLastIdByUser': function (userId) {
+  check(userId, String);
+
+  return NotificationHistory.findOneAsync(
+    { userId },
+    { sort: { createdAt: -1 }, fields: { notificationId: 1 } }
+  ).then((lastNotification) => {
+    return lastNotification ? lastNotification.notificationId : null;
+  }).catch((error) => {
+    console.error("Error fetching last notification:", error);
+    throw new Meteor.Error("database-error", "Failed to fetch last notification");
+  });
+},
+
+  // Fetch all notifications for a user
+  'notificationHistory.getByUser': function (userId) {
+    check(userId, String);
+    return NotificationHistory.find({ userId }).fetch();
+  },
+
+  // Fetch notifications by their status
+  'notificationHistory.getByStatus': function (status) {
+    check(status, String);
+
+    if (!['pending', 'accepted', 'rejected'].includes(status)) {
+      throw new Meteor.Error('invalid-status', 'Status must be pending, accepted, or rejected');
+    }
+
+    return NotificationHistory.find({ status }).fetch();
+  },
+});
+
+if (Meteor.isServer) {
+  Meteor.publish('notificationHistory.byUser', function (userId) {
+    check(userId, String);
+    return NotificationHistory.find({ userId });
   });
 
-  if (Meteor.isServer) {
-    Meteor.publish('notificationHistory.byUser', function(userId) {
-      check(userId, String);
-      return NotificationHistory.find({ userId });
-    });
-  
-    Meteor.publish('notificationHistory.byStatus', function(status) {
-      check(status, String);
-      return NotificationHistory.find({ status });
-    });
-  }
-  
-  
+  Meteor.publish('notificationHistory.byStatus', function (status) {
+    check(status, String);
+    return NotificationHistory.find({ status });
+  });
+}
+
+
