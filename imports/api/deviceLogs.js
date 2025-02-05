@@ -78,10 +78,20 @@ Meteor.methods({
     check(appId, String);
     
     const deviceLog = await DeviceLogs.findOneAsync({ appId: appId });
-    console.log('device log:', deviceLog); // Now this will show the actual document
     
     if (!deviceLog) {
       throw new Meteor.Error('invalid-app-id', 'No device found with this App ID');
+    }
+    
+    return deviceLog.fcmToken;
+  },
+  'deviceLogs.getFCMTokenByDeviceId': async function(deviceUUID) {
+    check(deviceUUID, String);
+    
+    const deviceLog = await DeviceLogs.findOneAsync({ deviceUUID: deviceUUID });
+    
+    if (!deviceLog) {
+      throw new Meteor.Error('invalid-app-id', 'No device found with this Device ID');
     }
     
     return deviceLog.fcmToken;
