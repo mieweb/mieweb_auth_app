@@ -1,5 +1,5 @@
 import admin from 'firebase-admin';
-import serviceAccount from './private/miewebauthapp-8ca9b0d375f0.json';
+import serviceAccount from '../server/private/miewebauthapp-b76936fb6ccc.json';
 
 
 admin.initializeApp({
@@ -16,12 +16,48 @@ export const sendNotification = async (registrationToken, title, body, actions) 
   const message = {
     token: registrationToken,
     notification: {
-      title: title,
-      body: body,
+      title,
+      body,
     },
     data: {
-      actions: JSON.stringify(actions), // Ensure `actions` is passed as a string
+      appId: registrationToken,
+      // title,
+      // body,
+      actions: JSON.stringify(actions),
+      messageFrom: 'mie',
+      notificationType: 'approval',
+      // content_available: '1',
+      // notId: '10',
+      // surveyID: "ewtawgreg-gragrag-rgarhthgbad"
     },
+    android: {
+      priority: 'high',
+      notification: {
+        click_action: 'NOTIFICATION_CLICK',
+        icon: "ic_launcher",
+        // color: "#4CAF50",
+        channel_id: "default",
+        // sound: "default",
+        // priority: "high",
+        // visibility: "public",
+        // notification_priority: "PRIORITY_MAX"
+      }
+    },
+    apns: {
+      payload: {
+        aps: {
+          alert: {
+            title,
+            body
+          },
+          badge: 1,
+          sound: "default",
+          category: "APPROVAL",
+          content_available: true,
+          mutable_content: true
+        }
+      }
+    }
   };
 
   try {
@@ -33,5 +69,4 @@ export const sendNotification = async (registrationToken, title, body, actions) 
     throw error;
   }
 };
-
 export default admin;
