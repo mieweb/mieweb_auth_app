@@ -1,6 +1,6 @@
 #!/bin/bash
 
-curl -X POST http://localhost:3000/send-notification \
+curl -X POST https://7c50-50-221-78-186.ngrok-free.app/send-notification \
 -H "Content-Type: application/json" \
 -d '{
     "appId": "bc97e17cea5f1261000de618f0a87725",
