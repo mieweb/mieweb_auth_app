@@ -15,33 +15,19 @@ admin.initializeApp({
 export const sendNotification = async (registrationToken, title, body, actions) => {
   const message = {
     token: registrationToken,
-    notification: {
+    data: {
       title,
       body,
-    },
-    data: {
       appId: registrationToken,
-      // title,
-      // body,
       actions: JSON.stringify(actions),
       messageFrom: 'mie',
       notificationType: 'approval',
-      // content_available: '1',
-      // notId: '10',
+      content_available: '1',
+      notId: '10',
       // surveyID: "ewtawgreg-gragrag-rgarhthgbad"
     },
     android: {
       priority: 'high',
-      notification: {
-        click_action: 'NOTIFICATION_CLICK',
-        icon: "ic_launcher",
-        // color: "#4CAF50",
-        channel_id: "default",
-        // sound: "default",
-        // priority: "high",
-        // visibility: "public",
-        // notification_priority: "PRIORITY_MAX"
-      }
     },
     apns: {
       payload: {
@@ -53,7 +39,7 @@ export const sendNotification = async (registrationToken, title, body, actions) 
           badge: 1,
           sound: "default",
           category: "APPROVAL",
-          content_available: true,
+          content_available: 1,
           mutable_content: true
         }
       }
