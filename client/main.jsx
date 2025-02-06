@@ -63,11 +63,10 @@ Meteor.startup(() => {
           clearNotifications: false,
           icon: "ic_launcher",
           iconColor: "#4CAF50",
-          background: true,
-          // click_action: "NOTIFICATION_CLICK",
-          // notification: {
-          //   click_action: "NOTIFICATION_CLICK",
-          // },
+          actions: [
+            { id: 'approve', title: 'Approve' },
+            { id: 'reject', title: 'Reject' }
+          ],
           priority: "high",
           sound: true,
           vibrate: true,
@@ -96,14 +95,25 @@ Meteor.startup(() => {
         });
 
         push.on('notification', (notification) => {
-          console.log('Notification received:', JSON.stringify(notification, null, 2));
-
-          if (notification.additionalData) {
-            const { appId } = notification.additionalData;
-            Session.set('notificationReceivedId', {appId, status:"pending"})
+          console.log('Notification received:', notification);
+          
+          // Handle cold start (app launched from notification)
+          if (notification.additionalData.coldstart) {
+            // Process action from cold start here
+            const action = notification.additionalData.action;
+            if(action) {
+              sendUserAction(notification.additionalData.appId, action);
+            }
+          }
+          
+          // Handle foreground/background processing
+          if (notification.additionalData.appId) {
+            Session.set('notificationReceivedId', {
+              appId: notification.additionalData.appId, 
+              status: "pending"
+            });
           }
         });
-
         push.on('reject', (notification) => {
           if (notification.additionalData) {
             const { appId } = notification.additionalData;
