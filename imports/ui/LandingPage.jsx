@@ -345,6 +345,9 @@ export const LandingPage = () => {
   const handleCloseResultModal = () => {
     setIsResultModalOpen(false)
   }
+  const handleCloseActionModal = () =>{
+    setIsActionsModalOpen(false)
+  }
 
   const handleApprove = async() => {
     sendUserAction(notificationId, "approve")
@@ -585,7 +588,7 @@ export const LandingPage = () => {
           </div>
         </div>
       </main>
-      <ActionsModal isOpen={isActionsModalOpen} onApprove={handleApprove} onReject={handleReject} />
+      <ActionsModal isOpen={isActionsModalOpen} onApprove={handleApprove} onReject={handleReject} onClose={handleCloseActionModal} />
       <ResultModal isOpen={isResultModalOpen} onClose={handleCloseResultModal} />
     </div>
   );
