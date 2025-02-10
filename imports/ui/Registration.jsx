@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiUser, FiMail, FiLock, FiArrowLeft } from 'react-icons/fi';
+import { FiUser, FiMail, FiLock } from 'react-icons/fi';
 import { motion } from 'framer-motion';
 import { Meteor } from 'meteor/meteor';
 import { Session } from 'meteor/session';
@@ -80,14 +80,6 @@ export const RegistrationPage = ({ deviceDetails }) => {
       animate={{ opacity: 1 }}
       className="min-h-screen flex flex-col items-center justify-center p-4"
     >
-      <motion.button
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={() => navigate('/')}
-        className="absolute top-4 left-4 flex items-center text-gray-600 hover:text-blue-600"
-      >
-        <FiArrowLeft className="mr-1" /> Back
-      </motion.button>
 
       <motion.div
         initial={{ y: 20, opacity: 0 }}
