@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiMail, FiLock, FiArrowLeft } from 'react-icons/fi';
+import { FiMail, FiLock } from 'react-icons/fi';
 import { Meteor } from 'meteor/meteor';
 import { Session } from 'meteor/session';
 
@@ -74,13 +74,6 @@ export const LoginPage = ({ deviceDetails }) => {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gray-50">
-      <button
-        onClick={() => navigate('/')}
-        className="absolute top-4 left-4 flex items-center text-gray-600 hover:text-blue-600 transition-colors"
-      >
-        <FiArrowLeft className="mr-1" /> Back
-      </button>
-
       <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-lg">
         <div className="text-center">
           <h2 className="text-3xl font-bold text-gray-900">Welcome Back</h2>
