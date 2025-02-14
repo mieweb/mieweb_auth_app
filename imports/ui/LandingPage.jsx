@@ -10,7 +10,6 @@ import { formatDateTime } from '../../utils/utils';
 export const LandingPage = () => {
   const userProfile = Session.get('userProfile') || {};
   const capturedDeviceInfo = Session.get('capturedDeviceInfo') || {};
-  const [notificationActivities, setNotificationActivities] = useState([]);
   const [notificationHistory, setNotificationHistory] = useState([]);
 
   const [profile, setProfile] = useState({
@@ -224,55 +223,6 @@ export const LandingPage = () => {
     }
   ]);
 
-  const handleResponse = (id, response) => {
-    if (!Meteor.userId()) {
-      alert('Please login to perform this action');
-      return;
-    }
-
-    Meteor.call('storeNotificationActivity', {
-      notificationId: id,
-      action: response,
-      timestamp: new Date(),
-      notificationData: requests.find(req => req.id === id),
-      userId: Meteor.userId()
-    }, (error) => {
-      if (error) {
-        console.error('Error storing notification activity:', error);
-        alert('Failed to process request. Please try again.');
-        return;
-      }
-
-      setRequests(requests.map(req =>
-        req.id === id ? { ...req, status: response } : req
-      ));
-
-      // Update notification activities
-      const newActivity = {
-        _id: new Meteor.Collection.ObjectID()._str,
-        userId: Meteor.userId(),
-        notificationId: id,
-        action: response,
-        timestamp: new Date(),
-        notificationData: requests.find(req => req.id === id)
-      };
-      setNotificationActivities([newActivity, ...notificationActivities]);
-    });
-  };
-
-  const filteredRequests = requests.filter(req => {
-    if (searchTerm && !req.app.toLowerCase().includes(searchTerm.toLowerCase())) {
-      return false;
-    }
-    if (filter === 'pending') return req.status === 'pending';
-    if (filter === 'approved') return req.status === 'approved';
-    if (filter === 'rejected') return req.status === 'rejected';
-    return true;
-  });
-
-  const newRequests = filteredRequests.filter(req => req.status === 'pending');
-  const historyRequests = filteredRequests.filter(req => req.status !== 'pending');
-
   // Modified profile editing section in the JSX
   const renderProfileSection = () => (
     <div className="flex-1">
@@ -365,6 +315,15 @@ export const LandingPage = () => {
     fetchNotificationHistory();
   }
 
+  const filteredNotifications = notificationHistory.filter((notification) => {
+    const matchesFilter = filter === 'all' || notification.status === filter;
+    const normalizedSearchTerm = searchTerm.toLowerCase().trim();
+    const matchesSearch = normalizedSearchTerm === '' 
+      || notification.message?.toLowerCase().includes(normalizedSearchTerm)
+      || notification.title?.toLowerCase().includes(normalizedSearchTerm);
+    return matchesFilter && matchesSearch;
+  });
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 dark:from-gray-900 dark:to-gray-800">
       {/* Header section */}
@@ -454,7 +413,6 @@ export const LandingPage = () => {
               </div>
             </div>
           </div>
-          {/* Authentication Requests */}
           <div className="lg:col-span-2 space-y-6">
             {/* Filters */}
             <div className="bg-white/80 backdrop-blur-sm dark:bg-gray-800/80 rounded-2xl shadow-lg p-4">
@@ -465,7 +423,7 @@ export const LandingPage = () => {
                     <input
                       type="text"
                       placeholder="Search requests..."
-                      className="w-full pl-10 pr-4 py-2 rounded-lg border dark:bg-gray-700 dark:border-gray-600"
+                      className="w-full pl-10 pr-4 py-2 text-gray-400 rounded-lg border dark:bg-gray-700 dark:border-gray-600"
                       value={searchTerm}
                       onChange={e => setSearchTerm(e.target.value)}
                     />
@@ -474,7 +432,7 @@ export const LandingPage = () => {
                 <div className="flex items-center space-x-2">
                   <Filter className="h-4 w-4 text-gray-500" />
                   <select
-                    className="bg-transparent border rounded-lg px-3 py-2 dark:bg-gray-700 dark:border-gray-600"
+                    className="bg-transparent text-gray-400 border rounded-lg px-3 py-2 dark:bg-gray-700 dark:border-gray-600"
                     value={filter}
                     onChange={e => setFilter(e.target.value)}
                   >
@@ -487,58 +445,8 @@ export const LandingPage = () => {
               </div>
             </div>
 
-            {/* New Notifications */}
-            {newRequests.length > 0 && (
-              <div className="space-y-4">
-                <div className="flex items-center space-x-2">
-                  <BellRing className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    New Notifications ({newRequests.length})
-                  </h2>
-                </div>
-                {newRequests.map(request => (
-                  <div
-                    key={request.id}
-                    className="bg-white/80 backdrop-blur-sm dark:bg-gray-800/80 rounded-2xl shadow-lg p-6"
-                  >
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                          {request.app}
-                        </h3>
-                        <div className="space-y-1">
-                          <p className="text-sm text-gray-600 dark:text-gray-300 flex items-center">
-                            <Clock className="h-4 w-4 mr-2" />
-                            {request.timestamp}
-                          </p>
-                          <p className="text-sm text-gray-600 dark:text-gray-300 flex items-center">
-                            <Smartphone className="h-4 w-4 mr-2" />
-                            {request.device}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => handleResponse(request.id, 'approved')}
-                          className="p-2 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors"
-                        >
-                          <CheckCircle className="h-6 w-6" />
-                        </button>
-                        <button
-                          onClick={() => handleResponse(request.id, 'rejected')}
-                          className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                        >
-                          <XCircle className="h-6 w-6" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
             {/* History */}
-            {historyRequests.length > 0 && (
+            {filteredNotifications.length > 0 && (
               <div className="space-y-4">
                 <div className="flex items-center space-x-2">
                   <Clock className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
@@ -546,7 +454,7 @@ export const LandingPage = () => {
                     History
                   </h2>
                 </div>
-                {[...notificationHistory].reverse().map(notification => (
+                {[...filteredNotifications].reverse().map(notification => (
                   <div
                     key={notification._id}
                     className="bg-white/80 backdrop-blur-sm dark:bg-gray-800/80 rounded-2xl shadow-lg p-6"
