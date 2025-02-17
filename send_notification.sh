@@ -1,9 +1,9 @@
 #!/bin/bash
 
-curl -X POST https://7c50-50-221-78-186.ngrok-free.app/send-notification \
+curl -X POST http://localhost:3000/send-notification \
 -H "Content-Type: application/json" \
 -d '{
-    "appId": "bc97e17cea5f1261000de618f0a87725",
+    "appId": "f51ebc45c65d833e16a648d8e5cb2de1",
     "title": "MIE Sudo Security Alert",
     "body": "Please review and respond to your pending MIE request in the app.",
     "actions": [
