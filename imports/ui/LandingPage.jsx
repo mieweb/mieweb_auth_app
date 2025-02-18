@@ -6,11 +6,13 @@ import ActionsModal from './Modal/ActionsModal';
 import ResultModal from './Modal/ResultModal';
 import { Tracker } from 'meteor/tracker';
 import { formatDateTime } from '../../utils/utils';
+import SuccessToaster from './Toasters/SuccessToaster';
 
 export const LandingPage = () => {
   const userProfile = Session.get('userProfile') || {};
   const capturedDeviceInfo = Session.get('capturedDeviceInfo') || {};
   const [notificationHistory, setNotificationHistory] = useState([]);
+  const [successMessage, setSuccessMessage] = useState("");
 
   const [profile, setProfile] = useState({
     firstName: '',
@@ -173,6 +175,8 @@ export const LandingPage = () => {
       setIsEditing(false);
       // Update session
       Session.set('userProfile', { ...userProfile, ...profile });
+        setSuccessMessage("Profile updated successfully!");
+        setTimeout(() => setSuccessMessage(""), 3000);
     } catch (error) {
       console.error('Error updating profile:', error);
       alert('Failed to update profile. Please try again.');
@@ -348,6 +352,7 @@ const todayCount = filteredNotifications.filter(notification => {
           {/* Profile Card */}
           <div className="lg:col-span-1">
             <div className="bg-white/80 backdrop-blur-sm dark:bg-gray-800/80 rounded-2xl shadow-lg p-6">
+            <SuccessToaster message={successMessage} onClose={() => setSuccessMessage("")} />
               <div className="flex items-center space-x-4 mb-6">
                 <div className="h-16 w-16 rounded-full bg-gradient-to-r from-indigo-500 to-blue-500 flex items-center justify-center">
                   <User className="h-8 w-8 text-white" />
