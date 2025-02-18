@@ -1,11 +1,11 @@
-import { Meteor } from 'meteor/meteor';
-import { WebApp } from 'meteor/webapp';
-import { sendNotification } from './firebase';
-import { Accounts } from 'meteor/accounts-base';
-import '../imports/api/deviceLogs.js'
+import { Meteor } from "meteor/meteor";
+import { WebApp } from "meteor/webapp";
+import { sendNotification } from "./firebase";
+import { Accounts } from "meteor/accounts-base";
+import "../imports/api/deviceLogs.js";
 import { check } from "meteor/check";
-import { DeviceLogs } from '../imports/api/deviceLogs.js';
-import { NotificationHistory } from '../imports/api/notificationHistory';
+import { DeviceLogs } from "../imports/api/deviceLogs.js";
+import { NotificationHistory } from "../imports/api/notificationHistory";
 
 // Create a Map to store pending notifications
 const pendingNotifications = new Map();
@@ -26,10 +26,10 @@ const saveUserNotificationHistory = async (notification) => {
     userId,
     appId,
     title,
-    body
+    body,
   };
 
-  Meteor.call('notificationHistory.insert', data, (error, result) => {
+  Meteor.call("notificationHistory.insert", data, (error, result) => {
     if (error) {
       console.error("Error inserting notification:", error);
     } else {
@@ -38,28 +38,27 @@ const saveUserNotificationHistory = async (notification) => {
   });
 };
 
+WebApp.connectHandlers.use("/send-notification", async (req, res) => {
+  let body = "";
 
-WebApp.connectHandlers.use('/send-notification', async (req, res) => {
-  let body = '';
-
-  req.on('data', (chunk) => {
+  req.on("data", (chunk) => {
     body += chunk;
   });
 
-  req.on('end', async () => {
+  req.on("end", async () => {
     try {
       const requestBody = JSON.parse(body);
-      console.log('Received request body:', requestBody);
+      console.log("Received request body:", requestBody);
 
       const { appId, title, body: messageBody, actions } = requestBody;
 
       if (!appId || !title || !messageBody || !actions) {
-        throw new Error('Missing required fields');
+        throw new Error("Missing required fields");
       }
 
       // Get FCM token
       const fcmToken = await new Promise((resolve, reject) => {
-        Meteor.call('deviceLogs.getFCMTokenByAppId', appId, (error, result) => {
+        Meteor.call("deviceLogs.getFCMTokenByAppId", appId, (error, result) => {
           if (error) reject(error);
           else resolve(result);
         });
@@ -67,19 +66,19 @@ WebApp.connectHandlers.use('/send-notification', async (req, res) => {
 
       // Send notification
       await sendNotification(fcmToken, title, messageBody, actions);
-      console.log('Notification sent successfully');
-      saveUserNotificationHistory({appId, title, body: messageBody })
+      console.log("Notification sent successfully");
+      saveUserNotificationHistory({ appId, title, body: messageBody });
 
       // Create promise for user response
       const userResponsePromise = new Promise((resolve) => {
         // Store the FCM token as the appId since that's what we'll get back
-        console.log("FCM tokennnnnnnnnnnnn", fcmToken)
+        console.log("FCM tokennnnnnnnnnnnn", fcmToken);
         responsePromises.set(fcmToken, resolve);
 
         // Add timeout
         setTimeout(() => {
           if (responsePromises.has(fcmToken)) {
-            resolve('timeout');
+            resolve("timeout");
             responsePromises.delete(fcmToken);
           }
         }, 300000); // 5 minute timeout
@@ -87,47 +86,53 @@ WebApp.connectHandlers.use('/send-notification', async (req, res) => {
 
       // Wait for user response
       const userResponse = await userResponsePromise;
-      console.log("USER RESPONSE", userResponse)
+      console.log("USER RESPONSE", userResponse);
 
       // Send final response
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        success: true,
-        action: userResponse
-      }));
-
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          success: true,
+          action: userResponse,
+        })
+      );
     } catch (error) {
-      console.error('Error in /send-notification:', error);
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        success: false,
-        error: error.message
-      }));
+      console.error("Error in /send-notification:", error);
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          success: false,
+          error: error.message,
+        })
+      );
     }
   });
 });
 
-
 // Meteor methods
 Meteor.methods({
-  async 'notifications.handleResponse'(appId, action) {
+  async "notifications.handleResponse"(appId, action) {
     check(appId, String);
     check(action, String);
 
-    console.log(`Handling notification response for appId: ${appId}, action: ${action}`);
-    console.log("Response promises",responsePromises)
+    console.log(
+      `Handling notification response for appId: ${appId}, action: ${action}`
+    );
+    console.log("Response promises", responsePromises);
 
     // If we have a pending promise for this notification, resolve it
     if (responsePromises.has(appId)) {
       const resolve = responsePromises.get(appId);
       resolve(action);
       responsePromises.delete(appId);
-      return { success: true, message: `Response ${action} processed successfully` };
+      return {
+        success: true,
+        message: `Response ${action} processed successfully`,
+      };
     } else {
-      console.log('No pending promise found for appId:', appId);
-      return { success: false, message: 'No pending notification found' };
+      console.log("No pending promise found for appId:", appId);
+      return { success: false, message: "No pending notification found" };
     }
-
   },
 
   async userAction(action, requestId, replyText = null) {
@@ -135,9 +140,12 @@ Meteor.methods({
     check(requestId, String);
     if (replyText) check(replyText, String);
 
-    const validActions = ['approve', 'reject', 'reply'];
+    const validActions = ["approve", "reject", "reply"];
     if (!validActions.includes(action)) {
-      throw new Meteor.Error('invalid-action', 'Invalid action performed by the user.');
+      throw new Meteor.Error(
+        "invalid-action",
+        "Invalid action performed by the user."
+      );
     }
 
     const pendingNotification = pendingNotifications.get(requestId);
@@ -147,11 +155,14 @@ Meteor.methods({
       pendingNotifications.delete(requestId);
       return { success: true, action, replyText };
     } else {
-      throw new Meteor.Error('invalid-request', 'No pending notification found for this request.');
+      throw new Meteor.Error(
+        "invalid-request",
+        "No pending notification found for this request."
+      );
     }
   },
 
-  async 'users.register'(userDetails) {
+  async "users.register"(userDetails) {
     check(userDetails, {
       email: String,
       pin: String,
@@ -171,8 +182,11 @@ Meteor.methods({
     const fcmToken = userDetails.fcmDeviceToken;
 
     // Check if user exists
-    if (await Meteor.users.findOneAsync({ 'emails.address': email })) {
-      throw new Meteor.Error('user-exists', 'User already exists with this email');
+    if (await Meteor.users.findOneAsync({ "emails.address": email })) {
+      throw new Meteor.Error(
+        "user-exists",
+        "User already exists with this email"
+      );
     }
 
     try {
@@ -192,7 +206,7 @@ Meteor.methods({
         console.log(`user id in server is: ${userId}`);
 
         // Ensure userId is passed as a string
-        await Meteor.call('deviceLogs.upsert', {
+        await Meteor.call("deviceLogs.upsert", {
           userId: userId.toString(),
           email,
           deviceUUID: sessionDeviceInfo.uuid,
@@ -204,99 +218,129 @@ Meteor.methods({
       return {
         success: true,
         userId,
-        message: 'Registration successful',
+        message: "Registration successful",
       };
     } catch (error) {
-      console.error('Error during registration:', error);
-      throw new Meteor.Error('registration-failed', error.message);
+      console.error("Error during registration:", error);
+      throw new Meteor.Error("registration-failed", error.message);
     }
   },
 
   async getUserDetails(email) {
     if (!email) {
-      throw new Meteor.Error('Email is required');
+      throw new Meteor.Error("Email is required");
     }
 
-    const user = await Meteor.users.findOneAsync({ 'emails.address': email });
+    const user = await Meteor.users.findOneAsync({ "emails.address": email });
 
     if (!user) {
-      throw new Meteor.Error('User not found');
+      throw new Meteor.Error("User not found");
     }
 
     return {
-      firstName: user.profile?.firstName || '',
-      lastName: user.profile?.lastName || '',
-      email: user.emails[0].address || '',
+      firstName: user.profile?.firstName || "",
+      lastName: user.profile?.lastName || "",
+      email: user.emails[0].address || "",
     };
   },
 
-
-  async 'users.checkRegistration'(fcmToken) {
+  async "users.checkRegistration"(fcmToken) {
     check(fcmToken, String);
 
-    const user = Meteor.users.findOneAsync({ 'profile.fcmToken': fcmToken });
+    const user = Meteor.users.findOneAsync({ "profile.fcmToken": fcmToken });
     if (!user) {
-      throw new Meteor.Error('device-deregistered', 'This device is deregistered. Please register again.');
+      throw new Meteor.Error(
+        "device-deregistered",
+        "This device is deregistered. Please register again."
+      );
     }
     return user._id;
   },
 
-  async 'users.mapFCMTokenToUser'(userId, fcmToken) {
+  async updateUserProfile({ firstName, lastName, email }) {
+    check(firstName, String);
+    check(lastName, String);
+    check(email, String);
+
+    console.log("Updating profile for user:", firstName, lastName, email);
+
+    if (!this.userId) {
+      throw new Meteor.Error(
+        "not-authorized",
+        "You must be logged in to update your profile"
+      );
+    }
+
+    try {
+      // Update the user's profile in the database
+      Meteor.users.updateAsync(this.userId, {
+        $set: {
+          "profile.firstName": firstName,
+          "profile.lastName": lastName,
+          "emails.0.address": email,
+        },
+      });
+
+      return { success: true, message: "Profile updated successfully" };
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      throw new Meteor.Error(
+        "update-failed",
+        "Failed to update profile",
+        error
+      );
+    }
+  },
+
+  async "users.mapFCMTokenToUser"(userId, fcmToken) {
     check(userId, String);
     check(fcmToken, String);
 
     if (!this.userId) {
-      throw new Meteor.Error('not-authorized', 'User must be logged in');
+      throw new Meteor.Error("not-authorized", "User must be logged in");
     }
 
     const user = Meteor.users.findOne(userId);
     if (!user) {
-      throw new Meteor.Error('user-not-found', 'User not found');
+      throw new Meteor.Error("user-not-found", "User not found");
     }
 
     // Map token to the user
     Meteor.users.update(userId, {
       $set: {
-        'profile.fcmToken': fcmToken,
+        "profile.fcmToken": fcmToken,
       },
     });
   },
   async checkUsersExist() {
     try {
       const userCount = await Meteor.users.find().countAsync();
-      console.log('User count:', userCount);
+      console.log("User count:", userCount);
       return userCount > 0;
     } catch (error) {
-      console.error('Error in checkUsersExist:', error);
-      throw new Meteor.Error('server-error', 'Failed to check user existence');
+      console.error("Error in checkUsersExist:", error);
+      throw new Meteor.Error("server-error", "Failed to check user existence");
     }
   },
-
 });
-
 
 Meteor.startup(() => {
   // Meteor.publish('deviceLogs', function (deviceUuid) {
   //   console.log("Publishing deviceLogs for UUID:", deviceUuid);
-
   //   if (!deviceUuid) {
   //     console.log("No UUID provided, returning empty set");
   //     return this.ready();
   //   }
-
   //   const query = { deviceUUID: deviceUuid };
   //   console.log("MongoDB query:", query);
-
-  //   const records = DeviceLogs.find(query, { 
-  //     fields: { 
-  //       deviceUUID: 1, 
+  //   const records = DeviceLogs.find(query, {
+  //     fields: {
+  //       deviceUUID: 1,
   //       email: 1,
-  //       fcmToken: 1 
-  //     } 
+  //       fcmToken: 1
+  //     }
   //   });
-
   //   console.log("Found records count:", records.countAsync());
   //   return records;
   // });
-
 });
