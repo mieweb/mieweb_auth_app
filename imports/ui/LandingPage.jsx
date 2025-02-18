@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, LogOut, User, Mail, CheckCircle, XCircle, Clock, Smartphone, Edit, Filter, Search, BellRing, Moon, Sun } from 'lucide-react';
+import { Shield, LogOut, User, Mail, CheckCircle, XCircle, Clock, Smartphone, Edit, Filter, Search, BellRing, Moon, Sun, RotateCcw } from 'lucide-react';
 import { Session } from 'meteor/session';
 import { Meteor } from 'meteor/meteor';
 import ActionsModal from './Modal/ActionsModal';
@@ -196,33 +196,6 @@ export const LandingPage = () => {
     });
   };
 
-  const [requests, setRequests] = useState([
-    {
-      id: 1,
-      app: 'MyApp Dashboard',
-      timestamp: '2025-01-03 14:30',
-      location: 'San Francisco, CA',
-      device: 'Chrome on MacOS',
-      status: 'pending'
-    },
-    {
-      id: 2,
-      app: 'MyApp Admin',
-      timestamp: '2025-01-03 14:25',
-      location: 'San Francisco, CA',
-      device: 'Firefox on Windows',
-      status: 'approved'
-    },
-    {
-      id: 3,
-      app: 'MyApp Mobile',
-      timestamp: '2025-01-03 14:20',
-      location: 'New York, NY',
-      device: 'Safari on iOS',
-      status: 'rejected'
-    }
-  ]);
-
   // Modified profile editing section in the JSX
   const renderProfileSection = () => (
     <div className="flex-1">
@@ -327,6 +300,15 @@ export const LandingPage = () => {
     return matchesFilter && matchesSearch;
   });
 
+const today = new Date().toISOString().split("T")[0]; 
+const todayCount = filteredNotifications.filter(notification => {
+  const createdAtDate = notification.createdAt instanceof Date
+    ? notification.createdAt.toISOString().split("T")[0]
+    : String(notification.createdAt).split("T")[0]; 
+
+  return createdAtDate === today;
+}).length;
+  
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 dark:from-gray-900 dark:to-gray-800">
       {/* Header section */}
@@ -400,16 +382,8 @@ export const LandingPage = () => {
                   </h3>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-gray-600 dark:text-gray-300">Pending</span>
-                      <span className="font-medium text-gray-900 dark:text-white">
-                        {requests.filter(r => r.status === 'pending').length}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
                       <span className="text-gray-600 dark:text-gray-300">Today's Activity</span>
-                      <span className="font-medium text-gray-900 dark:text-white">
-                        {requests.filter(r => r.status !== 'pending').length}
-                      </span>
+                      {todayCount}
                     </div>
                   </div>
                 </div>
@@ -417,8 +391,7 @@ export const LandingPage = () => {
             </div>
           </div>
           <div className="lg:col-span-2 space-y-6">
-            {/* Filters */}
-            <div className="bg-white/80 backdrop-blur-sm dark:bg-gray-800/80 rounded-2xl shadow-lg p-4">
+            {filteredNotifications.length > 0 ?  <><div className="bg-white/80 backdrop-blur-sm dark:bg-gray-800/80 rounded-2xl shadow-lg p-4">
               <div className="flex flex-wrap gap-4">
                 <div className="flex-1">
                   <div className="relative">
@@ -447,10 +420,7 @@ export const LandingPage = () => {
                 </div>
               </div>
             </div>
-
-            {/* History */}
-            {filteredNotifications.length > 0 && (
-              <div className="space-y-4">
+            <div className="space-y-4">
                 <div className="flex items-center space-x-2">
                   <Clock className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -483,7 +453,7 @@ export const LandingPage = () => {
                           ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                           : notification.status === "rejected"
                             ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                            : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200" // Corrected Pending Case
+                            : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
                           }`}
                       >
                         {notification.status}
@@ -492,7 +462,11 @@ export const LandingPage = () => {
                   </div>
                 ))}
               </div>
-            )}
+            </> : <div className="bg-white/80 backdrop-blur-sm dark:bg-gray-800/80 rounded-2xl shadow-lg p-6 min-h-[100px] flex items-center justify-center text-center flex-col">
+            <RotateCcw className="h-10 w-10 mt-4 text-gray-600" />
+            <p>No Notification History.</p>
+          </div>
+            }         
           </div>
         </div>
       </main>
