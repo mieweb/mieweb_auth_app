@@ -1,0 +1,17 @@
+module.export({default:()=>Martini});let createLucideIcon;module.link('../createLucideIcon.js',{default(v){createLucideIcon=v}},0);/**
+ * @license lucide-react v0.469.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+
+
+
+const Martini = createLucideIcon("Martini", [
+  ["path", { d: "M8 22h8", key: "rmew8v" }],
+  ["path", { d: "M12 11v11", key: "ur9y6a" }],
+  ["path", { d: "m19 3-7 8-7-8Z", key: "1sgpiw" }]
+]);
+
+
+//# sourceMappingURL=martini.js.map

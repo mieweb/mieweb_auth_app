@@ -1,0 +1,26 @@
+{
+  "prepare_queue": {
+    "installed": [],
+    "uninstalled": []
+  },
+  "config_munge": {
+    "files": {}
+  },
+  "installed_plugins": {
+    "cordova-plugin-meteor-webapp": {
+      "PACKAGE_NAME": "com.mie.mieauthapp"
+    },
+    "cordova-plugin-statusbar": {
+      "PACKAGE_NAME": "com.mie.mieauthapp"
+    },
+    "@havesource/cordova-plugin-push": {
+      "ANDROIDX_CORE_VERSION": "1.6.+",
+      "FCM_VERSION": "23.+",
+      "PACKAGE_NAME": "com.mie.mieauthapp"
+    },
+    "cordova-plugin-device": {
+      "PACKAGE_NAME": "com.mie.mieauthapp"
+    }
+  },
+  "dependent_plugins": {}
+}

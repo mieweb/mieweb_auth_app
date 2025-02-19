@@ -1,0 +1,47 @@
+{
+  "cordova-plugin-meteor-webapp": {
+    "source": {
+      "type": "registry",
+      "id": "cordova-plugin-meteor-webapp@2.0.4"
+    },
+    "is_top_level": true,
+    "variables": {}
+  },
+  "cordova-plugin-statusbar": {
+    "source": {
+      "type": "registry",
+      "id": "cordova-plugin-statusbar@2.4.3"
+    },
+    "is_top_level": true,
+    "variables": {}
+  },
+  "cordova-plugin-splashscreen": {
+    "source": {
+      "type": "registry",
+      "id": "cordova-plugin-splashscreen@6.0.2"
+    },
+    "is_top_level": true,
+    "variables": {}
+  },
+  "@havesource/cordova-plugin-push": {
+    "source": {
+      "type": "registry",
+      "id": "@havesource/cordova-plugin-push@5.0.5"
+    },
+    "is_top_level": true,
+    "variables": {
+      "ANDROIDX_CORE_VERSION": "1.6.+",
+      "FCM_VERSION": "23.+"
+    }
+  },
+  "cordova-plugin-device": {
+    "source": {
+      "type": "registry",
+      "id": "cordova-plugin-device@3.0.0"
+    },
+    "is_top_level": true,
+    "variables": {
+      "version": "2.0.5"
+    }
+  }
+}

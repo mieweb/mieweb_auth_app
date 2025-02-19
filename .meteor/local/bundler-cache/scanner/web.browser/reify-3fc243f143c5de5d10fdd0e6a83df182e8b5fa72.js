@@ -1,0 +1,17 @@
+module.export({default:()=>Banknote});let createLucideIcon;module.link('../createLucideIcon.js',{default(v){createLucideIcon=v}},0);/**
+ * @license lucide-react v0.469.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+
+
+
+const Banknote = createLucideIcon("Banknote", [
+  ["rect", { width: "20", height: "12", x: "2", y: "6", rx: "2", key: "9lu3g6" }],
+  ["circle", { cx: "12", cy: "12", r: "2", key: "1c9p78" }],
+  ["path", { d: "M6 12h.01M18 12h.01", key: "113zkx" }]
+]);
+
+
+//# sourceMappingURL=banknote.js.map

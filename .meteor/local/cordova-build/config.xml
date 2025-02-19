@@ -1,0 +1,53 @@
+<?xml version="1.0"?>
+<widget id="com.mie.mieauthapp" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0" xmlns:android="http://schemas.android.com/apk/res/android">
+  <name>MieAuthApp</name>
+  <description>A Meteor app with Cordova integration</description>
+  <author href="https://example.com" email="abrol.anshul10@gmail.com">Anshul Abrol</author>
+  <preference name="webviewbounce" value="false"/>
+  <preference name="DisallowOverscroll" value="true"/>
+  <preference name="WKWebViewOnly" value="true"/>
+  <preference name="SwiftVersion" value="5"/>
+  <preference name="StatusBarOverlaysWebView" value="false"/>
+  <preference name="StatusBarStyle" value="default"/>
+  <content src="http://localhost:12280/"/>
+  <allow-intent href="tel:*"/>
+  <allow-intent href="geo:*"/>
+  <allow-intent href="mailto:*"/>
+  <allow-intent href="sms:*"/>
+  <allow-intent href="market:*"/>
+  <allow-intent href="itms:*"/>
+  <allow-intent href="itms-apps:*"/>
+  <allow-navigation href="http://localhost"/>
+  <access origin="*"/>
+  <platform name="ios">
+    <icon src="resources/iphone_2x.icon.png" width="120" height="120"/>
+    <icon src="resources/iphone_3x.icon.png" width="180" height="180"/>
+    <icon src="resources/ipad_2x.icon.png" width="152" height="152"/>
+    <icon src="resources/ipad_pro.icon.png" width="167" height="167"/>
+    <icon src="resources/ios_settings_2x.icon.png" width="58" height="58"/>
+    <icon src="resources/ios_spotlight_2x.icon.png" width="80" height="80"/>
+    <icon src="resources/ios_spotlight_3x.icon.png" width="120" height="120"/>
+    <icon src="resources/ios_notification_2x.icon.png" width="40" height="40"/>
+    <icon src="resources/ios_notification_3x.icon.png" width="60" height="60"/>
+    <icon src="resources/ipad.icon.png" width="76" height="76"/>
+    <icon src="resources/ios_settings.icon.png" width="29" height="29"/>
+    <icon src="resources/ios_spotlight.icon.png" width="40" height="40"/>
+    <icon src="resources/ipad_app_legacy.icon.png" width="72" height="72"/>
+    <icon src="resources/ipad_app_legacy_2x.icon.png" width="144" height="144"/>
+    <splash src="resources/Default@2x~universal~anyany.png"/>
+  </platform>
+  <platform name="android">
+    <preference name="AndroidXEnabled" value="true"/>
+    <preference name="hostname" value="localhost:12280"/>
+    <preference name="AndroidInsecureFileModeEnabled" value="true"/>
+    <edit-config file="app/src/main/AndroidManifest.xml" mode="merge" target="/manifest/application">
+      <application android:usesCleartextTraffic="true"/>
+    </edit-config>
+    <icon src="resources/android_mdpi.icon.png" width="48" height="48"/>
+    <icon src="resources/android_hdpi.icon.png" width="72" height="72"/>
+    <icon src="resources/android_xhdpi.icon.png" width="96" height="96"/>
+    <icon src="resources/android_xxhdpi.icon.png" width="144" height="144"/>
+    <icon src="resources/android_xxxhdpi.icon.png" width="192" height="192"/>
+    <preference value="resources/android_universal.splash.png" name="AndroidWindowSplashScreenAnimatedIcon"/>
+  </platform>
+</widget>

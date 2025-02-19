@@ -1,0 +1,53 @@
+<?xml version='1.0' encoding='utf-8'?>
+<widget id="com.mie.mieauthapp" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:android="http://schemas.android.com/apk/res/android" xmlns:cdv="http://cordova.apache.org/ns/1.0">
+    <feature name="WebAppLocalServer">
+        <param name="android-package" value="com.meteor.webapp.WebAppLocalServer" />
+        <param name="onload" value="true" />
+    </feature>
+    <feature name="StatusBar">
+        <param name="android-package" value="org.apache.cordova.statusbar.StatusBar" />
+        <param name="onload" value="true" />
+    </feature>
+    <feature name="PushNotification">
+        <param name="android-package" value="com.adobe.phonegap.push.PushPlugin" />
+    </feature>
+    <feature name="Device">
+        <param name="android-package" value="org.apache.cordova.device.Device" />
+    </feature>
+    <name>MieAuthApp</name>
+    <description>A Meteor app with Cordova integration</description>
+    <author email="abrol.anshul10@gmail.com" href="https://example.com">Anshul Abrol</author>
+    <content src="http://localhost:12280/" />
+    <allow-intent href="tel:*" />
+    <allow-intent href="geo:*" />
+    <allow-intent href="mailto:*" />
+    <allow-intent href="sms:*" />
+    <allow-intent href="market:*" />
+    <allow-intent href="itms:*" />
+    <allow-intent href="itms-apps:*" />
+    <allow-navigation href="http://localhost" />
+    <access origin="*" />
+    <edit-config file="app/src/main/AndroidManifest.xml" mode="merge" target="/manifest/application">
+        <application android:usesCleartextTraffic="true" />
+    </edit-config>
+    <icon height="48" src="resources/android_mdpi.icon.png" width="48" />
+    <icon height="72" src="resources/android_hdpi.icon.png" width="72" />
+    <icon height="96" src="resources/android_xhdpi.icon.png" width="96" />
+    <icon height="144" src="resources/android_xxhdpi.icon.png" width="144" />
+    <icon height="192" src="resources/android_xxxhdpi.icon.png" width="192" />
+    <preference name="loglevel" value="DEBUG" />
+    <preference name="GradlePluginGoogleServicesEnabled" value="true" />
+    <preference name="GradlePluginGoogleServicesVersion" value="4.3.15" />
+    <preference name="GradlePluginKotlinEnabled" value="true" />
+    <preference name="GradlePluginKotlinVersion" value="1.7.21" />
+    <preference name="webviewbounce" value="false" />
+    <preference name="DisallowOverscroll" value="true" />
+    <preference name="WKWebViewOnly" value="true" />
+    <preference name="SwiftVersion" value="5" />
+    <preference name="StatusBarOverlaysWebView" value="false" />
+    <preference name="StatusBarStyle" value="default" />
+    <preference name="AndroidXEnabled" value="true" />
+    <preference name="hostname" value="localhost:12280" />
+    <preference name="AndroidInsecureFileModeEnabled" value="true" />
+    <preference name="AndroidWindowSplashScreenAnimatedIcon" value="resources/android_universal.splash.png" />
+</widget>

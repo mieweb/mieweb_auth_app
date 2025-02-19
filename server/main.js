@@ -10,7 +10,6 @@ import { NotificationHistory } from "../imports/api/notificationHistory";
 // Create a Map to store pending notifications
 const pendingNotifications = new Map();
 const responsePromises = new Map();
-
 const saveUserNotificationHistory = async (notification) => {
   const { appId, title, body } = notification;
 
@@ -202,11 +201,13 @@ Meteor.methods({
         },
       });
 
+      let generatedAppId = null;
       if (userId) {
         console.log(`user id in server is: ${userId}`);
 
         // Ensure userId is passed as a string
-        await Meteor.call("deviceLogs.upsert", {
+        generatedAppId = await Meteor.call('deviceLogs.upsert', {
+
           userId: userId.toString(),
           email,
           deviceUUID: sessionDeviceInfo.uuid,
@@ -214,11 +215,13 @@ Meteor.methods({
           deviceInfo: sessionDeviceInfo,
         });
       }
+      const resAppId = generatedAppId || null;
 
       return {
         success: true,
         userId,
-        message: "Registration successful",
+        resAppId,
+        message: 'Registration successful',
       };
     } catch (error) {
       console.error("Error during registration:", error);
@@ -322,6 +325,23 @@ Meteor.methods({
       throw new Meteor.Error("server-error", "Failed to check user existence");
     }
   },
+  'updateAppId': async function(username, appId) {
+    try {
+      const result = await HTTP.post("https://0152-50-221-78-186.ngrok-free.app/update-app-id", {
+        data: {
+          username: username,
+          appId: appId
+        },
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      return result.data;
+    } catch (error) {
+      throw new Meteor.Error('api-error', error.message);
+    }
+  },
+
 });
 
 Meteor.startup(() => {

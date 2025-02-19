@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="viewport" content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width, height=device-height, viewport-fit=cover">
+  <meta name="msapplication-tap-highlight" content="no">
+  <meta http-equiv="Content-Security-Policy" content="default-src * android-webview-video-poster: gap: data: blob: 'unsafe-inline' 'unsafe-eval' ws: wss:;">
+  <link rel="stylesheet" type="text/css" class="__meteor-css__" href="/__cordova/merged-stylesheets.css?hash=303876c880949bd1424b7f1947f11f8f26534205">
+<title>Meteor App</title>
+  <script type="text/javascript">
+    __meteor_runtime_config__ = JSON.parse(decodeURIComponent("%7B%22meteorRelease%22%3A%22METEOR%403.0.4%22%2C%22gitCommitHash%22%3A%7B%7D%2C%22ROOT_URL%22%3A%22http%3A%2F%2F10.3.86.15%3A3000%2F%22%2C%22ROOT_URL_PATH_PREFIX%22%3A%22%22%2C%22DDP_DEFAULT_CONNECTION_URL%22%3A%22http%3A%2F%2F10.3.86.15%3A3000%2F%22%2C%22autoupdate%22%3A%7B%22versions%22%3A%7B%22web.cordova%22%3A%7B%22version%22%3A%2272728b06eb0a42eb7c2d1b658544daa6f5c072b1%22%2C%22versionRefreshable%22%3A%227f7ff91cb6e744d4c82253f0032afb5932df796f%22%2C%22versionNonRefreshable%22%3A%22ccfbb48530c6d0e477ba9d4819d1baaf6374e953%22%2C%22versionReplaceable%22%3A%229aa5ea833c025f5753eabf9c2df22ae73e79e2ba%22%2C%22versionHmr%22%3A1739977931076%7D%7D%7D%2C%22appId%22%3A%22jp4aul86o9am.wjvst2vahkih%22%2C%22meteorEnv%22%3A%7B%22NODE_ENV%22%3A%22development%22%2C%22TEST_METADATA%22%3A%22%7B%7D%22%7D%7D"));
+    if (/Android/i.test(navigator.userAgent)) {
+      if (!__meteor_runtime_config__.httpProxyPort) {
+        __meteor_runtime_config__.ROOT_URL = (__meteor_runtime_config__.ROOT_URL || '').replace(/localhost/i, '10.0.2.2');
+        __meteor_runtime_config__.DDP_DEFAULT_CONNECTION_URL = (__meteor_runtime_config__.DDP_DEFAULT_CONNECTION_URL || '').replace(/localhost/i, '10.0.2.2');
+      }
+    }
+  </script>
+
+  <script type="text/javascript" src="/cordova.js"></script>
+  <script type="text/javascript" src="/__cordova/packages/core-runtime.js?hash=3b2d5bc93e0bc136ceb74acf849a6a280875724c"></script>
+  <script type="text/javascript" src="/__cordova/packages/meteor.js?hash=bd3820587973676affcde601c506930b867aa305"></script>
+  <script type="text/javascript" src="/__cordova/packages/meteor-base.js?hash=e4c9679f30595ee869ad17210b335d6b8eba3c25"></script>
+  <script type="text/javascript" src="/__cordova/packages/mobile-experience.js?hash=a96997fad9510f469c00f56021a53dab49eed529"></script>
+  <script type="text/javascript" src="/__cordova/packages/modules-runtime.js?hash=3fc0d29d26d346fecf8f0100cbed0cc165e3dada"></script>
+  <script type="text/javascript" src="/__cordova/packages/modules-runtime-hot.js?hash=5cf763f055c4262ff354e5ed9a9ad01f2602f15a"></script>
+  <script type="text/javascript" src="/__cordova/packages/modules.js?hash=07a3ca30ce9d8944eb005f86ab143dde356b359a"></script>
+  <script type="text/javascript" src="/__cordova/packages/es5-shim.js?hash=f5f43e58de401b49b667f81acb29b485f259d669"></script>
+  <script type="text/javascript" src="/__cordova/packages/modern-browsers.js?hash=fba7a02e6d2b151d4d90e816b9524713919865e3"></script>
+  <script type="text/javascript" src="/__cordova/packages/promise.js?hash=3b7a41b30b7e89fd0be6b454cffb1a08ee800261"></script>
+  <script type="text/javascript" src="/__cordova/packages/ecmascript-runtime-client.js?hash=0ed7e728645ee08dad5aa7793bc22e81fde70f82"></script>
+  <script type="text/javascript" src="/__cordova/packages/hot-module-replacement.js?hash=be8c9e0d70af1086ff2c8f2fb6109ea31b6ff6b0"></script>
+  <script type="text/javascript" src="/__cordova/packages/react-fast-refresh.js?hash=a6b22f0270c5ad13dbae96b00bd97363b1c2ab4e"></script>
+  <script type="text/javascript" src="/__cordova/packages/ecmascript.js?hash=a7c72721d2732d9ace5bb7382e5011301aef039c"></script>
+  <script type="text/javascript" src="/__cordova/packages/ecmascript-runtime.js?hash=dd0594fe6ebee1f697552b64a878de1910dd97ba"></script>
+  <script type="text/javascript" src="/__cordova/packages/babel-runtime.js?hash=2bec827fabfba3fb516425ebcaddc697f6b7fa79"></script>
+  <script type="text/javascript" src="/__cordova/packages/fetch.js?hash=c52fa73c57cd0772ac226c41009b6e7d36a1ae06"></script>
+  <script type="text/javascript" src="/__cordova/packages/dynamic-import.js?hash=9b8941d8ed0b0072753f97817f4d2d8a8c0046a2"></script>
+  <script type="text/javascript" src="/__cordova/packages/base64.js?hash=12abbabaef93b90692a71054329ecdb5abeabe5f"></script>
+  <script type="text/javascript" src="/__cordova/packages/ejson.js?hash=098280b57ddbd510bf41a0676e876d17667ec685"></script>
+  <script type="text/javascript" src="/__cordova/packages/diff-sequence.js?hash=3b493f332666f1cfea88b74e8afa3840fdc2650a"></script>
+  <script type="text/javascript" src="/__cordova/packages/geojson-utils.js?hash=86e76be54e29496a7285706a78ca7545336b27c8"></script>
+  <script type="text/javascript" src="/__cordova/packages/id-map.js?hash=c712b494434274a9940480a6ad013a0de6e621af"></script>
+  <script type="text/javascript" src="/__cordova/packages/random.js?hash=e2a12c757e38980def020ea948604f8b19f15e90"></script>
+  <script type="text/javascript" src="/__cordova/packages/mongo-id.js?hash=aaf69ef9e4b33e6f5c5b05f5c388a17097bd83bc"></script>
+  <script type="text/javascript" src="/__cordova/packages/ordered-dict.js?hash=171b95fc7019f0afe20a2378a39d45c9fbc0b8f4"></script>
+  <script type="text/javascript" src="/__cordova/packages/tracker.js?hash=f33f8594c7f3509e188faab764b9124307408919"></script>
+  <script type="text/javascript" src="/__cordova/packages/minimongo.js?hash=eb09c3b11d7b0b7365875399411e60755247ad13"></script>
+  <script type="text/javascript" src="/__cordova/packages/check.js?hash=a04a0b65addc627889fe8214cbe7c079f7f15d9a"></script>
+  <script type="text/javascript" src="/__cordova/packages/retry.js?hash=ec89a1a4d9bdc120a324e25d8b9526b913f7bdb0"></script>
+  <script type="text/javascript" src="/__cordova/packages/callback-hook.js?hash=1cbca6fa1d8a8cf81cea073f9b41433c05af660d"></script>
+  <script type="text/javascript" src="/__cordova/packages/ddp-common.js?hash=f59471929914f35ada703084c77998a476b6d081"></script>
+  <script type="text/javascript" src="/__cordova/packages/reload.js?hash=54bb13070bdab735454f824bc9203d9a45b63b94"></script>
+  <script type="text/javascript" src="/__cordova/packages/socket-stream-client.js?hash=ba7fea1247b8a73cd639f697140e56a318504c4a"></script>
+  <script type="text/javascript" src="/__cordova/packages/ddp-client.js?hash=cf1df27875256b5a2c7019500f17cbf9084761c8"></script>
+  <script type="text/javascript" src="/__cordova/packages/ddp.js?hash=8b87c61861be2dfa4a14d4e195dcbb99486a011c"></script>
+  <script type="text/javascript" src="/__cordova/packages/ddp-server.js?hash=f7130d83604f69d7ac31c134b1d3d8b0e8d3a4dd"></script>
+  <script type="text/javascript" src="/__cordova/packages/allow-deny.js?hash=2c8871e1b61e1ff3a4ad2ff140b5a993f0c58f7d"></script>
+  <script type="text/javascript" src="/__cordova/packages/mongo-dev-server.js?hash=c55e08aa62eb43da458d5a3f70332fd658ce85e8"></script>
+  <script type="text/javascript" src="/__cordova/packages/babel-compiler.js?hash=94fba7d1aa9d71d8162b140b853a1d7f05298fb0"></script>
+  <script type="text/javascript" src="/__cordova/packages/typescript.js?hash=e15be61b82266c18b618a63e6257c065cfdfd7b4"></script>
+  <script type="text/javascript" src="/__cordova/packages/logging.js?hash=971bc0ae6382d427f15955cf28ba4af975e93662"></script>
+  <script type="text/javascript" src="/__cordova/packages/mongo.js?hash=310abe6acd9b6030751dbc42a268cb62f261e1e5"></script>
+  <script type="text/javascript" src="/__cordova/packages/reactive-var.js?hash=5b573cf83e2766e69c5621feedd2f4eeeb6c4e0c"></script>
+  <script type="text/javascript" src="/__cordova/packages/minifier-css.js?hash=864ebafdef84ddc1a40a47f2cd29f44055c4e50a"></script>
+  <script type="text/javascript" src="/__cordova/packages/standard-minifier-css.js?hash=289cfa41f9db2b3881c33f66ae86859986e6cc4e"></script>
+  <script type="text/javascript" src="/__cordova/packages/standard-minifier-js.js?hash=3fe1e4103b9fbc38c64b0930e15042545dc2c3ca"></script>
+  <script type="text/javascript" src="/__cordova/packages/shell-server.js?hash=7247a09ce739e00ae350357cd53489b32d268892"></script>
+  <script type="text/javascript" src="/__cordova/packages/static-html.js?hash=20906d7225c05f9222d31faa18a3b75f8cba251f"></script>
+  <script type="text/javascript" src="/__cordova/packages/react-meteor-data.js?hash=62b8b9a1516d98b0c855ef63bff7e2d179c16197"></script>
+  <script type="text/javascript" src="/__cordova/packages/url.js?hash=da4e52a83b32e21ae4120e68497c9d3cc4341774"></script>
+  <script type="text/javascript" src="/__cordova/packages/http.js?hash=ba7dae933321a78886ef7f3ac955b7673ae18eb3"></script>
+  <script type="text/javascript" src="/__cordova/packages/ddp-rate-limiter.js?hash=cbf20c1ed821ffcce2992bee559d0271acd035fd"></script>
+  <script type="text/javascript" src="/__cordova/packages/localstorage.js?hash=4d3851867e66d39acaa5ae524c0968392dedde54"></script>
+  <script type="text/javascript" src="/__cordova/packages/accounts-base.js?hash=8fe21397ea0979f9e9db8bce849a2099384a7290"></script>
+  <script type="text/javascript" src="/__cordova/packages/sha.js?hash=0042202b2ec10ded40254033600222d4a5119691"></script>
+  <script type="text/javascript" src="/__cordova/packages/accounts-password.js?hash=53e220665d7a175730e6cc014b84f0e8a164dfe1"></script>
+  <script type="text/javascript" src="/__cordova/packages/reactive-dict.js?hash=655377bf0d4ae6b1808f7869924cf9983921f57f"></script>
+  <script type="text/javascript" src="/__cordova/packages/session.js?hash=65b39cb378fb13c0a5c825b448736452535e5e53"></script>
+  <script type="text/javascript" src="/__cordova/packages/webapp.js?hash=878689591f5e4f0f70af15a691a5bebfec4373af"></script>
+  <script type="text/javascript" src="/__cordova/packages/hot-code-push.js?hash=0fea8e9328ce1b2bea69347db96a3949fea9d913"></script>
+  <script type="text/javascript" src="/__cordova/packages/mobile-status-bar.js?hash=214fdb81d2337bd8a769e3941de5efdb4744b2dd"></script>
+  <script type="text/javascript" src="/__cordova/packages/launch-screen.js?hash=8be9c6dc53815c61f5ba537772217712ccbe008a"></script>
+  <script type="text/javascript" src="/__cordova/packages/autoupdate.js?hash=f05fd9e10954d7854ed7b041cd6da4fa8643b636"></script>
+  <script type="text/javascript" src="/__cordova/app/global-imports.js?hash=8c1d0ab539d93c41c9bde9ba6571671087599efc"></script>
+  <script type="text/javascript" src="/__cordova/app/app.js?hash=a54084880064141974500e1acf04d24a7b60f370"></script>
+
+</head>
+
+<body><div id="react-target"></div></body>
+</html>

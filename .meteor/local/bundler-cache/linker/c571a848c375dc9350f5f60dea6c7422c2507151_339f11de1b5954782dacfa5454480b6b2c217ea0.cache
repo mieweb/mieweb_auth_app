@@ -1,0 +1,1 @@
+[{"type":"js","data":"Package[\"core-runtime\"].queue(\"launch-screen\",function () {/* Package-scope variables */\nvar LaunchScreen;\n\n\n\n/* Exports */\nreturn {\n  export: function () { return {\n      LaunchScreen: LaunchScreen\n    };}\n}});\n","servePath":"/packages/launch-screen.js"}]

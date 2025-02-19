@@ -7,6 +7,7 @@ App.info({
   website: 'https://example.com', 
   version: '1.0.0',           
 });
+App.accessRule('*');
 
 // App.setPreference('GradlePluginGoogleServicesEnabled', true);
 // App.appendToConfig(`

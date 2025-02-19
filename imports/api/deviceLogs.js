@@ -38,11 +38,8 @@ Meteor.methods({
         const appId = generateAppId(data.deviceUUID, data.email, creationTime);
         console.log('Generated appId during upsert:', appId); // Add this log
         
-        return DeviceLogs.upsertAsync(
-          {
-            userId: data.userId,
-            deviceUUID: data.deviceUUID,
-          },
+        await DeviceLogs.upsertAsync(
+          { userId: data.userId, deviceUUID: data.deviceUUID },
           {
             $set: {
               email: data.email,
@@ -55,6 +52,14 @@ Meteor.methods({
             },
           }
         );
+        const deviceLog = await DeviceLogs.findOneAsync({ userId: data.userId, deviceUUID: data.deviceUUID });
+    
+        return deviceLog?.appId || appId;
+    
+
+
+        
+        
       },
   'deviceLogs.updateToken'(userId, deviceUUID, fcmToken) {
     check(userId, String);
