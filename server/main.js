@@ -10,7 +10,6 @@ import { NotificationHistory } from "../imports/api/notificationHistory";
 // Create a Map to store pending notifications
 const pendingNotifications = new Map();
 const responsePromises = new Map();
-
 const saveUserNotificationHistory = async (notification) => {
   const { appId, title, body } = notification;
 
@@ -202,11 +201,13 @@ Meteor.methods({
         },
       });
 
+      let generatedAppId = null;
       if (userId) {
         console.log(`user id in server is: ${userId}`);
 
         // Ensure userId is passed as a string
-        await Meteor.call("deviceLogs.upsert", {
+        generatedAppId = await Meteor.call('deviceLogs.upsert', {
+
           userId: userId.toString(),
           email,
           deviceUUID: sessionDeviceInfo.uuid,
@@ -214,11 +215,14 @@ Meteor.methods({
           deviceInfo: sessionDeviceInfo,
         });
       }
+      console.log(generatedAppId);
+      const resAppId = generatedAppId || null;
 
       return {
         success: true,
         userId,
-        message: "Registration successful",
+        resAppId,
+        message: 'Registration successful',
       };
     } catch (error) {
       console.error("Error during registration:", error);
@@ -322,25 +326,24 @@ Meteor.methods({
       throw new Meteor.Error("server-error", "Failed to check user existence");
     }
   },
+  'updateAppId': async function(username, appId) {
+    try {
+      const result = await HTTP.post("https://30b3-50-221-78-186.ngrok-free.app/update-app-id", {
+        data: {
+          username: username,
+          appId: appId
+        },
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      return result.data;
+    } catch (error) {
+      throw new Meteor.Error('api-error', error.message);
+    }
+  },
+
 });
 
-Meteor.startup(() => {
-  // Meteor.publish('deviceLogs', function (deviceUuid) {
-  //   console.log("Publishing deviceLogs for UUID:", deviceUuid);
-  //   if (!deviceUuid) {
-  //     console.log("No UUID provided, returning empty set");
-  //     return this.ready();
-  //   }
-  //   const query = { deviceUUID: deviceUuid };
-  //   console.log("MongoDB query:", query);
-  //   const records = DeviceLogs.find(query, {
-  //     fields: {
-  //       deviceUUID: 1,
-  //       email: 1,
-  //       fcmToken: 1
-  //     }
-  //   });
-  //   console.log("Found records count:", records.countAsync());
-  //   return records;
-  // });
-});
+Meteor.startup(() => {})
+

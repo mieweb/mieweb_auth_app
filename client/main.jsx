@@ -39,6 +39,17 @@ Meteor.startup(() => {
   if (Meteor.isCordova) {
     document.addEventListener('deviceready', () => {
       console.log("Cordova device is ready");
+      Fingerprint.isAvailable(
+        function(result) {
+          console.log("Biometric available:", result);
+          // result might be: 'finger', 'face', or 'biometric'
+          Session.set('Biometrics', true);
+        },
+        function(error) {
+          Session.set('Biometrics', false);
+          console.error("Biometric not available:", error);
+        }
+      );
 
       // Create notification channel
       PushNotification.createChannel(
