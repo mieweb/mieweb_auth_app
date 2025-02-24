@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FiMail, FiLock } from 'react-icons/fi';
 import { Meteor } from 'meteor/meteor';
 import { Session } from 'meteor/session';
+import { Fingerprint } from 'lucide-react';
 
 export const LoginPage = ({ deviceDetails }) => {
   const [email, setEmail] = useState('');
@@ -10,6 +11,8 @@ export const LoginPage = ({ deviceDetails }) => {
   const [error, setError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const navigate = useNavigate();
+  const isBiometricAvailable = true;
+  console.log(`biometrics in login page ${isBiometricAvailable}`);
 
   useEffect(() => {
     // Check for device details on component mount
@@ -71,6 +74,26 @@ export const LoginPage = ({ deviceDetails }) => {
       setIsLoggingIn(false);
     }
   };
+  const handleBiometricLogin = () => {
+    if (window.Fingerprint) {
+      window.Fingerprint.show(
+        {
+          description: 'Scan your fingerprint to login',
+          // Optional: disable backup if you want only biometrics
+          disableBackup: true,
+        },
+        () => {
+          navigate('/dashboard');
+        },
+        (err) => {
+          setError(err.message || 'Fingerprint authentication failed');
+        }
+      );
+    } else {
+      setError('Fingerprint authentication is not available.');
+    }
+  };
+
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gray-50">
@@ -128,6 +151,19 @@ export const LoginPage = ({ deviceDetails }) => {
               />
             </div>
           </div>
+          {isBiometricAvailable && (
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={handleBiometricLogin}
+                className="flex items-center space-x-2 py-2 px-4 rounded-xl text-white bg-green-600 hover:bg-green-700 transition-all duration-200"
+              >
+                <Fingerprint />
+                <span>Login with Fingerprint</span>
+              </button>
+            </div>
+          )}
+
 
           <button
             type="submit"
