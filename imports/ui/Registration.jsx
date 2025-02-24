@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { Meteor } from 'meteor/meteor';
 import { Session } from 'meteor/session';
 
+
 export const RegistrationPage = ({ deviceDetails }) => {
   const [formData, setFormData] = useState({
     email: '', firstName: '', lastName: '', pin: ''
@@ -26,7 +27,7 @@ export const RegistrationPage = ({ deviceDetails }) => {
     if (sessionDeviceInfo.uuid === deviceDetails) {
       try {
         // First register the user with deviceInfo
-        await new Promise((resolve, reject) => {
+        const registerUser = await new Promise((resolve, reject) => {
           Meteor.call('users.register', 
             { 
               ...formData,
@@ -37,12 +38,27 @@ export const RegistrationPage = ({ deviceDetails }) => {
                 console.error("Registration error:", err);
                 reject(err);
               } else {
-                console.log("Registration success:", result);
+                console.log("Registration success:", result);                
                 resolve(result);
               }
             }
           );
         });
+        console.log(JSON.stringify({registerUser}));
+        console.log('Calling the external API for app Id update in LDAP');
+        if (registerUser && registerUser.resAppId) {
+          const uName = formData.email.split('@')[0];
+          console.log(`username after split is : ${uName}`);
+          Meteor.call('updateAppId', uName, registerUser.resAppId, (error, result) => {
+            if (error) {
+              console.log('Error', JSON.stringify({error}));
+            } else {
+              console.log('Success', JSON.stringify({result}));
+            }
+          });
+      }
+        console.log('After the external Call');
+        console.log(`the result is : ${JSON.stringify({registerUser})}`);
 
         // Navigate to login after successful registration
         navigate('/login');
