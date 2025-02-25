@@ -4,14 +4,18 @@ import { FiUser, FiMail, FiLock } from 'react-icons/fi';
 import { motion } from 'framer-motion';
 import { Meteor } from 'meteor/meteor';
 import { Session } from 'meteor/session';
+import BiometricRegistrationModal from './Modal/BiometricRegistrationModal';
 
 
 export const RegistrationPage = ({ deviceDetails }) => {
   const [formData, setFormData] = useState({
-    email: '', firstName: '', lastName: '', pin: ''
+    email: '', username: '', firstName: '', lastName: '', pin: ''
   });
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const [showBiometricModal, setShowBiometricModal] = useState(false);
+  const [registeredUser, setRegisteredUser] = useState(null);
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -47,8 +51,8 @@ export const RegistrationPage = ({ deviceDetails }) => {
         console.log(JSON.stringify({registerUser}));
         console.log('Calling the external API for app Id update in LDAP');
         if (registerUser && registerUser.resAppId) {
-          const uName = formData.email.split('@')[0];
-          console.log(`username after split is : ${uName}`);
+          const uName = formData.username;
+          console.log(`username is : ${uName}`);
           Meteor.call('updateAppId', uName, registerUser.resAppId, (error, result) => {
             if (error) {
               console.log('Error', JSON.stringify({error}));
@@ -61,7 +65,10 @@ export const RegistrationPage = ({ deviceDetails }) => {
         console.log(`the result is : ${JSON.stringify({registerUser})}`);
 
         // Navigate to login after successful registration
-        navigate('/login');
+        //navigate('/login');
+
+        setRegisteredUser(registerUser);
+        setShowBiometricModal(true);
       } catch (err) {
         console.error('Registration failed:', err);
         alert(err.reason || 'Registration failed. Please try again.');
@@ -74,9 +81,16 @@ export const RegistrationPage = ({ deviceDetails }) => {
       setLoading(false);
     }
   };
+  const handleBiometricComplete = (wasSuccessful) => {
+    console.log('Biometric registration was successful:', wasSuccessful);
+    // Navigate to login after biometric registration (successful or skipped)
+    navigate('/login');
+  };
+  
 
   const inputFields = [
     { name: 'email', icon: FiMail, type: 'email', placeholder: 'Enter your email' },
+    { name: 'username', icon: FiUser, type: 'Username', placeholder: 'Enter your username' },
     { name: 'firstName', icon: FiUser, type: 'text', placeholder: 'First Name' },
     { name: 'lastName', icon: FiUser, type: 'text', placeholder: 'Last Name' },
     { 
@@ -142,6 +156,12 @@ export const RegistrationPage = ({ deviceDetails }) => {
                 </div>
               </motion.div>
             ))}
+            <BiometricRegistrationModal 
+      isOpen={showBiometricModal}
+      onClose={() => setShowBiometricModal(false)}
+      userData={registeredUser}
+      onComplete={handleBiometricComplete}
+    />
           </div>
 
           <motion.button

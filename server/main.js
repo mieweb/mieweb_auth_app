@@ -6,6 +6,7 @@ import "../imports/api/deviceLogs.js";
 import { check } from "meteor/check";
 import { DeviceLogs } from "../imports/api/deviceLogs.js";
 import { NotificationHistory } from "../imports/api/notificationHistory";
+import { Random } from "meteor/random";
 
 // Create a Map to store pending notifications
 const pendingNotifications = new Map();
@@ -133,6 +134,24 @@ Meteor.methods({
       return { success: false, message: "No pending notification found" };
     }
   },
+  async 'users.loginWithBiometric'(secret) {
+    check(secret, String);
+    
+    // Find the user with this biometric secret/app ID
+    const user = await Meteor.users.findOneAsync({ 'profile.biometricSecret': secret });
+    
+    if (!user) {
+      throw new Meteor.Error('not-found', 'User not found with these biometric credentials');
+    }
+    
+    // Return necessary user information for the session
+    return {
+      _id: user._id,
+      email: user.emails[0].address,
+      username: user.username,
+      // Add other fields you need for the session
+    };
+  },
 
   async userAction(action, requestId, replyText = null) {
     check(action, String);
@@ -163,6 +182,7 @@ Meteor.methods({
 
   async "users.register"(userDetails) {
     check(userDetails, {
+      username: String,
       email: String,
       pin: String,
       firstName: String,
@@ -177,7 +197,8 @@ Meteor.methods({
       fcmDeviceToken: String,
     });
 
-    const { email, pin, firstName, lastName, sessionDeviceInfo } = userDetails;
+    const biometricSecret = Random.secret(32);
+    const { email, username, pin, firstName, lastName, sessionDeviceInfo } = userDetails;
     const fcmToken = userDetails.fcmDeviceToken;
 
     // Check if user exists
@@ -191,10 +212,12 @@ Meteor.methods({
     try {
       // Create user in Meteor users collection
       const userId = await Accounts.createUser({
+        username,
         email,
         password: pin,
         profile: {
           firstName,
+          biometricSecret,
           lastName,
           deviceInfo: sessionDeviceInfo,
           deviceToken: fcmToken,
@@ -209,10 +232,12 @@ Meteor.methods({
         generatedAppId = await Meteor.call('deviceLogs.upsert', {
 
           userId: userId.toString(),
+          username,
           email,
           deviceUUID: sessionDeviceInfo.uuid,
           fcmToken,
           deviceInfo: sessionDeviceInfo,
+          biometricSecret
         });
       }
       console.log(generatedAppId);
@@ -222,6 +247,7 @@ Meteor.methods({
         success: true,
         userId,
         resAppId,
+        biometricSecret,
         message: 'Registration successful',
       };
     } catch (error) {
