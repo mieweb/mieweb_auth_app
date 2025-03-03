@@ -63,9 +63,10 @@ Meteor.methods({
   check(userId, String);
 
   return NotificationHistory.findOneAsync(
-    { userId },
+    { 'userId': userId  },
     { sort: { createdAt: -1 }, fields: { notificationId: 1 } }
   ).then((lastNotification) => {
+    console.log("LAST NOTIFICATION ------------------------------------------------", lastNotification)
     return lastNotification ? lastNotification.notificationId : null;
   }).catch((error) => {
     console.error("Error fetching last notification:", error);
@@ -75,8 +76,9 @@ Meteor.methods({
 
   // Fetch all notifications for a user
   'notificationHistory.getByUser': function (userId) {
+    console.log("USer Id is ------------------------------------------",userId)
     check(userId, String);
-    return NotificationHistory.find({ userId }).fetch();
+    return NotificationHistory.find({ 'userId': userId }).fetch();
   },
 
   // Fetch notifications by their status
