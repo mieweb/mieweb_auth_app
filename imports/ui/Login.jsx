@@ -99,7 +99,8 @@ export const LoginPage = ({ deviceDetails }) => {
               // Set user profile in session
               Session.set('userProfile', {
                 email: result.email,
-                // Add other user details as needed
+                username: result.username,
+                _id: result._id,
               });
               
               navigate('/dashboard');
