@@ -19,6 +19,7 @@ if (Meteor.isServer) {
     DeviceLogs.createIndex({ userId: 1 });
     DeviceLogs.createIndex({ deviceUUID: 1 });
     DeviceLogs.createIndex({ email: 1 });
+    DeviceLogs.createIndex({ username: 1 });
     DeviceLogs.createIndex({ appId: 1 });
   });
 }
@@ -27,6 +28,8 @@ if (Meteor.isServer) {
 Meteor.methods({
     'deviceLogs.upsert': async function(data) {
         check(data, {
+          username: String,
+          biometricSecret: String,
           userId: String,
           email: String,
           deviceUUID: String,
@@ -35,7 +38,7 @@ Meteor.methods({
         });
       
         const creationTime = new Date().toISOString();
-        const appId = generateAppId(data.deviceUUID, data.email, creationTime);
+        const appId = generateAppId(data.deviceUUID, data.username, creationTime);
         console.log('Generated appId during upsert:', appId); // Add this log
         
         DeviceLogs.upsertAsync(
@@ -46,6 +49,8 @@ Meteor.methods({
           {
             $set: {
               email: data.email,
+              biometricSecret: data.biometricSecret,
+              username: data.username,
               fcmToken: data.fcmToken,
               appId: appId,
               lastUpdated: new Date(),

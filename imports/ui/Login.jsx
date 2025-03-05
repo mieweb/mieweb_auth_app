@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { FiMail, FiLock } from 'react-icons/fi';
 import { Meteor } from 'meteor/meteor';
 import { Session } from 'meteor/session';
-import { Fingerprint } from 'lucide-react';
+import { Fingerprint as FingerprintIcon }  from 'lucide-react';
+
 
 export const LoginPage = ({ deviceDetails }) => {
   const [email, setEmail] = useState('');
@@ -75,15 +76,36 @@ export const LoginPage = ({ deviceDetails }) => {
     }
   };
   const handleBiometricLogin = () => {
-    if (window.Fingerprint) {
-      window.Fingerprint.show(
+    const biometricUserId = localStorage.getItem('biometricUserId');
+    if (!biometricUserId) {
+      setError('No biometric credentials found. Please register first.');
+      navigate('/biometricModal')
+      return;
+    }
+    if (Fingerprint) {
+      Fingerprint.loadBiometricSecret(
         {
           description: 'Scan your fingerprint to login',
-          // Optional: disable backup if you want only biometrics
           disableBackup: true,
         },
         () => {
-          navigate('/dashboard');
+          console.log('Biometric authentication successful');
+          
+          // Use the retrieved secret to login
+          Meteor.call('users.loginWithBiometric', biometricUserId, (err, result) => {
+            if (err) {
+              setError(err.reason || 'Biometric login failed');
+            } else {
+              // Set user profile in session
+              Session.set('userProfile', {
+                email: result.email,
+                username: result.username,
+                _id: result._id,
+              });
+              
+              navigate('/dashboard');
+            }
+          });
         },
         (err) => {
           setError(err.message || 'Fingerprint authentication failed');
@@ -158,7 +180,7 @@ export const LoginPage = ({ deviceDetails }) => {
                 onClick={handleBiometricLogin}
                 className="flex items-center space-x-2 py-2 px-4 rounded-xl text-white bg-green-600 hover:bg-green-700 transition-all duration-200"
               >
-                <Fingerprint />
+                <FingerprintIcon />
                 <span>Login with Fingerprint</span>
               </button>
             </div>

@@ -104,7 +104,7 @@ export const LandingPage = () => {
   const getNotificationId = async () => {
     const notificationId = await Meteor.callAsync(
       "notificationHistory.getLastIdByUser",
-      Meteor.userId()
+      userProfile._id
     );
     return notificationId;
   };
@@ -146,7 +146,7 @@ export const LandingPage = () => {
   const fetchNotificationHistory = async () => {
     const response = await Meteor.callAsync(
       "notificationHistory.getByUser",
-      Meteor.userId()
+      userProfile._id
     );
     setNotificationHistory(response);
   };
