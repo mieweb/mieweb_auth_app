@@ -8,6 +8,8 @@ import { LoginPage } from './Login';
 import { RegistrationPage } from './Registration';
 import { WelcomePage } from './Welcome';
 import { LandingPage } from './LandingPage';
+import { BiometricRegistrationModal} from './Modal/BiometricRegistrationModal';
+
 
 export const App = () => {
   
@@ -122,6 +124,11 @@ export const App = () => {
             path="/welcome" 
             element={<WelcomePage deviceDetails={capturedDeviceUuid} />} 
           />
+           <Route 
+            path="/biometricModal" 
+            element={<BiometricRegistrationModal deviceDetails={capturedDeviceUuid} />} 
+          />
+
         </Routes>
       </Router>
     </div>
