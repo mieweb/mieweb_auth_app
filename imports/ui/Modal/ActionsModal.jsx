@@ -14,7 +14,7 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, currentNotificatio
         : currentNotification.createdAt;
     
     const now = Date.now();
-    const remainingTime = Math.floor((createdAt + 30000 - now) / 1000);
+    const remainingTime = Math.floor((createdAt + 24000 - now) / 1000);
     return Math.max(0, remainingTime);
   };
 

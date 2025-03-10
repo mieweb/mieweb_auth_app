@@ -81,7 +81,7 @@ WebApp.connectHandlers.use("/send-notification", async (req, res) => {
             resolve("timeout");
             responsePromises.delete(fcmToken);
           }
-        }, 300000); // 5 minute timeout
+        }, 25000); // 25 seconds timeout
       });
 
       // Wait for user response
@@ -354,7 +354,7 @@ Meteor.methods({
   },
   'updateAppId': async function(username, appId) {
     try {
-      const result = await HTTP.post("https://0ea8-50-221-78-186.ngrok-free.app/update-app-id", {
+      const result = await HTTP.post("https://91d0-50-221-78-186.ngrok-free.app/update-app-id", {
         data: {
           username: username,
           appId: appId
