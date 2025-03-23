@@ -65,7 +65,16 @@ export const LandingPage = () => {
 
       if (!newNotification) return;
 
-      console.log("NEW NOTIFICATION", newNotification)
+      console.log("NEW NOTIFICATION", newNotification);
+
+      // Check if this is a dismissal notification
+      if (newNotification.isDismissal === 'true') {
+        console.log("Received dismissal notification");
+        setNotificationId(null);
+        Session.set("notificationReceivedId", null);
+        setIsActionsModalOpen(false);
+        return;
+      }
 
       setNotificationId(newNotification.appId);
 
@@ -296,12 +305,12 @@ export const LandingPage = () => {
     </div>
   );
 
-  const sendUserAction = (appId, action) => {
-    console.log(`Sending user action: ${action} for appId: ${appId}`);
+  const sendUserAction = (username, action) => {
+    console.log(`Sending user action: ${action} for username: ${username}`);
 
     Meteor.call(
       "notifications.handleResponse",
-      appId,
+      username,
       action,
       (error, result) => {
         if (error) {
@@ -323,7 +332,7 @@ export const LandingPage = () => {
   };
 
   const handleApprove = async () => {
-    sendUserAction(notificationId, "approve");
+    sendUserAction(userProfile.username, "approve");
 
     const notfId = await getNotificationId();
     await handleStatusUpdate(notfId, "approved");
@@ -333,7 +342,7 @@ export const LandingPage = () => {
   };
 
   const handleTimeout = async () => {
-    sendUserAction(notificationId, "timeout");
+    sendUserAction(userProfile.username, "timeout");
 
     const notfId = await getNotificationId();
     await handleStatusUpdate(notfId, "timeout");
@@ -342,7 +351,7 @@ export const LandingPage = () => {
   };
 
   const handleReject = async () => {
-    sendUserAction(notificationId, "reject");
+    sendUserAction(userProfile.username, "reject");
     const notfId = await getNotificationId();
 
     await handleStatusUpdate(notfId, "rejected");

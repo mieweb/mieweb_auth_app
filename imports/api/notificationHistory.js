@@ -44,41 +44,43 @@ Meteor.methods({
     check(status, String);
 
     if (!['pending', 'approved', 'rejected', 'timeout'].includes(status)) {
-      throw new Meteor.Error('invalid-status', 'Status must be pending, accepted, or rejected');
+      throw new Meteor.Error('invalid-status', 'Status must be pending, approved, rejected, or timeout');
     }
 
+    // Update all notifications with the same notificationId
     return NotificationHistory.updateAsync(
       { notificationId },
       {
         $set: {
           status: status,
-          updatedAt: new Date(), // Timestamp for status update
+          updatedAt: new Date(),
         },
-      }
+      },
+      { multi: true } // Update all matching documents
     );
   },
 
-// Fetch the last notification ID for a specific user
-'notificationHistory.getLastIdByUser': function (userId) {
-  check(userId, String);
+  // Fetch the last notification ID for a specific user
+  'notificationHistory.getLastIdByUser': function (userId) {
+    check(userId, String);
 
-  return NotificationHistory.findOneAsync(
-    { 'userId': userId  },
-    { sort: { createdAt: -1 } }
-  ).then((lastNotification) => {
-    console.log("LAST NOTIFICATION ------------------------------------------------", lastNotification)
-    return lastNotification ? lastNotification : null;
-  }).catch((error) => {
-    console.error("Error fetching last notification:", error);
-    throw new Meteor.Error("database-error", "Failed to fetch last notification");
-  });
-},
+    return NotificationHistory.findOneAsync(
+      { userId },
+      { sort: { createdAt: -1 } }
+    ).then((lastNotification) => {
+      console.log("LAST NOTIFICATION ------------------------------------------------", lastNotification);
+      return lastNotification ? lastNotification : null;
+    }).catch((error) => {
+      console.error("Error fetching last notification:", error);
+      throw new Meteor.Error("database-error", "Failed to fetch last notification");
+    });
+  },
 
   // Fetch all notifications for a user
   'notificationHistory.getByUser': function (userId) {
-    console.log("USer Id is ------------------------------------------",userId)
+    console.log("User Id is ------------------------------------------", userId);
     check(userId, String);
-    return NotificationHistory.find({ 'userId': userId }).fetch();
+    return NotificationHistory.find({ userId }, { sort: { createdAt: -1 } }).fetch();
   },
 
   // Fetch notifications by their status

@@ -1,11 +1,11 @@
 App.info({
-  id: 'com.mie.mieauthapp', 
-  name: 'MieAuthApp',         
+  id: 'com.mieweb.mieauth', 
+  name: 'MIEAuth',         
   description: 'A Meteor app with Cordova integration', 
   author: 'Anshul Abrol',         
   email: 'abrol.anshul10@gmail.com', 
   website: 'https://example.com', 
-  version: '1.0.0',           
+  version: '0.0.2',           
 });
 
 // App.setPreference('GradlePluginGoogleServicesEnabled', true);

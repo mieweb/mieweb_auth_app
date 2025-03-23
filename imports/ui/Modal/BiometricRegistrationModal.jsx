@@ -1,56 +1,90 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Fingerprint as FingerprintIcon, XCircle, CheckCircle } from 'lucide-react';
 
 const BiometricRegistrationModal = ({ isOpen, onClose, userData, onComplete }) => {
   const [status, setStatus] = useState('prompt'); // prompt, success, error
   const [errorMessage, setErrorMessage] = useState('');
 
+  useEffect(() => {
+    console.log('BiometricModal mounted/updated with props:', { isOpen, userData });
+    if (isOpen && userData) {
+      console.log('Modal is open with user data:', userData);
+      if (!userData.biometricSecret) {
+        console.error('Missing biometric secret in userData:', userData);
+        setStatus('error');
+        setErrorMessage('Missing biometric data. Please try again.');
+      } else {
+        setStatus('prompt');
+        setErrorMessage('');
+      }
+    }
+  }, [isOpen, userData]);
+
   const registerBiometrics = () => {
+    console.log('Starting biometric registration with data:', userData);
     setStatus('processing');
     
-    // Get unique identifier from user data
-    
+    if (!userData || !userData.biometricSecret) {
+      console.error('Missing biometric secret in userData:', userData);
+      setStatus('error');
+      setErrorMessage('Missing biometric data. Please try again.');
+      return;
+    }
+
     const biometricSecret = userData.biometricSecret;
-    console.log(`secret used for Biometrics is : ${biometricSecret}`);
+    console.log('Using biometric secret:', biometricSecret);
     
-    Fingerprint.registerBiometricSecret({
+    if (!window.Fingerprint) {
+      console.error('Fingerprint plugin not available');
+      setStatus('error');
+      setErrorMessage('Biometric authentication is not available on this device');
+      return;
+    }
+
+    console.log('Calling Fingerprint.registerBiometricSecret...');
+    window.Fingerprint.registerBiometricSecret({
       description: "Secure login for your account",
       secret: biometricSecret,
       invalidateOnEnrollment: true,
-      disableBackup: true, // always disabled on Android
+      disableBackup: true,
     }, 
     () => {
-      // Success callback
-      console.log('biometric success');
+      console.log('Biometric registration successful');
       setStatus('success');
       localStorage.setItem('biometricsEnabled', 'true');
       localStorage.setItem('biometricUserId', biometricSecret);
       
-      // Auto close after success
       setTimeout(() => {
+        console.log('Closing modal and completing registration');
         onClose();
         onComplete(true);
       }, 3000);
     }, 
     (error) => {
-      // Error callback
+      console.error('Biometric registration error:', error);
       setStatus('error');
       setErrorMessage(error.message || "Unable to register biometrics");
-      console.error("Biometric registration error:", error);
     });
   };
 
   const handleSkip = () => {
+    console.log('Skipping biometric registration');
     onClose();
     onComplete(false);
   };
 
   const handleRetry = () => {
+    console.log('Retrying biometric registration');
     setStatus('prompt');
     setErrorMessage('');
   };
 
-  if (!isOpen) return null;
+  if (!isOpen) {
+    console.log('Modal is not open');
+    return null;
+  }
+
+  console.log('Rendering modal with status:', status);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
