@@ -11,8 +11,9 @@ admin.initializeApp({
  * @param {string} title - The notification title.
  * @param {string} body - The notification body.
  * @param {Array} actions - The actions to include in the notification.
+ * @param {boolean} isDismissal - Whether this is a dismissal notification.
  */
-export const sendNotification = async (registrationToken, title, body, actions) => {
+export const sendNotification = async (registrationToken, title, body, actions, isDismissal = false) => {
   const message = {
     token: registrationToken,
     data: {
@@ -21,13 +22,17 @@ export const sendNotification = async (registrationToken, title, body, actions) 
       appId: registrationToken,
       actions: JSON.stringify(actions),
       messageFrom: 'mie',
-      notificationType: 'approval',
+      notificationType: isDismissal ? 'dismissal' : 'approval',
       content_available: '1',
-      notId: '10',
-      // surveyID: "ewtawgreg-gragrag-rgarhthgbad"
+      notId: isDismissal ? 'dismissal' : '10',
+      isDismissal: isDismissal ? 'true' : 'false'
     },
     android: {
       priority: 'high',
+      notification: {
+        tag: isDismissal ? 'dismissal' : 'approval',
+        clickAction: isDismissal ? 'DISMISS' : 'APPROVE'
+      }
     },
     apns: {
       payload: {
@@ -38,9 +43,10 @@ export const sendNotification = async (registrationToken, title, body, actions) 
           },
           badge: 1,
           sound: "default",
-          category: "APPROVAL",
+          category: isDismissal ? "DISMISSAL" : "APPROVAL",
           content_available: 1,
-          mutable_content: true
+          mutable_content: true,
+          'mutable-content': 1
         }
       }
     }

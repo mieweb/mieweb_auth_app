@@ -9,7 +9,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.mie.mieauthapp</string>
+	<string>com.mieweb.mieauth</string>
 	<key>PROJECT_ID</key>
 	<string>miewebauthapp</string>
 	<key>STORAGE_BUCKET</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:1035643861587:ios:31e90121c46aac5d7ea4a6</string>
+	<string>1:1035643861587:ios:3d8dcf30193dbc4a7ea4a6</string>
 </dict>
 </plist>

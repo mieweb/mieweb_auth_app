@@ -5,92 +5,111 @@ import { motion } from 'framer-motion';
 import { Meteor } from 'meteor/meteor';
 import { Session } from 'meteor/session';
 import BiometricRegistrationModal from './Modal/BiometricRegistrationModal';
-
+import { Random } from 'meteor/random';
 
 export const RegistrationPage = ({ deviceDetails }) => {
-  const [formData, setFormData] = useState({
-    email: '', username: '', firstName: '', lastName: '', pin: ''
-  });
+  const [formData, setFormData] = useState({email: '',username: '',firstName: '',lastName: '',pin: ''});
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
   const [showBiometricModal, setShowBiometricModal] = useState(false);
   const [registeredUser, setRegisteredUser] = useState(null);
-
+  const [error, setError] = useState(null);
+  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError(null);
+    console.log('Starting registration process...');
+    
     if (!deviceDetails) {
-      alert('Device information not available');
+      console.error('Device details missing');
+      setError('Device information not available');
       return;
     }
 
     setLoading(true);
     const sessionDeviceInfo = Session.get('capturedDeviceInfo');
-    const fcmDeviceToken = Session.get('deviceToken'); // Get FCM token from session
+    const fcmDeviceToken = Session.get('deviceToken');
 
-    if (sessionDeviceInfo.uuid === deviceDetails) {
-      try {
-        // First register the user with deviceInfo
-        const registerUser = await new Promise((resolve, reject) => {
-          Meteor.call('users.register', 
-            { 
-              ...formData,
-              sessionDeviceInfo, fcmDeviceToken
-            }, 
-            (err, result) => {
-              if (err) {
-                console.error("Registration error:", err);
-                reject(err);
-              } else {
-                console.log("Registration success:", result);                
-                resolve(result);
-              }
-            }
-          );
-        });
-        console.log(JSON.stringify({registerUser}));
-        console.log('Calling the external API for app Id update in LDAP');
-        if (registerUser && registerUser.resAppId) {
-          const uName = formData.username;
-          console.log(`username is : ${uName}`);
-          Meteor.call('updateAppId', uName, registerUser.resAppId, (error, result) => {
-            if (error) {
-              console.log('Error', JSON.stringify({error}));
+    console.log('Session data:', JSON.stringify({ sessionDeviceInfo, fcmDeviceToken }));
+    if (!sessionDeviceInfo || !fcmDeviceToken) {
+      console.error('Missing session data');
+      setError('Device information or FCM token not available');
+      setLoading(false);
+      return;
+    }
+
+    if (sessionDeviceInfo.uuid !== deviceDetails) {
+      console.error('Device UUID mismatch');
+      setError('Registration failed. Device uuid is not matched or tampered.');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // Generate a unique biometric secret
+      const biometricSecret = Random.secret(32);
+      console.log('Generated biometric secret');
+
+      // Register user with device info
+      console.log('Calling users.register method...');
+      const registerUser = await new Promise((resolve, reject) => {
+        Meteor.call(
+          'users.register', 
+          { 
+            ...formData,
+            sessionDeviceInfo,
+            fcmDeviceToken,
+            biometricSecret
+          },
+          (err, result) => {
+            if (err) {
+              console.error("Registration error:", err);
+              reject(err);
             } else {
-              console.log('Success', JSON.stringify({result}));
+              console.log("Registration success:", result);
+              resolve(result);
             }
-          });
-      }
-        console.log('After the external Call');
-        console.log(`the result is : ${JSON.stringify({registerUser})}`);
+          }
+        );
+      });
 
-        // Navigate to login after successful registration
-        //navigate('/login');
-
-        setRegisteredUser(registerUser);
+      console.log('Registration response:', JSON.stringify({ registerUser }));
+      
+      // Check if registration was successful
+      if (registerUser && registerUser.userId) {
+        console.log('Registration successful, preparing biometric modal...');
+        const userData = {
+          userId: registerUser.userId,
+          email: formData.email,
+          username: formData.username,
+          biometricSecret: biometricSecret
+        };
+        console.log('Setting user data:', userData);
+        setRegisteredUser(userData);
         setShowBiometricModal(true);
-      } catch (err) {
-        console.error('Registration failed:', err);
-        alert(err.reason || 'Registration failed. Please try again.');
-      } finally {
-        setLoading(false);
+      } else {
+        console.error('Registration failed - invalid response:', registerUser);
+        setError('Registration failed. Please try again.');
       }
-
-    } else {
-      alert('Registration failed. Device uuid is not matched or tampered.');
+      
+    } catch (err) {
+      console.error('Registration failed:', err);
+      setError(err.reason || 'Registration failed. Please try again.');
+    } finally {
       setLoading(false);
     }
   };
+
   const handleBiometricComplete = (wasSuccessful) => {
     console.log('Biometric registration was successful:', wasSuccessful);
     // Navigate to login after biometric registration (successful or skipped)
     navigate('/login');
   };
-  
 
+  // Input field definitions for the form
   const inputFields = [
     { name: 'email', icon: FiMail, type: 'email', placeholder: 'Enter your email' },
-    { name: 'username', icon: FiUser, type: 'Username', placeholder: 'Enter your username' },
+    { name: 'username', icon: FiUser, type: 'text', placeholder: 'Enter your username' },
     { name: 'firstName', icon: FiUser, type: 'text', placeholder: 'First Name' },
     { name: 'lastName', icon: FiUser, type: 'text', placeholder: 'Last Name' },
     { 
@@ -100,7 +119,8 @@ export const RegistrationPage = ({ deviceDetails }) => {
       placeholder: 'Create a PIN (4-6 digits)',
       minLength: "4",
       maxLength: "6",
-      pattern: "\\d*"
+      pattern: "[0-9]*",
+      inputMode: "numeric"
     }
   ];
 
@@ -110,7 +130,6 @@ export const RegistrationPage = ({ deviceDetails }) => {
       animate={{ opacity: 1 }}
       className="min-h-screen flex flex-col items-center justify-center p-4"
     >
-
       <motion.div
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -127,6 +146,12 @@ export const RegistrationPage = ({ deviceDetails }) => {
           </motion.h2>
           <p className="text-gray-600">Join our community today</p>
         </div>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
+            <span className="block sm:inline">{error}</span>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -156,12 +181,6 @@ export const RegistrationPage = ({ deviceDetails }) => {
                 </div>
               </motion.div>
             ))}
-            <BiometricRegistrationModal 
-      isOpen={showBiometricModal}
-      onClose={() => setShowBiometricModal(false)}
-      userData={registeredUser}
-      onComplete={handleBiometricComplete}
-    />
           </div>
 
           <motion.button
@@ -175,6 +194,14 @@ export const RegistrationPage = ({ deviceDetails }) => {
           </motion.button>
         </form>
       </motion.div>
+
+      {/* Biometric registration modal */}
+      <BiometricRegistrationModal 
+        isOpen={showBiometricModal}
+        onClose={() => setShowBiometricModal(false)}
+        userData={registeredUser}
+        onComplete={handleBiometricComplete}
+      />
     </motion.div>
   );
 };
