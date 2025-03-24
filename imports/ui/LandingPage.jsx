@@ -61,11 +61,47 @@ export const LandingPage = () => {
     const tracker = Tracker.autorun(async () => {
       const newNotification = Session.get("notificationReceivedId");
 
-      console.log("Tracker detected change:", newNotification?.appId);
+      console.log("Tracker detected change:", newNotification);
 
       if (!newNotification) return;
 
       console.log("NEW NOTIFICATION", newNotification);
+
+      // Check if this is a sync notification with status update
+      if (newNotification.isSync === 'true' && newNotification.syncData) {
+        try {
+          const syncData = JSON.parse(newNotification.syncData);
+          console.log("Received sync notification with data:", syncData);
+          
+          if (syncData.notificationId) {
+            // Force close action modal regardless of state
+            if (isActionsModalOpen) {
+              console.log("Closing action modal due to sync notification");
+              setIsActionsModalOpen(false);
+              
+              // Show result modal if it was approved
+              if (syncData.syncAction === "approve") {
+                setIsResultModalOpen(true);
+                setTimeout(() => setIsResultModalOpen(false), 3000);
+              }
+            }
+            
+            // Refresh notification history to show updated status
+            await fetchNotificationHistory();
+            
+            // Clear any notification being processed with this ID
+            if (notificationId === syncData.notificationId) {
+              setNotificationId(null);
+            }
+          }
+          
+          // Clear notification state
+          Session.set("notificationReceivedId", null);
+          return;
+        } catch (error) {
+          console.error("Error processing sync data:", error);
+        }
+      }
 
       // Check if this is a dismissal notification
       if (newNotification.isDismissal === 'true') {
@@ -73,27 +109,42 @@ export const LandingPage = () => {
         setNotificationId(null);
         Session.set("notificationReceivedId", null);
         setIsActionsModalOpen(false);
+        
+        // Refresh notification history
+        await fetchNotificationHistory();
         return;
       }
 
-      setNotificationId(newNotification.appId);
-
-      if (newNotification.status === "pending") {
-        await getNotificationId();
-        setIsActionsModalOpen(true);
-      } else {
-        try {
-          const notfId = await getNotificationId();
-          if (notfId) {
-            console.log("Resolved Notification ID:", notfId);
-            await handleStatusUpdate(notfId, newNotification.status);
-            fetchNotificationHistory();
-          } else {
-            console.warn("No notification ID found.");
-          }
-        } catch (error) {
-          console.error("Error fetching notification ID:", error);
+      // Handle regular notification
+      try {
+        const notfId = await getNotificationId();
+        if (!notfId) {
+          console.log("No notification ID found");
+          return;
         }
+
+        console.log("Setting notification ID:", notfId);
+        setNotificationId(notfId);
+
+        // Check if notification is already handled
+        const isHandled = await Meteor.callAsync('notificationHistory.isHandled', notfId);
+        
+        if (isHandled) {
+          console.log("Notification already handled, closing dialog");
+          setIsActionsModalOpen(false);
+          await fetchNotificationHistory();
+          return;
+        }
+
+        // Open action modal for pending notifications
+        if (newNotification.status === "pending") {
+          setIsActionsModalOpen(true);
+        } else {
+          await handleStatusUpdate(notfId, newNotification.status);
+          await fetchNotificationHistory();
+        }
+      } catch (error) {
+        console.error("Error handling notification:", error);
       }
     });
 
@@ -115,32 +166,36 @@ export const LandingPage = () => {
   }, []);
 
   const getNotificationId = async () => {
-    const notificationId = await Meteor.callAsync(
-      "notificationHistory.getLastIdByUser",
-      userProfile._id
-    );
-    setCurrentNotification(notificationId)
-    console.log(notificationId)
-    return notificationId.notificationId;
+    try {
+      const notificationId = await Meteor.callAsync(
+        "notificationHistory.getLastIdByUser",
+        userProfile._id
+      );
+      if (notificationId) {
+        setCurrentNotification(notificationId);
+        console.log("Current notification:", notificationId);
+        return notificationId.notificationId;
+      }
+      return null;
+    } catch (error) {
+      console.error("Error getting notification ID:", error);
+      return null;
+    }
   };
 
   const handleStatusUpdate = async (id, newStatus) => {
     if (!id) {
+      console.log("No notification ID provided for status update");
       return;
     }
 
-    await Meteor.call(
-      "notificationHistory.updateStatus",
-      id,
-      newStatus,
-      (error, result) => {
-        if (error) {
-          console.error("Error updating status:", error);
-        } else {
-          console.log("Status updated successfully!");
-        }
-      }
-    );
+    try {
+      await Meteor.callAsync("notificationHistory.updateStatus", id, newStatus);
+      console.log("Status updated successfully to:", newStatus);
+      await fetchNotificationHistory();
+    } catch (error) {
+      console.error("Error updating status:", error);
+    }
   };
 
   const toggleDarkMode = () => {
@@ -158,12 +213,34 @@ export const LandingPage = () => {
     fetchNotificationHistory();
   }, []);
 
+  // Add a refresh mechanism to periodically update notification history
+  useEffect(() => {
+    // Initial fetch
+    fetchNotificationHistory();
+    
+    // Set up periodic refresh (every 30 seconds)
+    const refreshInterval = setInterval(() => {
+      if (userProfile._id) {
+        fetchNotificationHistory();
+      }
+    }, 30000);
+    
+    return () => clearInterval(refreshInterval);
+  }, [userProfile._id]);
+
   const fetchNotificationHistory = async () => {
-    const response = await Meteor.callAsync(
-      "notificationHistory.getByUser",
-      userProfile._id
-    );
-    setNotificationHistory(response);
+    console.log("Fetching notification history for user:", userProfile._id);
+    if (!userProfile._id) return;
+    
+    try {
+      const response = await Meteor.callAsync(
+        "notificationHistory.getByUser",
+        userProfile._id
+      );
+      setNotificationHistory(response);
+    } catch (error) {
+      console.error("Error fetching notification history:", error);
+    }
   };
 
   // User profile data fetching
@@ -305,23 +382,17 @@ export const LandingPage = () => {
     </div>
   );
 
-  const sendUserAction = (username, action) => {
+  const sendUserAction = async (username, action) => {
     console.log(`Sending user action: ${action} for username: ${username}`);
 
-    Meteor.call(
-      "notifications.handleResponse",
-      username,
-      action,
-      (error, result) => {
-        if (error) {
-          console.error("Error sending notification response:", error);
-        } else {
-          console.log("Server processed action:", result);
-          setNotificationId(null);
-          Session.set("notificationReceivedId", null);
-        }
-      }
-    );
+    try {
+      const result = await Meteor.callAsync("notifications.handleResponse", username, action);
+      console.log("Server processed action:", result);
+      setNotificationId(null);
+      Session.set("notificationReceivedId", null);
+    } catch (error) {
+      console.error("Error sending notification response:", error);
+    }
   };
 
   const handleCloseResultModal = () => {
@@ -332,31 +403,119 @@ export const LandingPage = () => {
   };
 
   const handleApprove = async () => {
-    sendUserAction(userProfile.username, "approve");
-
-    const notfId = await getNotificationId();
-    await handleStatusUpdate(notfId, "approved");
-    setIsResultModalOpen(true);
-    setIsActionsModalOpen(false);
-    fetchNotificationHistory();
-  };
-
-  const handleTimeout = async () => {
-    sendUserAction(userProfile.username, "timeout");
-
-    const notfId = await getNotificationId();
-    await handleStatusUpdate(notfId, "timeout");
-    setIsActionsModalOpen(false);
-    fetchNotificationHistory();
+    try {
+      const notfId = await getNotificationId();
+      
+      if (!notfId) {
+        console.log("No notification ID found, cannot approve");
+        setIsActionsModalOpen(false);
+        return;
+      }
+      
+      // Check if notification is already handled
+      const isAlreadyHandled = await Meteor.callAsync(
+        "notificationHistory.isHandled",
+        notfId
+      );
+      
+      if (isAlreadyHandled) {
+        console.log("Notification already handled, closing dialog");
+        setIsActionsModalOpen(false);
+        return;
+      }
+      
+      // Send user action first
+      await sendUserAction(userProfile.username, "approve");
+      
+      // Then update status
+      await handleStatusUpdate(notfId, "approved");
+      
+      // Update UI
+      setIsResultModalOpen(true);
+      setIsActionsModalOpen(false);
+      
+      // Refresh notification history
+      await fetchNotificationHistory();
+    } catch (error) {
+      console.error("Error in approve handler:", error);
+      setIsActionsModalOpen(false);
+    }
   };
 
   const handleReject = async () => {
-    sendUserAction(userProfile.username, "reject");
-    const notfId = await getNotificationId();
+    try {
+      const notfId = await getNotificationId();
+      
+      if (!notfId) {
+        console.log("No notification ID found, cannot reject");
+        setIsActionsModalOpen(false);
+        return;
+      }
+      
+      // Check if notification is already handled
+      const isAlreadyHandled = await Meteor.callAsync(
+        "notificationHistory.isHandled",
+        notfId
+      );
+      
+      if (isAlreadyHandled) {
+        console.log("Notification already handled, closing dialog");
+        setIsActionsModalOpen(false);
+        return;
+      }
+      
+      // Send user action first
+      await sendUserAction(userProfile.username, "reject");
+      
+      // Then update status
+      await handleStatusUpdate(notfId, "rejected");
+      
+      setIsActionsModalOpen(false);
+      
+      // Refresh notification history
+      await fetchNotificationHistory();
+    } catch (error) {
+      console.error("Error in reject handler:", error);
+      setIsActionsModalOpen(false);
+    }
+  };
 
-    await handleStatusUpdate(notfId, "rejected");
-    setIsActionsModalOpen(false);
-    fetchNotificationHistory();
+  const handleTimeout = async () => {
+    try {
+      const notfId = await getNotificationId();
+      
+      if (!notfId) {
+        console.log("No notification ID found, cannot timeout");
+        setIsActionsModalOpen(false);
+        return;
+      }
+      
+      // Check if notification is already handled
+      const isAlreadyHandled = await Meteor.callAsync(
+        "notificationHistory.isHandled",
+        notfId
+      );
+      
+      if (isAlreadyHandled) {
+        console.log("Notification already handled, closing dialog");
+        setIsActionsModalOpen(false);
+        return;
+      }
+      
+      // Send user action first
+      await sendUserAction(userProfile.username, "timeout");
+      
+      // Then update status
+      await handleStatusUpdate(notfId, "timeout");
+      
+      setIsActionsModalOpen(false);
+      
+      // Refresh notification history
+      await fetchNotificationHistory();
+    } catch (error) {
+      console.error("Error in timeout handler:", error);
+      setIsActionsModalOpen(false);
+    }
   };
 
   const filteredNotifications = notificationHistory.filter((notification) => {
@@ -371,8 +530,14 @@ export const LandingPage = () => {
 
   const totalPages = Math.ceil(filteredNotifications?.length / PAGE_SIZE);
 
-  const paginatedNotifications = filteredNotifications
-    .reverse()
+  // Sort notifications by createdAt in descending order (newest first)
+  const sortedNotifications = [...filteredNotifications].sort((a, b) => {
+    const dateA = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt);
+    const dateB = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt);
+    return dateB - dateA;
+  });
+
+  const paginatedNotifications = sortedNotifications
     .slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   console.log("paginatedNotifications:", paginatedNotifications);

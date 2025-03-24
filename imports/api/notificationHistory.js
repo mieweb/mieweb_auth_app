@@ -47,6 +47,8 @@ Meteor.methods({
       throw new Meteor.Error('invalid-status', 'Status must be pending, approved, rejected, or timeout');
     }
 
+    console.log(`Updating notification ${notificationId} status to ${status}`);
+
     // Update all notifications with the same notificationId
     return NotificationHistory.updateAsync(
       { notificationId },
@@ -64,11 +66,14 @@ Meteor.methods({
   'notificationHistory.getLastIdByUser': function (userId) {
     check(userId, String);
 
+    console.log(`Fetching last notification for user ${userId}`);
     return NotificationHistory.findOneAsync(
       { userId },
       { sort: { createdAt: -1 } }
     ).then((lastNotification) => {
-      console.log("LAST NOTIFICATION ------------------------------------------------", lastNotification);
+      console.log("LAST NOTIFICATION:", lastNotification ? 
+        `ID: ${lastNotification.notificationId}, Status: ${lastNotification.status}` : 
+        "No notification found");
       return lastNotification ? lastNotification : null;
     }).catch((error) => {
       console.error("Error fetching last notification:", error);
@@ -78,9 +83,17 @@ Meteor.methods({
 
   // Fetch all notifications for a user
   'notificationHistory.getByUser': function (userId) {
-    console.log("User Id is ------------------------------------------", userId);
     check(userId, String);
-    return NotificationHistory.find({ userId }, { sort: { createdAt: -1 } }).fetch();
+    console.log(`Fetching all notifications for user ${userId}`);
+    
+    // Return with newest notifications first
+    return NotificationHistory.find(
+      { userId }, 
+      { 
+        sort: { createdAt: -1 },
+        limit: 50 // Limit to recent notifications for performance
+      }
+    ).fetch();
   },
 
   // Fetch notifications by their status
@@ -92,6 +105,18 @@ Meteor.methods({
     }
 
     return NotificationHistory.find({ status }).fetch();
+  },
+
+  // Check if a notification is already handled
+  'notificationHistory.isHandled': async function (notificationId) {
+    check(notificationId, String);
+    
+    const notification = await NotificationHistory.findOneAsync({ notificationId });
+    if (!notification) {
+      return false;
+    }
+    
+    return notification.status !== 'pending';
   },
 });
 

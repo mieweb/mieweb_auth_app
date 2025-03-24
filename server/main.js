@@ -15,27 +15,74 @@ const responsePromises = new Map();
 /**
  * Save notification history for a user
  * @param {Object} notification - Notification details
+ * @returns {String} Notification ID
  */
 const saveUserNotificationHistory = async (notification) => {
-  const { appId, title, body } = notification;
+  const { appId, title, body, userId } = notification;
 
-  const userDoc = await DeviceDetails.findOneAsync({ 'devices.appId': appId });
-  if (!userDoc) {
-    console.error("No user found for appId:", appId);
-    return;
+  if (!userId) {
+    console.error("No userId provided for notification history");
+    return null;
   }
 
-  const device = userDoc.devices.find(d => d.appId === appId);
-  const userId = userDoc.userId;
-  const data = { userId, appId, title, body };
+  try {
+    // Generate a unique notification ID
+    const notificationId = await Meteor.callAsync("notificationHistory.insert", { 
+      userId, 
+      appId, 
+      title, 
+      body 
+    });
+    
+    console.log(`Notification history saved with ID: ${notificationId}`);
+    return notificationId;
+  } catch (error) {
+    console.error("Error saving notification history:", error);
+    return null;
+  }
+};
 
-  Meteor.call("notificationHistory.insert", data, (error, result) => {
-    if (error) {
-      console.error("Error inserting notification:", error);
-    } else {
-      console.log("Notification inserted successfully:", result);
-    }
-  });
+/**
+ * Helper function to send sync notifications to all user devices
+ * @private
+ */
+const sendSyncNotificationToDevices = async (username, notificationId, action) => {
+  try {
+    const fcmTokens = await Meteor.callAsync('deviceDetails.getFCMTokenByUsername', username);
+    if (!fcmTokens || fcmTokens.length === 0) return;
+
+    const syncData = {
+      notificationId,
+      syncAction: action,
+      timestamp: new Date().toISOString()
+    };
+
+    const notificationData = {
+      appId: fcmTokens[0],
+      messageFrom: 'mie',
+      notificationType: 'sync',
+      content_available: '1',
+      notId: 'sync',
+      isDismissal: 'false',
+      isSync: 'true',
+      syncData: JSON.stringify(syncData)
+    };
+
+    const sendPromises = fcmTokens.map(token =>
+      sendNotification(
+        token,
+        'Notification Update',
+        `Notification ${action}ed`,
+        notificationData
+      )
+    );
+
+    await Promise.allSettled(sendPromises);
+    console.log('Sync notifications sent to all devices');
+  } catch (error) {
+    console.error('Error sending sync notifications:', error);
+    // Don't throw error to prevent disrupting the main flow
+  }
 };
 
 // Handle notification endpoint
@@ -75,10 +122,41 @@ WebApp.connectHandlers.use("/send-notification", async (req, res) => {
         throw new Error("User not found");
       }
 
+      // Prepare notification data
+      const notificationData = {
+        appId: userDoc.devices[0].appId,
+        messageFrom: 'mie',
+        notificationType: 'approval',
+        content_available: '1',
+        notId: '10',
+        isDismissal: 'false',
+        isSync: 'false',
+        actions: JSON.stringify(actions),
+        click_action: 'FLUTTER_NOTIFICATION_CLICK',
+        sound: 'default',
+        // Add platform-specific data
+        platform: 'both',
+        timestamp: new Date().toISOString()
+      };
+
       // Send notification to all devices of the user
-      const notificationPromises = fcmTokens.map(fcmToken => 
-        sendNotification(fcmToken, title, messageBody, actions)
-      );
+      const notificationPromises = fcmTokens.map(async fcmToken => {
+        try {
+          return await sendNotification(fcmToken, title, messageBody, notificationData);
+        } catch (error) {
+          console.error(`Error sending to token ${fcmToken}:`, error);
+          // If token is invalid, we should remove it from the database
+          if (error.code === 'messaging/invalid-registration-token' || 
+              error.code === 'messaging/registration-token-not-registered') {
+            await DeviceDetails.updateAsync(
+              { username },
+              { $pull: { 'devices.fcmToken': fcmToken } }
+            );
+            console.log(`Removed invalid token for user ${username}`);
+          }
+          throw error;
+        }
+      });
 
       await Promise.all(notificationPromises);
       console.log("Notifications sent successfully to all devices");
@@ -93,23 +171,19 @@ WebApp.connectHandlers.use("/send-notification", async (req, res) => {
 
       // Create promise for user response
       const userResponsePromise = new Promise((resolve) => {
-        // Use username as the key for response tracking
         responsePromises.set(username, resolve);
 
-        // Add timeout
         setTimeout(() => {
           if (responsePromises.has(username)) {
             resolve("timeout");
             responsePromises.delete(username);
           }
-        }, 25000); // 25 seconds timeout
+        }, 25000);
       });
 
-      // Wait for user response
       const userResponse = await userResponsePromise;
       console.log("USER RESPONSE", userResponse);
 
-      // Send final response
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(
         JSON.stringify({
@@ -144,34 +218,67 @@ Meteor.methods({
 
     console.log(`Handling notification response for username: ${username}, action: ${action}`);
     
+    // First, find the user and latest notification to update its status
+    const userDoc = await DeviceDetails.findOneAsync({ username });
+    if (!userDoc) {
+      throw new Meteor.Error("user-not-found", "User not found");
+    }
+    
+    // Get the latest notification for this user
+    const latestNotification = await NotificationHistory.findOneAsync(
+      { userId: userDoc.userId },
+      { sort: { createdAt: -1 } }
+    );
+    
+    if (!latestNotification) {
+      console.log("No notification found for user");
+      return { success: false, message: "No notification found" };
+    }
+    
+    // Check if notification is already handled
+    if (latestNotification.status !== 'pending') {
+      console.log(`Notification ${latestNotification.notificationId} already handled with status: ${latestNotification.status}`);
+      
+      // If this is a duplicate response, still send the sync notification to other devices
+      try {
+        await sendSyncNotificationToDevices(username, latestNotification.notificationId, action);
+      } catch (error) {
+        console.error("Error sending sync notification for already handled notification:", error);
+      }
+      
+      // If there's still a pending promise (rare race condition), resolve it
+      if (responsePromises.has(username)) {
+        const resolve = responsePromises.get(username);
+        resolve(latestNotification.status);
+        responsePromises.delete(username);
+        return { success: true, message: `Using existing status: ${latestNotification.status}` };
+      }
+      
+      return { success: true, message: `Notification already handled with status: ${latestNotification.status}` };
+    }
+    
+    // Update notification status in database
+    const newStatus = action === "approve" ? "approved" : action === "reject" ? "rejected" : action;
+    await Meteor.callAsync("notificationHistory.updateStatus", latestNotification.notificationId, newStatus);
+    console.log(`Updated notification ${latestNotification.notificationId} status to ${newStatus}`);
+    
+    // Resolve the promise if it exists
     if (responsePromises.has(username)) {
       const resolve = responsePromises.get(username);
-      resolve(action);
+      resolve(action); // Return the action to the original request
       responsePromises.delete(username);
-
-      // Get all FCM tokens for the user
-      const fcmTokens = await new Promise((resolve, reject) => {
-        Meteor.call("deviceDetails.getFCMTokenByUsername", username, (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        });
-      });
-
-      // Send a "notification handled" message to all devices
-      const notificationPromises = fcmTokens.map(fcmToken => 
-        sendNotification(fcmToken, "Notification Handled", "This notification has been handled on another device", [], true)
-      );
-
-      await Promise.all(notificationPromises);
-
-      return {
-        success: true,
-        message: `Response ${action} processed successfully`,
-      };
+      console.log(`Resolved response promise for username ${username} with action ${action}`);
     } else {
-      console.log("No pending promise found for username:", username);
-      return { success: false, message: "No pending notification found" };
+      console.log(`No pending promise found for username: ${username}, but notification was updated`);
     }
+    
+    // Send sync notification to all devices
+    await sendSyncNotificationToDevices(username, latestNotification.notificationId, action);
+    
+    return {
+      success: true,
+      message: `Response ${action} processed successfully`,
+    };
   },
   
   /**
@@ -469,6 +576,94 @@ Meteor.methods({
       return result;
     } catch (error) {
       throw new Meteor.Error('api-error', error.message);
+    }
+  },
+
+  'notifications.send': async function (username, title, body, actions) {
+    check(username, String);
+    check(title, String);
+    check(body, String);
+    check(actions, Array);
+
+    try {
+      const fcmTokens = await Meteor.callAsync('deviceDetails.getFCMTokenByUsername', username);
+      console.log('Found FCM tokens:', fcmTokens);
+
+      if (!fcmTokens || fcmTokens.length === 0) {
+        throw new Meteor.Error('no-devices', 'No devices found for user');
+      }
+
+      const notificationData = {
+        appId: fcmTokens[0], // Use first token as appId
+        actions: JSON.stringify(actions),
+        messageFrom: 'mie',
+        notificationType: 'approval',
+        content_available: '1',
+        notId: '10',
+        isDismissal: 'false',
+        isSync: 'false'
+      };
+
+      // Send to all devices
+      const sendPromises = fcmTokens.map(token => 
+        sendNotification(token, title, body, notificationData)
+      );
+
+      await Promise.all(sendPromises);
+      console.log('Notifications sent successfully to all devices');
+    } catch (error) {
+      console.error('Error sending notifications:', error);
+      throw new Meteor.Error('notification-failed', error.message);
+    }
+  },
+
+  'notifications.handleResponse': async function (username, action) {
+    check(username, String);
+    check(action, String);
+
+    try {
+      const user = await Meteor.users.findOneAsync({ username });
+      if (!user) {
+        throw new Meteor.Error('user-not-found', 'User not found');
+      }
+
+      const latestNotification = await NotificationHistory.findOneAsync(
+        { userId: user._id },
+        { sort: { createdAt: -1 } }
+      );
+
+      if (!latestNotification) {
+        throw new Meteor.Error('no-notification', 'No notification found');
+      }
+
+      // Check if notification is already handled
+      if (latestNotification.status !== 'pending') {
+        console.log('Notification already handled, sending sync to other devices');
+        // Still send sync notification to other devices
+        await sendSyncNotificationToDevices(username, latestNotification.notificationId, action);
+        return { status: 'already-handled' };
+      }
+
+      // Update notification status
+      await NotificationHistory.updateAsync(
+        { _id: latestNotification._id },
+        { $set: { status: action === 'approve' ? 'approved' : 'rejected' } }
+      );
+
+      // Send sync notification to other devices
+      await sendSyncNotificationToDevices(username, latestNotification.notificationId, action);
+
+      // Resolve any pending promises for this notification
+      if (responsePromises.has(username)) {
+        const resolve = responsePromises.get(username);
+        resolve(action);
+        responsePromises.delete(username);
+      }
+
+      return { status: 'success', action };
+    } catch (error) {
+      console.error('Error handling notification response:', error);
+      throw new Meteor.Error('response-failed', error.message);
     }
   },
 });
