@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Meteor } from 'meteor/meteor';
 import './main.css';
-import '../imports/api/deviceLogs';
+import '../imports/api/deviceDetails';
 import { App } from '../imports/ui/App';
 import { Session } from 'meteor/session';
 
@@ -101,7 +101,7 @@ Meteor.startup(() => {
         // Handle registration
         push.on('registration', (data) => {
           console.log("Registration handler attached");
-          console.log('Registration data:', data);
+          console.log('Registration data:', JSON.stringify(data));
           Session.set('deviceToken', data.registrationId);
         });
 

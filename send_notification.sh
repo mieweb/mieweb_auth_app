@@ -1,13 +1,13 @@
 #!/bin/bash
 
-PUSHGATEWAY="https://41ef-50-221-78-186.ngrok-free.app"
-RELYINGPARTY="a78f8aa7b740a9b7c043883a726de4b8"
+PUSHGATEWAY="http://localhost:3000"
+RELYINGPARTY="abrol"
 #USERID=
 
 curl -X POST "$PUSHGATEWAY/send-notification" \
 -H "Content-Type: application/json" \
 -d '{
-  "appId": "'"${RELYINGPARTY}"'",
+  "username": "'"${RELYINGPARTY}"'",
   "title": "MIE Sudo Security Alert",
   "body": "Please review and respond to your pending MIE request in the app",
   "timeout": "",
