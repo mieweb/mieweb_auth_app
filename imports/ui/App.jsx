@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Meteor } from 'meteor/meteor';
-import { DeviceLogs } from '../api/deviceLogs'
+import { DeviceDetails } from '../api/deviceDetails';
 import { Session } from 'meteor/session';
 import { Tracker } from 'meteor/tracker';
 import { LoginPage } from './Login';
@@ -10,9 +10,7 @@ import { WelcomePage } from './Welcome';
 import { LandingPage } from './LandingPage';
 import { BiometricRegistrationModal} from './Modal/BiometricRegistrationModal';
 
-
 export const App = () => {
-  
   const [capturedDeviceUuid, setCapturedDeviceUuid] = useState(null);
   const [boolRegisteredDevice, setBoolRegisteredDevice] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -23,7 +21,7 @@ export const App = () => {
     // Setup Tracker autorun for Session changes
     const sessionTracker = Tracker.autorun(() => {
       const deviceInfo = Session.get('capturedDeviceInfo');
-      console.log('Session deviceInfo:', deviceInfo);
+      console.log('Session deviceInfo:', JSON.stringify(deviceInfo));
 
       if (!deviceInfo || !deviceInfo.uuid) {
         console.log('No valid device info in session');
@@ -35,8 +33,8 @@ export const App = () => {
 
       setCapturedDeviceUuid(deviceInfo.uuid);
       
-      // Subscribe to deviceLogs
-      const subscriber = Meteor.subscribe('deviceLogs.byDevice', deviceInfo.uuid, {
+      // Subscribe to deviceDetails
+      const subscriber = Meteor.subscribe('deviceDetails.byDevice', deviceInfo.uuid, {
         onStop: (error) => {
           if (error) {
             console.error('Subscription error:', error);
@@ -44,13 +42,16 @@ export const App = () => {
         },
         onReady: () => {
           console.log('Subscription is ready');
-          // Query the collection
-          const storedDeviceInfo = DeviceLogs.find({ 
-            deviceUUID: deviceInfo.uuid 
-          }).fetch();
+          // Query the collection with the new structure
+          const deviceDetailsDoc = DeviceDetails.findOne({ 
+            'devices.deviceUUID': deviceInfo.uuid 
+          });
           
-          console.log('Fetched Device Info:', JSON.stringify({storedDeviceInfo}));
-          setBoolRegisteredDevice(storedDeviceInfo.length > 0);
+          
+          console.log('Fetched Device Info:', JSON.stringify({deviceDetailsDoc}));          
+          
+          setBoolRegisteredDevice(!!deviceDetailsDoc);
+          console.log(boolRegisteredDevice);     
           setIsLoading(false);
         }
       });
@@ -79,7 +80,6 @@ export const App = () => {
       isLoading
     });
   }, [capturedDeviceUuid, boolRegisteredDevice, isLoading]);
-
 
   // Show loading spinner while checking registration
   if (isLoading) {
@@ -124,11 +124,10 @@ export const App = () => {
             path="/welcome" 
             element={<WelcomePage deviceDetails={capturedDeviceUuid} />} 
           />
-           <Route 
+          <Route 
             path="/biometricModal" 
             element={<BiometricRegistrationModal deviceDetails={capturedDeviceUuid} />} 
           />
-
         </Routes>
       </Router>
     </div>

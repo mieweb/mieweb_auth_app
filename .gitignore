@@ -130,7 +130,9 @@ dist
 .pnp.*
 
 
-google-services.json
+server/private/google-services.json
 server/private/miewebauthapp-ffab4fc33682.json
+server/private/AuthKey_25AZQU2X57.p8
+server/private/GoogleService-Info.plist
 
-private
+server/private

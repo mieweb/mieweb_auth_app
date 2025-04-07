@@ -181,7 +181,7 @@ export const LoginPage = ({ deviceDetails }) => {
                 className="flex items-center space-x-2 py-2 px-4 rounded-xl text-white bg-green-600 hover:bg-green-700 transition-all duration-200"
               >
                 <FingerprintIcon />
-                <span>Login with Fingerprint</span>
+                <span>Login with Biometrics</span>
               </button>
             </div>
           )}
