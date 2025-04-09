@@ -2,11 +2,13 @@ import { Meteor } from "meteor/meteor";
 import { WebApp } from "meteor/webapp";
 import { sendNotification } from "./firebase";
 import { Accounts } from "meteor/accounts-base";
-import "../imports/api/deviceDetails.js";
 import { check } from "meteor/check";
-import { DeviceDetails } from "../imports/api/deviceDetails.js";
-import { NotificationHistory } from "../imports/api/notificationHistory";
 import { Random } from "meteor/random";
+import { DeviceDetails } from "../utils/api/deviceDetails.js";
+import {NotificationHistory} from "../utils/api/notificationHistory.js"
+// import { NotificationHistory } from "/imports/api/notificationHistory";
+// import { DeviceDetails } from "/imports/api/deviceDetails";
+
 
 // Create Maps to store pending notifications and response promises
 const pendingNotifications = new Map();
