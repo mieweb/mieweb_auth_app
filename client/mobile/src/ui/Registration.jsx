@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiUser, FiMail, FiLock } from 'react-icons/fi';
 import { motion } from 'framer-motion';
@@ -8,106 +8,25 @@ import BiometricRegistrationModal from './Modal/BiometricRegistrationModal';
 import { Random } from 'meteor/random';
 
 export const RegistrationPage = ({ deviceDetails }) => {
-  const [formData, setFormData] = useState({email: '',username: '',firstName: '',lastName: '',pin: ''});
+  const [formData, setFormData] = useState({
+    email: '',
+    username: '',
+    firstName: '',
+    lastName: '',
+    pin: ''
+  });
   const [loading, setLoading] = useState(false);
   const [showBiometricModal, setShowBiometricModal] = useState(false);
   const [registeredUser, setRegisteredUser] = useState(null);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError(null);
-    console.log('Starting registration process...');
-    
-    if (!deviceDetails) {
-      console.error('Device details missing');
-      setError('Device information not available');
-      return;
-    }
+  useEffect(() => {
+    console.log('### Log Step 4 : RegistrationPage mounted');
+    return () => console.log('### Log: RegistrationPage unmounted');
+  }, []);
 
-    setLoading(true);
-    const sessionDeviceInfo = Session.get('capturedDeviceInfo');
-    const fcmDeviceToken = Session.get('deviceToken');
-
-    console.log('Session data:', JSON.stringify({ sessionDeviceInfo, fcmDeviceToken }));
-    if (!sessionDeviceInfo || !fcmDeviceToken) {
-      console.error('Missing session data');
-      setError('Device information or FCM token not available');
-      setLoading(false);
-      return;
-    }
-
-    if (sessionDeviceInfo.uuid !== deviceDetails) {
-      console.error('Device UUID mismatch');
-      setError('Registration failed. Device uuid is not matched or tampered.');
-      setLoading(false);
-      return;
-    }
-
-    try {
-      // Generate a unique biometric secret
-      const biometricSecret = Random.secret(32);
-      console.log('Generated biometric secret');
-
-      // Register user with device info
-      console.log('Calling users.register method...');
-      const registerUser = await new Promise((resolve, reject) => {
-        Meteor.call(
-          'users.register', 
-          { 
-            ...formData,
-            sessionDeviceInfo,
-            fcmDeviceToken,
-            biometricSecret
-          },
-          (err, result) => {
-            if (err) {
-              console.error("Registration error:", err);
-              reject(err);
-            } else {
-              console.log("Registration success:", result);
-              resolve(result);
-            }
-          }
-        );
-      });
-
-      console.log('Registration response:', JSON.stringify({ registerUser }));
-      
-      // Check if registration was successful
-      if (registerUser && registerUser.userId) {
-        console.log('Registration successful, preparing biometric modal...');
-        const userData = {
-          userId: registerUser.userId,
-          email: formData.email,
-          username: formData.username,
-          biometricSecret: biometricSecret
-        };
-        console.log('Setting user data:', userData);
-        setRegisteredUser(userData);
-        setShowBiometricModal(true);
-      } else {
-        console.error('Registration failed - invalid response:', registerUser);
-        setError('Registration failed. Please try again.');
-      }
-      
-    } catch (err) {
-      console.error('Registration failed:', err);
-      setError(err.reason || 'Registration failed. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleBiometricComplete = (wasSuccessful) => {
-    console.log('Biometric registration was successful:', wasSuccessful);
-    // Navigate to login after biometric registration (successful or skipped)
-    navigate('/login');
-  };
-
-  // Input field definitions for the form
-  const inputFields = [
+  const inputFields = useMemo(() => [
     { name: 'email', icon: FiMail, type: 'email', placeholder: 'Enter your email' },
     { name: 'username', icon: FiUser, type: 'text', placeholder: 'Enter your username' },
     { name: 'firstName', icon: FiUser, type: 'text', placeholder: 'First Name' },
@@ -122,7 +41,74 @@ export const RegistrationPage = ({ deviceDetails }) => {
       pattern: "[0-9]*",
       inputMode: "numeric"
     }
-  ];
+  ], []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    console.log('### Log Step 4.1 : Form submission initiated');
+    
+    if (loading) return;
+    
+    setError(null);
+    setLoading(true);
+
+    try {
+      const sessionDeviceInfo = Session.get('capturedDeviceInfo');
+      const fcmDeviceToken = Session.get('deviceToken');
+      console.log('### Log Step 4.2: Session data:', JSON.stringify({
+        sessionDeviceInfo,
+        fcmDeviceToken
+      }));
+
+      if (!sessionDeviceInfo?.uuid || !fcmDeviceToken) {
+        throw new Error('Device information or FCM token not available');
+      }
+
+      if (sessionDeviceInfo.uuid !== deviceDetails) {
+        throw new Error('Device UUID mismatch');
+      }
+
+      const biometricSecret = Random.secret(32);
+      console.log('### Log Step 4.3: Generated biometric secret');
+
+      console.log('### Log Step 4.4: Calling users.register method...');
+      const registerUser = await Meteor.callAsync('users.register', {
+        ...formData,
+        sessionDeviceInfo,
+        fcmDeviceToken,
+        biometricSecret
+      });
+
+      console.log('### Log Step 4.5: Registration response:', JSON.stringify(registerUser));
+
+      if (registerUser?.userId) {
+        console.log('### Log Step 4.6: Registration successful');
+        const userPayload = {
+          userId: registerUser.userId,
+          email: formData.email,
+          username: formData.username,
+          biometricSecret
+        };
+        
+        setRegisteredUser(userPayload);
+        setTimeout(() => {
+          console.log('### Opening biometric modal');
+          setShowBiometricModal(true);
+        }, 0);
+      }
+    } catch (err) {
+      console.error('### Log Step ERROR:', err);
+      setError(err.reason || err.message || 'Registration failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBiometricComplete = useCallback((wasSuccessful) => {
+    console.log('### Log Step 4.7: Biometric completion:', wasSuccessful);
+    setShowBiometricModal(false);
+    navigate('/login');
+  }, [navigate]);
 
   return (
     <motion.div 
@@ -169,7 +155,9 @@ export const RegistrationPage = ({ deviceDetails }) => {
                 <div className="mt-1 relative">
                   <field.icon className="absolute top-3 left-3 text-gray-400" />
                   <input
-                    {...field}
+                    name={field.name}
+                    type={field.type}
+                    placeholder={field.placeholder}
                     required
                     value={formData[field.name]}
                     onChange={e => setFormData(prev => ({
@@ -177,6 +165,10 @@ export const RegistrationPage = ({ deviceDetails }) => {
                       [e.target.name]: e.target.value
                     }))}
                     className="w-full pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500"
+                    pattern={field.pattern}
+                    inputMode={field.inputMode}
+                    minLength={field.minLength}
+                    maxLength={field.maxLength}
                   />
                 </div>
               </motion.div>
@@ -195,13 +187,15 @@ export const RegistrationPage = ({ deviceDetails }) => {
         </form>
       </motion.div>
 
-      {/* Biometric registration modal */}
-      <BiometricRegistrationModal 
-        isOpen={showBiometricModal}
-        onClose={() => setShowBiometricModal(false)}
-        userData={registeredUser}
-        onComplete={handleBiometricComplete}
-      />
+      {showBiometricModal && (
+        <BiometricRegistrationModal
+          key={Date.now()}
+          isOpen={showBiometricModal}
+          onClose={() => setShowBiometricModal(false)}
+          userData={registeredUser}
+          onComplete={handleBiometricComplete}
+        />
+      )}
     </motion.div>
   );
 };

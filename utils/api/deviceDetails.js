@@ -52,6 +52,7 @@ Meteor.methods({
    * @returns {String} Generated appId
    */
   'deviceDetails': async function(data) {
+    console.log(" ### Log Step 6 : Inside /utils/api/deviceDetails.js and checking all the data received");
     check(data, {
       username: String,
       biometricSecret: String,
@@ -65,9 +66,10 @@ Meteor.methods({
   
     const creationTime = new Date().toISOString();
     const appId = generateAppId(data.deviceUUID, data.username, creationTime);
+    console.log(" ### Log Step 6.1  : Inside /utils/api/deviceDetails.js,  generating app Id", JSON.stringify({appId}));
     
     const userDeviceDoc = await DeviceDetails.findOneAsync({ userId: data.userId });
-    console.log(`userDeviceDoc: ${JSON.stringify(userDeviceDoc)}`);
+    console.log(`### Log Step 6.2 : Inside /utils/api/deviceDetails.js, fetching existing device details if any(against userId),  userDeviceDoc: ${JSON.stringify(userDeviceDoc)}`);
     
     
     if (userDeviceDoc) {
@@ -75,9 +77,10 @@ Meteor.methods({
       const existingDeviceIndex = userDeviceDoc.devices.findIndex(
         device => device.deviceUUID === data.deviceUUID
       );
-      console.log(`existingDeviceIndex: ${existingDeviceIndex}`);
+      console.log(`### Log Step 6.2 : Inside /utils/api/deviceDetails.js, fetching existing device details, existingDeviceIndex: ${existingDeviceIndex}`);
       if (existingDeviceIndex !== -1) {
         // Update existing device
+        console.log(`### Log Step 6.3 : Inside /utils/api/deviceDetails.js, Existing device details found and updating it, existingDeviceIndex: ${existingDeviceIndex}`);
         await DeviceDetails.updateAsync(
           { 
             userId: data.userId,            
@@ -100,6 +103,7 @@ Meteor.methods({
         return userDeviceDoc.devices[existingDeviceIndex].appId;
       } else {
         // Add new device to existing user document
+        console.log('### Log Step 6.3 : Inside /utils/api/deviceDetails.js, Existing device details not found thus creating a new device details against the existing user');
         await DeviceDetails.updateAsync(
           { userId: data.userId },
           {
@@ -125,6 +129,7 @@ Meteor.methods({
       }
     } else {
       // Create new user document with first device
+      console.log('### Log Step 6.4 : Inside /utils/api/deviceDetails.js, Create new user document with first device ');
       await DeviceDetails.insertAsync({
         userId: data.userId,
         email: data.email,

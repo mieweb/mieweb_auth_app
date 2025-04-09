@@ -2,7 +2,7 @@ import { Meteor } from "meteor/meteor";
 import { Session } from 'meteor/session';
 
 export const initializeBiometrics = () => {
-  console.log("******************* Biometric Info *******************");
+  console.log(" ### Log Step 1.2: inside biometrics.js and setting session with biometric options available");
   Fingerprint.isAvailable(
     function(result) {
       console.log("Biometric available:", result);
