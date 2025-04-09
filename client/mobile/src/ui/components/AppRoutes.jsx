@@ -7,6 +7,7 @@ import { LandingPage } from '../LandingPage';
 import { BiometricRegistrationModal } from '../Modal/BiometricRegistrationModal';
 
 export const AppRoutes = ({ isRegistered, deviceUuid }) => {
+  console.log(' ### Log Step 3 : inside AppRoutes.jsx,  App routes called with:', JSON.stringify({ isRegistered, deviceUuid }));
   return (
     <Router>
       <Routes>

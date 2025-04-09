@@ -6,8 +6,6 @@ import { check } from "meteor/check";
 import { Random } from "meteor/random";
 import { DeviceDetails } from "../utils/api/deviceDetails.js";
 import {NotificationHistory} from "../utils/api/notificationHistory.js"
-// import { NotificationHistory } from "/imports/api/notificationHistory";
-// import { DeviceDetails } from "/imports/api/deviceDetails";
 
 
 // Create Maps to store pending notifications and response promises
@@ -357,6 +355,7 @@ Meteor.methods({
    * @returns {Object} Registration result
    */
   async 'users.register'(userDetails) {
+    console.log(" ### Log Step 5 : Inside server/main.js and checking all the userDetails received");
     check(userDetails, {
       email: String,
       username: String,
@@ -372,6 +371,7 @@ Meteor.methods({
 
     try {
       // Check if user already exists
+      console.log(" ### Log Step 5.1 : Inside server/main.js and checking if user already exist? passing username and email to fetch the user")
       const existingUser = await Meteor.users.findOneAsync({
         $or: [
           { 'emails.address': { $regex: new RegExp(`^${email}$`, 'i') } },
@@ -382,9 +382,11 @@ Meteor.methods({
       let userId;
       if (existingUser) {
         // User exists, use their ID
+        console.log(" ### Log Step 5.2 : Inside server/main.js, User already exist in DB")
         userId = existingUser._id;
       } else {
         // Create new user account
+        console.log(" ### Log Step 5.2 : Inside server/main.js, New user, hence creating new record in Meteor.users collection")
         userId = await new Promise((resolve, reject) => {
           Accounts.createUser({
             email,
@@ -409,8 +411,9 @@ Meteor.methods({
           });
         });
       }
-
+      console.log(" ### Log Step 5.3 : Inside server/main.js, New user created successfully with userId :", JSON.stringify({userId}))
       // Register or update device details
+      console.log(" ### Log Step 5.4 : Inside server/main.js, New user created and now registering the current device in deviceDetails collection")
       await Meteor.callAsync('deviceDetails', {
         username,
         biometricSecret,
@@ -421,12 +424,15 @@ Meteor.methods({
         firstName,
         lastName
       });
+      
 
       return {
         success: true,
         userId,
         message: existingUser ? 'Device registered successfully' : 'User registered successfully'
       };
+      
+      
     } catch (error) {
       console.error('Registration error:', error);
       throw new Meteor.Error(

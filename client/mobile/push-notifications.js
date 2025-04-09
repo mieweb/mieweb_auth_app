@@ -23,7 +23,7 @@ const sendUserAction = (appId, action) => {
  */
 const createNotificationChannel = () => {
   PushNotification.createChannel(
-    () => console.log('Channel created successfully'),
+    () => console.log(" ### Log Step 1: inside main.jsx and about to call configuration methods"),
     () => console.error('Channel creation failed'),
     {
       id: 'default',
@@ -76,8 +76,7 @@ const configurePushNotifications = () => {
  */
 const setupRegistrationHandler = (push) => {
   push.on('registration', (data) => {
-    console.log("Registration handler attached");
-    console.log('Registration data:', JSON.stringify(data));
+    console.log(" ### Log Step 1.3.1 : inside push-notifications.js and initializing Registration handler attached with data ", JSON.stringify(data));
     Session.set('deviceToken', data.registrationId);
   });
 };
@@ -88,7 +87,7 @@ const setupRegistrationHandler = (push) => {
  */
 const setupNotificationHandler = (push) => {
   push.on('notification', (notification) => {
-    console.log('Notification received:', notification);
+    console.log(" ### Log Step 1.3.2 : inside push-notifications.js and initializing Notification received handler with data ", JSON.stringify(notification));
     
     // Handle cold start (app launched from notification)
     if (notification.additionalData.coldstart) {
@@ -150,8 +149,7 @@ const setupApproveHandler = (push) => {
  */
 const setupErrorHandler = (push) => {
   push.on('error', (error) => {
-    console.log("Error handler attached");
-    console.error('Push notification error:', error);
+    console.log(" ### Log Step 1.3.3 : inside push-notifications.js and Error handler attached with data ", JSON.stringify(error));
   });
 };
 
@@ -160,7 +158,8 @@ const setupErrorHandler = (push) => {
  */
 export const initializePushNotifications = () => {
   try {
-    // Create notification channel for Android
+    console.log(" ### Log Step 1.3: inside push-notifications.js and initializing the push config on the device");
+    // Create notification channel for Android 
     createNotificationChannel();
     
     // Initialize push notifications
@@ -172,9 +171,8 @@ export const initializePushNotifications = () => {
     setupRejectHandler(push);
     setupApproveHandler(push);
     setupErrorHandler(push);
-    
-    console.log("******************* Push Notification Config *******************");
-    console.log("All push notification handlers attached successfully");
+  
+    console.log(" ### Log Step 1.3.4: All push notification handlers attached successfully");
   } catch (error) {
     console.error("Error initializing push notifications:", error);
   }

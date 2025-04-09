@@ -13,7 +13,7 @@ Meteor.startup(() => {
 
   if (Meteor.isCordova) {
     document.addEventListener('deviceready', () => {
-      console.log("******************* Device is Ready *******************");
+      console.log(" ### Log Step 1: inside main.jsx and about to call configuration methods");
       captureDeviceInfo();
       initializeBiometrics();
       initializePushNotifications();
