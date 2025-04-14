@@ -19,6 +19,8 @@ export const RegistrationPage = ({ deviceDetails }) => {
   const [showBiometricModal, setShowBiometricModal] = useState(false);
   const [registeredUser, setRegisteredUser] = useState(null);
   const [error, setError] = useState(null);
+  const [registrationStatus, setRegistrationStatus] = useState(null);
+  const [showPendingScreen, setShowPendingScreen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -83,18 +85,38 @@ export const RegistrationPage = ({ deviceDetails }) => {
 
       if (registerUser?.userId) {
         console.log('### Log Step 4.6: Registration successful');
-        const userPayload = {
-          userId: registerUser.userId,
-          email: formData.email,
-          username: formData.username,
-          biometricSecret
-        };
         
-        setRegisteredUser(userPayload);
-        setTimeout(() => {
-          console.log('### Opening biometric modal');
-          setShowBiometricModal(true);
-        }, 0);
+        // Check if this is a first device requiring approval
+        if (registerUser.isFirstDevice && registerUser.registrationStatus === 'pending') {
+          console.log('### Log Step 4.6.1: First device registration pending approval');
+          setRegistrationStatus('pending');
+          setShowPendingScreen(true);
+          
+          // Store user info for later use if needed
+          const userPayload = {
+            userId: registerUser.userId,
+            email: formData.email,
+            username: formData.username,
+            biometricSecret,
+            registrationStatus: 'pending'
+          };
+          setRegisteredUser(userPayload);
+        } else {
+          // Regular flow for additional devices or pre-approved users
+          console.log('### Log Step 4.6.2: Registration approved, proceeding to biometrics');
+          const userPayload = {
+            userId: registerUser.userId,
+            email: formData.email,
+            username: formData.username,
+            biometricSecret
+          };
+          
+          setRegisteredUser(userPayload);
+          setTimeout(() => {
+            console.log('### Opening biometric modal');
+            setShowBiometricModal(true);
+          }, 0);
+        }
       }
     } catch (err) {
       console.error('### Log Step ERROR:', err);
@@ -110,6 +132,59 @@ export const RegistrationPage = ({ deviceDetails }) => {
     navigate('/login');
   }, [navigate]);
 
+  const goToLogin = useCallback(() => {
+    navigate('/login');
+  }, [navigate]);
+
+  // If showing the pending screen
+  if (showPendingScreen) {
+    return (
+      <motion.div 
+        initial={{ opacity: 0 }} 
+        animate={{ opacity: 1 }}
+        className="min-h-screen flex flex-col items-center justify-center p-4"
+      >
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.2 }}
+          className="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-lg"
+        >
+          <div className="text-center space-y-4">
+            <motion.h2 
+              initial={{ y: -20 }}
+              animate={{ y: 0 }}
+              className="text-3xl font-bold text-gray-900"
+            >
+              Registration Pending
+            </motion.h2>
+            <div className="flex justify-center">
+              <div className="animate-pulse w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center">
+                <FiUser className="text-3xl text-blue-500" />
+              </div>
+            </div>
+            <p className="text-gray-600">
+              Since this is your first device registered with us, your account needs to be approved by an administrator.
+            </p>
+            <p className="text-gray-600">
+              You will receive a notification once your registration has been processed.
+            </p>
+          </div>
+
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={goToLogin}
+            className="w-full py-3 px-4 rounded-xl text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 transition-colors"
+          >
+            Back to Login
+          </motion.button>
+        </motion.div>
+      </motion.div>
+    );
+  }
+
+  // Regular registration form
   return (
     <motion.div 
       initial={{ opacity: 0 }} 

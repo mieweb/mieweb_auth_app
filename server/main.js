@@ -354,103 +354,138 @@ Meteor.methods({
    * @param {Object} userDetails - User registration details
    * @returns {Object} Registration result
    */
-  async 'users.register'(userDetails) {
-    console.log(" ### Log Step 5 : Inside server/main.js and checking all the userDetails received");
-    check(userDetails, {
-      email: String,
-      username: String,
-      pin: String,
-      firstName: String,
-      lastName: String,
-      sessionDeviceInfo: Object,
-      fcmDeviceToken: String,
-      biometricSecret: String
+  /**
+ * Register a user or a new device for an existing user
+ * @param {Object} userDetails - User registration details
+ * @returns {Object} Registration result
+ */
+async 'users.register'(userDetails) {
+  console.log(" ### Log Step 5 : Inside server/main.js and checking all the userDetails received");
+  check(userDetails, {
+    email: String,
+    username: String,
+    pin: String,
+    firstName: String,
+    lastName: String,
+    sessionDeviceInfo: Object,
+    fcmDeviceToken: String,
+    biometricSecret: String
+  });
+  
+  const { email, username, pin, firstName, lastName, sessionDeviceInfo, fcmDeviceToken, biometricSecret } = userDetails;
+  
+  try {
+    // Check if user already exists
+    console.log(" ### Log Step 5.1 : Inside server/main.js and checking if user already exist? passing username and email to fetch the user")
+    const existingUser = await Meteor.users.findOneAsync({
+      $or: [
+        { 'emails.address': { $regex: new RegExp(`^${email}$`, 'i') } },
+        { username: { $regex: new RegExp(`^${username}$`, 'i') } }
+      ]
     });
-
-    const { email, username, pin, firstName, lastName, sessionDeviceInfo, fcmDeviceToken, biometricSecret } = userDetails;
-
-    try {
-      // Check if user already exists
-      console.log(" ### Log Step 5.1 : Inside server/main.js and checking if user already exist? passing username and email to fetch the user")
-      const existingUser = await Meteor.users.findOneAsync({
-        $or: [
-          { 'emails.address': { $regex: new RegExp(`^${email}$`, 'i') } },
-          { username: { $regex: new RegExp(`^${username}$`, 'i') } }
-        ]
-      });
-
-      let userId;
-      if (existingUser) {
-        console.log(" ### Log Step 5.2 : Inside server/main.js, User already exist in DB");
-        userId = existingUser._id;
-      } else {
-        // Create new user account
-        console.log(" ### Log Step 5.2 : Inside server/main.js, New user, hence creating new record in Meteor.users collection");
-        
-        try {
-          // Make sure to await the Promise resolution
-          userId = await new Promise((resolve, reject) => {
-            Accounts.createUser({
-              email,
-              username,
-              password: pin,
-              profile: {
-                firstName,
-                lastName
-              }
-            }, (err) => {
-              if (err) {
-                console.error('Error creating user:', err);
-                reject(err);
-              } else {
-                // On the server, the callback receives the new user ID
-                const newUser = Meteor.users.findOne({username: username});
-                if (!newUser) {
-                  reject(new Meteor.Error('user-creation-failed', 'Failed to create user'));
-                } else {
-                  console.log("New user created with ID:", newUser._id);
-                  resolve(newUser._id);
-                }
-              }
-            });
-          });
-          
-          console.log("User created with ID:", userId); // Now userId should be a string
-        } catch (err) {
-          console.error('Error creating user:', err);
-          throw new Meteor.Error('user-creation-failed', err.reason || 'Failed to create user');
-        }
+    
+    let userId;
+    let isFirstDevice = false;
+    let userRegistrationStatus = 'approved'; // Default status for existing users or additional devices
+    
+    if (existingUser) {
+      console.log(" ### Log Step 5.2 : Inside server/main.js, Existing user found with userId :", JSON.stringify(existingUser._id));
+      userId = existingUser._id; // returning back the existing _id
+      
+      // Check if the user has any registered devices already
+      const existingDevices = await Meteor.callAsync('deviceDetails.getByUserId', userId);
+      if (!existingDevices || existingDevices.length === 0) {
+        // This is the first device for an existing user
+        isFirstDevice = true;
+        userRegistrationStatus = 'pending';
       }
-      console.log(" ### Log Step 5.3 : Inside server/main.js, New user created successfully with userId :", JSON.stringify({userId}))
-      // Register or update device details
-      console.log(" ### Log Step 5.4 : Inside server/main.js, New user created and now registering the current device in deviceDetails collection")
-      await Meteor.callAsync('deviceDetails', {
-        username,
-        biometricSecret,
-        userId,
-        email,
-        deviceUUID: sessionDeviceInfo.uuid,
-        fcmToken: fcmDeviceToken,
-        firstName,
-        lastName
-      });
-      
-
-      return {
-        success: true,
-        userId,
-        message: existingUser ? 'Device registered successfully' : 'User registered successfully'
-      };
-      
-      
-    } catch (error) {
-      console.error('Registration error:', error);
-      throw new Meteor.Error(
-        error.error || 'registration-failed',
-        error.reason || 'Failed to register user'
-      );
+    } else {
+      console.log(" ### Log Step 5.2.1 : Creating new user account for:", username);
+      try {
+        userId = await Accounts.createUser({
+          email,
+          username,
+          password: pin,
+          profile: { 
+            firstName, 
+            lastName,
+            registrationStatus: 'pending' // New users start with pending status
+          }
+        });
+        
+        // Setting first device flag for new users
+        isFirstDevice = true;
+        userRegistrationStatus = 'pending';
+        
+        console.log(` ### Log Step 5.2.2 : Successfully created user with ID: ${userId}`);
+      } catch (error) {
+        console.error("User creation error:", error);
+        throw new Meteor.Error('user-creation-failed', error.reason || 'User creation failed');
+      }
     }
-  },
+    
+    console.log(" ### Log Step 5.3 : Inside server/main.js, Now registering the current device in deviceDetails collection");
+    
+    // Register or update device details
+    const appId = await Meteor.callAsync('deviceDetails', {
+      username,
+      biometricSecret,
+      userId,
+      email,
+      deviceUUID: sessionDeviceInfo.uuid,
+      fcmToken: fcmDeviceToken,
+      firstName,
+      lastName,
+      isPrimaryDevice: isFirstDevice,
+      deviceStatus: isFirstDevice ? 'pending' : 'approved'
+    });
+    
+    // If this is the first device, send email to admin for approval
+    if (isFirstDevice) {
+      try {
+        const adminEmails = Meteor.settings.adminEmails || ['admin@example.com'];
+        
+        // Send notification email to admin
+        Email.send({
+          to: adminEmails,
+          from: Meteor.settings.systemEmail || 'system@example.com',
+          subject: `New device approval required for user: ${username}`,
+          text: `
+            A new user has registered with the following details:
+            
+            Username: ${username}
+            Email: ${email}
+            Name: ${firstName} ${lastName}
+            Device UUID: ${sessionDeviceInfo.uuid}
+            
+            Please approve or reject this registration in the admin panel.
+          `
+        });
+        
+        console.log(` ### Log Step 5.4 : Sent approval request email to admin for user: ${username}`);
+      } catch (emailError) {
+        console.error('Failed to send admin notification email:', emailError);
+        // Continue execution even if email fails
+      }
+    }
+    
+    return {
+      success: true,
+      userId,
+      isFirstDevice,
+      registrationStatus: userRegistrationStatus,
+      message: isFirstDevice ? 
+        'Your registration is pending approval by an administrator. You will be notified once approved.' : 
+        'Device registered successfully'
+    };
+  } catch (error) {
+    console.error('Registration error:', error);
+    throw new Meteor.Error(
+      error.error || 'registration-failed',
+      error.reason || 'Failed to register user'
+    );
+  }
+},
 
   /**
    * Get user details by email
