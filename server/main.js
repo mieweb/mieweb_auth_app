@@ -381,35 +381,45 @@ Meteor.methods({
 
       let userId;
       if (existingUser) {
-        // User exists, use their ID
-        console.log(" ### Log Step 5.2 : Inside server/main.js, User already exist in DB")
+        console.log(" ### Log Step 5.2 : Inside server/main.js, User already exist in DB");
         userId = existingUser._id;
       } else {
         // Create new user account
-        console.log(" ### Log Step 5.2 : Inside server/main.js, New user, hence creating new record in Meteor.users collection")
-        userId = await new Promise((resolve, reject) => {
-          Accounts.createUser({
-            email,
-            username,
-            password: pin,
-            profile: {
-              firstName,
-              lastName
-            }
-          }, (err) => {
-            if (err) {
-              console.error('Error creating user:', err);
-              reject(err);
-            } else {
-              const newUser = Accounts.findUserByEmail(email);
-              if (!newUser) {
-                reject(new Meteor.Error('user-creation-failed', 'Failed to create user'));
-              } else {
-                resolve(newUser._id);
+        console.log(" ### Log Step 5.2 : Inside server/main.js, New user, hence creating new record in Meteor.users collection");
+        
+        try {
+          // Make sure to await the Promise resolution
+          userId = await new Promise((resolve, reject) => {
+            Accounts.createUser({
+              email,
+              username,
+              password: pin,
+              profile: {
+                firstName,
+                lastName
               }
-            }
+            }, (err) => {
+              if (err) {
+                console.error('Error creating user:', err);
+                reject(err);
+              } else {
+                // On the server, the callback receives the new user ID
+                const newUser = Meteor.users.findOne({username: username});
+                if (!newUser) {
+                  reject(new Meteor.Error('user-creation-failed', 'Failed to create user'));
+                } else {
+                  console.log("New user created with ID:", newUser._id);
+                  resolve(newUser._id);
+                }
+              }
+            });
           });
-        });
+          
+          console.log("User created with ID:", userId); // Now userId should be a string
+        } catch (err) {
+          console.error('Error creating user:', err);
+          throw new Meteor.Error('user-creation-failed', err.reason || 'Failed to create user');
+        }
       }
       console.log(" ### Log Step 5.3 : Inside server/main.js, New user created successfully with userId :", JSON.stringify({userId}))
       // Register or update device details
