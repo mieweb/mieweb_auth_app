@@ -11,6 +11,8 @@ export const captureDeviceInfo = () => {
       version: device.version,
       manufacturer: device.manufacturer,
     });
+    console.log(`### Log Step 1.1.1 : session for capturedDeviceInfo: ${JSON.stringify(Session.get('capturedDeviceInfo'))}`);
+    
   }
 };
 

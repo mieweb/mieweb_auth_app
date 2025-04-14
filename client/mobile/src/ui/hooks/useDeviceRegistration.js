@@ -24,8 +24,9 @@ export const useDeviceRegistration = () => {
         setIsLoading(false); 
         return;
       }
-
+      console.log('### Log Step 2.1.1.1 : Session uuis (hook):', JSON.stringify(deviceInfo.uuid));
       setCapturedDeviceUuid(deviceInfo.uuid);
+      console.log('dfsdfsd', JSON.stringify(capturedDeviceUuid));
 
       const subscriber = Meteor.subscribe('deviceDetails.byDevice', deviceInfo.uuid, {
         onStop: (error) => {

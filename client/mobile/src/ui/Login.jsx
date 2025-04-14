@@ -89,7 +89,7 @@ export const LoginPage = ({ deviceDetails }) => {
           disableBackup: true,
         },
         () => {
-          console.log('Biometric authentication successful');
+          
           
           // Use the retrieved secret to login
           Meteor.call('users.loginWithBiometric', biometricUserId, (err, result) => {
