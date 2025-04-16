@@ -40,6 +40,8 @@ const BiometricRegistrationModal = ({ isOpen, onClose, userData, onComplete }) =
     console.log('Biometric registration successful');
     setStatus('success');
     localStorage.setItem('biometricsEnabled', 'true');
+    console.log("userData", userData, userData?.biometricSecret)
+    localStorage.setItem('biometricUserId', userData?.biometricSecret);
     setTimeout(() => {
       onClose();
       onComplete(true);

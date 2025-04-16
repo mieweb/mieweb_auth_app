@@ -5,6 +5,7 @@ import { RegistrationPage } from '../Registration';
 import { WelcomePage } from '../Welcome';
 import { LandingPage } from '../LandingPage';
 import { BiometricRegistrationModal } from '../Modal/BiometricRegistrationModal';
+import PendingRegistrationPage from '../PendingRegistrationPage';
 
 export const AppRoutes = ({ isRegistered, deviceUuid }) => {
   console.log(' ### Log Step 3 : inside AppRoutes.jsx,  App routes called with:', JSON.stringify({ isRegistered, deviceUuid }));
@@ -40,6 +41,10 @@ export const AppRoutes = ({ isRegistered, deviceUuid }) => {
         <Route 
           path="/biometricModal" 
           element={<BiometricRegistrationModal deviceDetails={deviceUuid} />} 
+        />
+        <Route 
+          path="/pending-registration" 
+          element={<PendingRegistrationPage />} 
         />
       </Routes>
     </Router>
