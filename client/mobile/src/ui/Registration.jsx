@@ -101,6 +101,11 @@ export const RegistrationPage = ({ deviceDetails }) => {
             registrationStatus: 'pending'
           };
           setRegisteredUser(userPayload);
+          
+          setTimeout(() => {
+            console.log('### Opening biometric modal');
+            setShowBiometricModal(true);
+          }, 0);
         } else {
           // Regular flow for additional devices or pre-approved users
           console.log('### Log Step 4.6.2: Registration approved, proceeding to biometrics');
@@ -110,12 +115,8 @@ export const RegistrationPage = ({ deviceDetails }) => {
             username: formData.username,
             biometricSecret
           };
-          
           setRegisteredUser(userPayload);
-          setTimeout(() => {
-            console.log('### Opening biometric modal');
-            setShowBiometricModal(true);
-          }, 0);
+         
         }
       }
     } catch (err) {
