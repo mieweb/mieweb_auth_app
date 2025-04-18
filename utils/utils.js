@@ -17,15 +17,14 @@ export const formatDateTime = (isoString) => {
   
     return `${formattedDate} ${formattedTime}`;
   };
-  
 
-export const isValidToken = (userId, token) => {
+  export const isValidToken = async(userId, token) => {
     // Look up the token
-    const tokenRecord = ApprovalTokens.findOneAsync({
+    const tokenRecord = await ApprovalTokens.findOneAsync({
       userId,
       token,
       expiresAt: { $gt: new Date() }
     });
-    
-    return !!tokenRecord;
+
+    return tokenRecord;
   }
