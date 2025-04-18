@@ -603,10 +603,11 @@ if (isFirstDevice) {
     console.log("approval Url", approvalUrl)
     
     // Get admin emails from settings
-    const adminEmails = 'anishapant1@gmail.com'
+    const adminEmails = Meteor.settings.private?.email?.adminEmails
     
     // Get verified sender email from settings
-    const fromEmail = 'anishapant00@gmail.com'
+    const fromEmail = Meteor.settings.private?.email?.fromEmail
+
     
     // Send notification email to admin with HTML that includes a button
     Email.sendAsync({
