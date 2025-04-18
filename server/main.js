@@ -7,6 +7,8 @@ import { check } from "meteor/check";
 import { Random } from "meteor/random";
 import { DeviceDetails } from "../utils/api/deviceDetails.js";
 import {NotificationHistory} from "../utils/api/notificationHistory.js"
+import { ApprovalTokens } from "../utils/api/approvalTokens";
+import { isValidToken } from "../utils/utils";
 
 
 // Create Maps to store pending notifications and response promises
@@ -203,6 +205,112 @@ WebApp.connectHandlers.use("/send-notification", async (req, res) => {
       );
     }
   });
+});
+
+WebApp.connectHandlers.use('/api/approve-user', (req, res) => {
+  // Extract user ID and approval token from query parameters
+  const { userId, token } = req.query;
+  
+  // Verify the token is valid
+  if (isValidToken(userId, token)) {
+    // Update user's registration status
+    Meteor.users.updateAsync(
+      { _id: userId },
+      { $set: { 'profile.registrationStatus': 'approved' } }
+    );
+    
+    // Return a success page
+    res.writeHead(200, {
+      'Content-Type': 'text/html'
+    });
+    
+    res.end(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>User Approved</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              line-height: 1.6;
+              color: #333;
+              max-width: 600px;
+              margin: 0 auto;
+              padding: 20px;
+              text-align: center;
+            }
+            .success-message {
+              background-color: #4CAF50;
+              color: white;
+              padding: 20px;
+              border-radius: 5px;
+              margin-top: 30px;
+              box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            h1 {
+              margin-bottom: 10px;
+            }
+            p {
+              font-size: 16px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="success-message">
+            <h1>Approval Successful</h1>
+            <p>Their device is now activated and they can use the application.</p>
+            <p>Thank you for your response.</p>
+          </div>
+        </body>
+      </html>
+    `);
+  } else {
+    // Invalid token, return an error page
+    res.writeHead(200, {
+      'Content-Type': 'text/html'
+    });
+    
+    res.end(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Error</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              line-height: 1.6;
+              color: #333;
+              max-width: 600px;
+              margin: 0 auto;
+              padding: 20px;
+              text-align: center;
+            }
+            .error-message {
+              background-color: #f44336;
+              color: white;
+              padding: 20px;
+              border-radius: 5px;
+              margin-top: 30px;
+              box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            h1 {
+              margin-bottom: 10px;
+            }
+            p {
+              font-size: 16px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="error-message">
+            <h1>Invalid Approval Request</h1>
+            <p>This approval link is invalid or has expired.</p>
+            <p>Please contact the system administrator for assistance.</p>
+          </div>
+        </body>
+      </html>
+    `);
+  }
 });
 
 // Meteor methods
@@ -482,35 +590,55 @@ async 'users.register'(userDetails) {
       isPrimaryDevice: isFirstDevice,
       deviceStatus: isFirstDevice ? 'pending' : 'approved'
     });
+
+if (isFirstDevice) {
+  try {
+    // Generate an approval token
+    const approvalToken = await Meteor.call('users.generateApprovalToken', userId);
+    console.log("approval token", approvalToken)
     
-    // If this is the first device, send email to admin for approval
-    if (isFirstDevice) {
-      try {
-        const adminEmails = Meteor.settings.adminEmails || ['admin@example.com'];
-        
-        // Send notification email to admin
-        Email.send({
-          to: adminEmails,
-          from: Meteor.settings.systemEmail || 'system@example.com',
-          subject: `New device approval required for user: ${username}`,
-          text: `
-            A new user has registered with the following details:
-            
-            Username: ${username}
-            Email: ${email}
-            Name: ${firstName} ${lastName}
-            Device UUID: ${sessionDeviceInfo.uuid}
-            
-            Please approve or reject this registration in the admin panel.
-          `
-        });
-        
-        console.log(` ### Log Step 5.4 : Sent approval request email to admin for user: ${username}`);
-      } catch (emailError) {
-        console.error('Failed to send admin notification email:', emailError);
-        // Continue execution even if email fails
-      }
-    }
+    // Create the approval URL
+    const approvalUrl = Meteor.absoluteUrl(`api/approve-user?userId=${userId}&token=${approvalToken}`);
+
+    console.log("approval Url", approvalUrl)
+    
+    // Get admin emails from settings
+    const adminEmails = 'anishapant1@gmail.com'
+    
+    // Get verified sender email from settings
+    const fromEmail = 'anishapant00@gmail.com'
+    
+    // Send notification email to admin with HTML that includes a button
+    Email.sendAsync({
+      to: adminEmails,
+      from: fromEmail,
+      subject: `New device approval required for user: ${username}`,
+      html: `
+        <p>A new user has registered with the following details:</p>
+        <ul>
+          <li><strong>Username:</strong> ${username}</li>
+          <li><strong>Email:</strong> ${email}</li>
+          <li><strong>Name:</strong> ${firstName} ${lastName}</li>
+          <li><strong>Device UUID:</strong> ${sessionDeviceInfo.uuid}</li>
+        </ul>
+        <p>Please approve or reject this registration:</p>
+        <p>
+          <a href="${approvalUrl}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block; margin-right: 10px;">
+            Approve Registration
+          </a>
+          <a href="${Meteor.absoluteUrl(`api/reject-user?userId=${userId}&token=${approvalToken}`)}" style="background-color: #f44336; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">
+            Reject Registration
+          </a>
+        </p>
+      `
+    });
+    
+    console.log(`### Log Step 5.4: Sent approval request email to admin for user: ${username}`);
+  } catch (emailError) {
+    console.error('Failed to send admin notification email:', emailError);
+    // Continue execution even if email fails
+  }
+}
     
     return {
       success: true,
@@ -945,13 +1073,39 @@ async 'users.register'(userDetails) {
     success: true,
     message: approved ? 'Secondary device approved' : 'Secondary device rejected'
   };
+},
+
+'users.generateApprovalToken': function(userId) {
+  check(userId, String);
+  
+  // Generate a secure random token
+  const token = Random.secret();
+  
+  // Create or update approval token for this user
+  ApprovalTokens.upsertAsync(
+    { userId: userId },
+    {
+      $set: {
+        token: token,
+        createdAt: new Date(),
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days expiration
+        used: false
+      }
+    }
+  );
+  
+  console.log(`Generated approval token for user ${userId}`);
+  return token;
 }
 });
 
+
 Meteor.startup(() => {
-  // Configure SMTP
-  process.env.MAIL_URL = 'smtp://username:password@smtp.yourprovider.com:587';
-  
-  // Create indexes for better performance
-  // Your existing code...
+  // Configure SMTP from settings
+  if (Meteor.settings.private && Meteor.settings.private.sendgrid) {
+    process.env.MAIL_URL = `smtp://apikey:${Meteor.settings.private.sendgrid.apiKey}@smtp.sendgrid.net:587`;
+    console.log("Email service configured");
+  } else {
+    console.warn("SendGrid API key not found in settings");
+  }
 });
