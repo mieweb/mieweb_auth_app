@@ -207,12 +207,14 @@ WebApp.connectHandlers.use("/send-notification", async (req, res) => {
   });
 });
 
-WebApp.connectHandlers.use('/api/approve-user', (req, res) => {
+WebApp.connectHandlers.use('/api/approve-user', async(req, res) => {
   // Extract user ID and approval token from query parameters
   const { userId, token } = req.query;
+
+  const isValid = await isValidToken(userId, token);
   
   // Verify the token is valid
-  if (isValidToken(userId, token)) {
+  if (isValid) {
     // Update user's registration status
     Meteor.users.updateAsync(
       { _id: userId },
@@ -305,6 +307,111 @@ WebApp.connectHandlers.use('/api/approve-user', (req, res) => {
           <div class="error-message">
             <h1>Invalid Approval Request</h1>
             <p>This approval link is invalid or has expired.</p>
+            <p>Please contact the system administrator for assistance.</p>
+          </div>
+        </body>
+      </html>
+    `);
+  }
+});
+
+WebApp.connectHandlers.use('/api/reject-user', async(req, res) => {
+  const { userId, token } = req.query;
+
+  const isValid = await isValidToken(userId, token);
+  
+  if (isValid) {
+    Meteor.users.updateAsync(
+      { _id: userId },
+      { $set: { 'profile.registrationStatus': 'rejected' } }
+    );
+    
+    // Return a rejection confirmation page
+    res.writeHead(200, {
+      'Content-Type': 'text/html'
+    });
+    
+    res.end(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>User Rejected</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              line-height: 1.6;
+              color: #333;
+              max-width: 600px;
+              margin: 0 auto;
+              padding: 20px;
+              text-align: center;
+            }
+            .reject-message {
+              background-color: #f44336;
+              color: white;
+              padding: 20px;
+              border-radius: 5px;
+              margin-top: 30px;
+              box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            h1 {
+              margin-bottom: 10px;
+            }
+            p {
+              font-size: 16px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="reject-message">
+            <h1>User Rejected</h1>
+            <p>The user has been rejected.</p>
+            <p>They will not be able to use the application with this device.</p>
+            <p>Thank you for your response.</p>
+          </div>
+        </body>
+      </html>
+    `);
+  } else {
+    res.writeHead(200, {
+      'Content-Type': 'text/html'
+    });
+    
+    res.end(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Error</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              line-height: 1.6;
+              color: #333;
+              max-width: 600px;
+              margin: 0 auto;
+              padding: 20px;
+              text-align: center;
+            }
+            .error-message {
+              background-color: #f44336;
+              color: white;
+              padding: 20px;
+              border-radius: 5px;
+              margin-top: 30px;
+              box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            h1 {
+              margin-bottom: 10px;
+            }
+            p {
+              font-size: 16px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="error-message">
+            <h1>Invalid Rejection Request</h1>
+            <p>This rejection link is invalid or has expired.</p>
             <p>Please contact the system administrator for assistance.</p>
           </div>
         </body>
