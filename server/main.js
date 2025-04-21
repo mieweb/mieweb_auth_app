@@ -9,7 +9,7 @@ import { DeviceDetails } from "../utils/api/deviceDetails.js";
 import {NotificationHistory} from "../utils/api/notificationHistory.js"
 import { ApprovalTokens } from "../utils/api/approvalTokens";
 import { isValidToken } from "../utils/utils";
-import { successTemplate, errorTemplate, rejectionTemplate } from './templates/email';
+import { successTemplate, errorTemplate, rejectionTemplate, previouslyUsedTemplate } from './templates/email';
 
 
 // Create Maps to store pending notifications and response promises
@@ -208,16 +208,26 @@ WebApp.connectHandlers.use("/send-notification", async (req, res) => {
   });
 });
 
+// For approval
 WebApp.connectHandlers.use('/api/approve-user', async(req, res) => {
-  // Extract user ID and approval token from query parameters
   const { userId, token } = req.query;
-
   const isValid = await isValidToken(userId, token);
   
-  // Verify the token is valid
   if (isValid) {
+    // Mark token as used with 'approved' action
+    await ApprovalTokens.updateAsync(
+      { userId, token },
+      { 
+        $set: { 
+          used: true,
+          action: 'approved',
+          usedAt: new Date()
+        } 
+      }
+    );
+    
     // Update user's registration status
-    Meteor.users.updateAsync(
+    await Meteor.users.updateAsync(
       { _id: userId },
       { $set: { 'profile.registrationStatus': 'approved' } }
     );
@@ -226,41 +236,82 @@ WebApp.connectHandlers.use('/api/approve-user', async(req, res) => {
     res.writeHead(200, {
       'Content-Type': 'text/html'
     });
-    
     res.end(successTemplate());
   } else {
-    // Invalid token, return an error page
-    res.writeHead(200, {
-      'Content-Type': 'text/html'
+    // Check if token was previously used
+    const usedToken = await ApprovalTokens.findOneAsync({
+      userId,
+      token,
+      used: true
     });
     
-    res.end(errorTemplate());
+    if (usedToken) {
+      // Token was used - show appropriate message
+      res.writeHead(200, {
+        'Content-Type': 'text/html'
+      });
+      
+      res.end(previouslyUsedTemplate());
+    } else {
+      // Invalid or expired token
+      res.writeHead(200, {
+        'Content-Type': 'text/html'
+      });
+      res.end(errorTemplate());
+    }
   }
 });
 
 WebApp.connectHandlers.use('/api/reject-user', async(req, res) => {
   const { userId, token } = req.query;
-
   const isValid = await isValidToken(userId, token);
   
   if (isValid) {
-    Meteor.users.updateAsync(
+    // Mark token as used with 'rejected' action
+    await ApprovalTokens.updateAsync(
+      { userId, token },
+      { 
+        $set: { 
+          used: true,
+          action: 'rejected',
+          usedAt: new Date()
+        } 
+      }
+    );
+    
+    // Update user's registration status
+    await Meteor.users.updateAsync(
       { _id: userId },
       { $set: { 'profile.registrationStatus': 'rejected' } }
     );
     
-    // Return a rejection confirmation page
+    // Return rejection page
     res.writeHead(200, {
       'Content-Type': 'text/html'
     });
-    
     res.end(rejectionTemplate());
   } else {
-    res.writeHead(200, {
-      'Content-Type': 'text/html'
+    // Check if token was previously used (same logic as approve route)
+    const usedToken = await ApprovalTokens.findOneAsync({
+      userId,
+      token,
+      used: true
     });
     
-    res.end(errorTemplate());
+    if (usedToken) {
+      // Token was used - show appropriate message
+      res.writeHead(200, {
+        'Content-Type': 'text/html'
+      });
+      
+      res.end(previouslyUsedTemplate());
+    } else {
+      // Invalid or expired token
+      res.writeHead(200, {
+        'Content-Type': 'text/html'
+      });
+      res.end(errorTemplate());
+    }
   }
 });
 
@@ -1027,26 +1078,31 @@ if (isFirstDevice) {
   };
 },
 
+// When generating the token
 'users.generateApprovalToken': function(userId) {
   check(userId, String);
   
   // Generate a secure random token
   const token = Random.secret();
   
-  // Create or update approval token for this user
+  // TODO: anisha - change later to appropriate expirt time
+  const expiresAt = new Date(Date.now() + 3 * 60 * 1000); // 3 minutes
+  
+  // Store the token with short expiration time
   ApprovalTokens.upsertAsync(
     { userId: userId },
     {
       $set: {
         token: token,
         createdAt: new Date(),
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days expiration
-        used: false
+        expiresAt: expiresAt,
+        used: false,
+        action: null // Will store 'approved' or 'rejected' when used
       }
     }
   );
   
-  console.log(`Generated approval token for user ${userId}`);
+  console.log(`Generated approval token for user ${userId}, expires in 3 minutes`);
   return token;
 }
 });
