@@ -148,29 +148,38 @@ export const sendAdminApprovalEmail = (user, device) => {
  * @param {boolean} approved - Whether the device was approved or rejected
  * @returns {Promise<void>}
  */
-export const sendDeviceApprovalNotification = async (userId, deviceUUID, approved) => {
+export const sendDeviceApprovalNotification = async (userId, newDeviceUUID) => {
   try {
-    const userDoc = await DeviceDetails.findOneAsync({ userId });
-    if (!userDoc) {
-      throw new Error('User device details not found');
-    }
+  
+      // Find the user and devices
+      const userDeviceDoc = await DeviceDetails.findOneAsync({ userId });
+      
+      if (!userDeviceDoc) {
+        throw new Meteor.Error('not-found', 'User device not found');
+      }
+      
+      // Find the primary device
+      const primaryDevice = userDeviceDoc.devices.find(d => d.isPrimary === true);
+      if (!primaryDevice) {
+        throw new Meteor.Error('not-found', 'Primary device not found');
+      }
+
+      console.log(`Primary device found: ${JSON.stringify(primaryDevice)}`);
+      
+      const title = 'New Device Registration';
+      const body = `A Device "${newDeviceUUID.substring(0, 8)}..." is requesting access to your account.`;
+
+      const notificationResult = await sendNotification(primaryDevice.fcmToken, title, body, {
+        notificationType: 'secondary_device_approval',
+        newDeviceUUID: newDeviceUUID,
+        userId: userId,
+        actions: JSON.stringify([
+          { id: 'approve', title: 'Approve' },
+          { id: 'reject', title: 'Reject' }
+        ])
+      });
     
-    const device = userDoc.devices.find(d => d.deviceUUID === deviceUUID);
-    if (!device) {
-      throw new Error('Device not found');
-    }
-    
-    const title = approved ? 'Device Approved' : 'Device Registration Rejected';
-    const body = approved 
-      ? 'Your device has been approved. You can now use the application.' 
-      : 'Your device registration has been rejected. Please contact support for assistance.';
-    
-    await sendNotification(device.fcmToken, title, body, {
-      notificationType: 'device_approval',
-      status: approved ? 'approved' : 'rejected'
-    });
-    
-    console.log(`Device approval notification sent to user ${userId} for device ${deviceUUID}`);
+    console.log(`Device approval notification sent to user ${userId} for device ${newDeviceUUID}`);
   } catch (error) {
     console.error('Error sending device approval notification:', error);
     throw error;
@@ -183,7 +192,7 @@ export const sendDeviceApprovalNotification = async (userId, deviceUUID, approve
  * @param {string} userId - User ID
  * @param {string} primaryDeviceUUID - Primary device UUID
  * @param {Object} newDevice - New device details
- * @returns {Promise<void>}
+ * @returns {Promise<Object>} Result of the notification request
  */
 export const sendSecondaryDeviceApprovalRequest = async (userId, primaryDeviceUUID, newDevice) => {
   try {
@@ -198,9 +207,9 @@ export const sendSecondaryDeviceApprovalRequest = async (userId, primaryDeviceUU
     }
     
     const title = 'New Device Registration';
-    const body = 'A new device is requesting access to your account. Please approve or reject.';
+    const body = `Device "${newDevice.deviceUUID.substring(0, 8)}..." is requesting access to your account.`;
     
-    await sendNotification(primaryDevice.fcmToken, title, body, {
+    const notificationResult = await sendNotification(primaryDevice.fcmToken, title, body, {
       notificationType: 'secondary_device_approval',
       newDeviceUUID: newDevice.deviceUUID,
       userId: userId,
@@ -211,6 +220,14 @@ export const sendSecondaryDeviceApprovalRequest = async (userId, primaryDeviceUU
     });
     
     console.log(`Secondary device approval request sent to primary device ${primaryDeviceUUID}`);
+    
+    // Return the response from the notification service
+    return {
+      notificationSent: true,
+      primaryDevice: primaryDeviceUUID,
+      requestingDevice: newDevice.deviceUUID,
+      notificationResult
+    };
   } catch (error) {
     console.error('Error sending secondary device approval request:', error);
     throw error;

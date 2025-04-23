@@ -1,7 +1,7 @@
 import { Meteor } from "meteor/meteor";
 import { Email } from 'meteor/email';
 import { WebApp } from "meteor/webapp";
-import { sendNotification } from "./firebase";
+import { sendNotification, sendDeviceApprovalNotification } from "./firebase";
 import { Accounts } from "meteor/accounts-base";
 import { check } from "meteor/check";
 import { Random } from "meteor/random";
@@ -503,163 +503,135 @@ Meteor.methods({
   },
 
   /**
-   * Register a user or a new device for an existing user
-   * @param {Object} userDetails - User registration details
-   * @returns {Object} Registration result
-   */
-  /**
  * Register a user or a new device for an existing user
  * @param {Object} userDetails - User registration details
  * @returns {Object} Registration result
  */
-async 'users.register'(userDetails) {
-  console.log(" ### Log Step 5 : Inside server/main.js and checking all the userDetails received");
-  check(userDetails, {
-    email: String,
-    username: String,
-    pin: String,
-    firstName: String,
-    lastName: String,
-    sessionDeviceInfo: Object,
-    fcmDeviceToken: String,
-    biometricSecret: String
-  });
-  
-  const { email, username, pin, firstName, lastName, sessionDeviceInfo, fcmDeviceToken, biometricSecret } = userDetails;
-  
-  try {
-    // Check if user already exists
-    console.log(" ### Log Step 5.1 : Inside server/main.js and checking if user already exist? passing username and email to fetch the user")
-    const existingUser = await Meteor.users.findOneAsync({
-      $or: [
-        { 'emails.address': { $regex: new RegExp(`^${email}$`, 'i') } },
-        { username: { $regex: new RegExp(`^${username}$`, 'i') } }
-      ]
+  async 'users.register'(userDetails) {
+    check(userDetails, {
+      email: String,
+      username: String,
+      pin: String,
+      firstName: String,
+      lastName: String,
+      sessionDeviceInfo: Object,
+      fcmDeviceToken: String,
+      biometricSecret: String
     });
-    
-    let userId;
-    let isFirstDevice = false;
-    let userRegistrationStatus = 'approved'; // Default status for existing users or additional devices
-    
-    if (existingUser) {
-      console.log(" ### Log Step 5.2 : Inside server/main.js, Existing user found with userId :", JSON.stringify(existingUser._id));
-      userId = existingUser._id; // returning back the existing _id
+
+    const { email, username, pin, firstName, lastName, sessionDeviceInfo, fcmDeviceToken, biometricSecret } = userDetails;
+
+    // check if user exists already 
+    try {
+      const existingUser = await Meteor.users.findOneAsync({
+        $or: [
+          { 'emails.address': { $regex: new RegExp(`^${email}$`, 'i') } },
+          { username: { $regex: new RegExp(`^${username}$`, 'i') } }
+        ]
+      });
+
+      console.log(`existing user : ${JSON.stringify(existingUser)}`);
       
-      // Check if the user has any registered devices already
-      const existingDevices = await Meteor.callAsync('deviceDetails.getByUserId', userId);
-      if (!existingDevices || existingDevices.length === 0) {
-        // This is the first device for an existing user
-        isFirstDevice = true;
-        userRegistrationStatus = 'pending';
-      }
-    } else {
-      console.log(" ### Log Step 5.2.1 : Creating new user account for:", username);
-      try {
+      let userId, isFirstDevice = true, requiresAdminApproval = null, requiresPrimaryDeviceApproval = null, isSecondaryDevice = false;
+      let primaryDeviceInfo = null ;
+
+      // In case of user exists
+      if (existingUser) {
+        
+        // early return in case of existing user but registration status is other than approved.
+        const regStatus = existingUser.profile?.registrationStatus;
+        if (regStatus === 'pending') return { registrationStatus: 'pending' };
+        if (regStatus !== 'approved') return { registrationStatus: 'rejected' };
+        
+        // if the status is approved 
+        userId = existingUser._id;
+        isFirstDevice = false
+        isSecondaryDevice = true
+      } 
+      // if new user
+      else {
+        console.log('Not the existing user, so creating a new user');
+        
         userId = await Accounts.createUser({
           email,
           username,
           password: pin,
-          profile: { 
-            firstName, 
-            lastName,
-            registrationStatus: 'pending' // New users start with pending status
-          }
+          profile: { firstName, lastName, registrationStatus: 'pending' }
         });
-        
-        // Setting first device flag for new users
-        isFirstDevice = true;
-        userRegistrationStatus = 'pending';
-        
-        console.log(` ### Log Step 5.2.2 : Successfully created user with ID: ${userId}`);
-      } catch (error) {
-        console.error("User creation error:", error);
-        throw new Meteor.Error('user-creation-failed', error.reason || 'User creation failed');
       }
+      // appId is equivalent to specific device id not but expsoed to client directly
+      const deviceResp = await Meteor.callAsync('deviceDetails', {
+        username,
+        biometricSecret,
+        userId,
+        email,
+        deviceUUID: sessionDeviceInfo.uuid,
+        fcmToken: fcmDeviceToken,
+        firstName, // can be removed, just for debug
+        lastName, // can be removed, just for debug
+        isFirstDevice: isFirstDevice,
+        isSecondaryDevice: isSecondaryDevice
+      });
+
+      if (isFirstDevice) {
+        try {
+          const approvalToken = await Meteor.callAsync('users.generateApprovalToken', userId);
+          const approvalUrl = Meteor.absoluteUrl(`api/approve-user?userId=${userId}&token=${approvalToken}`);
+          const adminEmails = Meteor.settings.private?.email?.adminEmails;
+          const fromEmail = Meteor.settings.private?.email?.fromEmail;
+
+          Email.sendAsync({
+            to: adminEmails,
+            from: fromEmail,
+            subject: `New device approval required for user: ${username}`,
+            html: `
+              <p>A new user has registered with the following details:</p>
+              <ul>
+                <li><strong>Username:</strong> ${username}</li>
+                <li><strong>Email:</strong> ${email}</li>
+                <li><strong>Name:</strong> ${firstName} ${lastName}</li>
+                <li><strong>Device UUID:</strong> ${sessionDeviceInfo.uuid}</li>
+              </ul>
+              <p>Please approve or reject this registration:</p>
+              <p>
+                <a href="${approvalUrl}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block; margin-right: 10px;">
+                  Approve Registration
+                </a>
+                <a href="${Meteor.absoluteUrl(`api/reject-user?userId=${userId}&token=${approvalToken}`)}" style="background-color: #f44336; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">
+                  Reject Registration
+                </a>
+              </p>
+            `
+          });
+          
+          console.log(`### Log Step 5.4: Sent approval request email to admin for user: ${username}, and the approval url is ${approvalUrl}`);
+        } catch (emailError) {
+          console.error('Failed to send admin notification email:', emailError);
+        }
+      }
+      
+      
+
+      if (isSecondaryDevice) {
+        
+        try {
+          await sendDeviceApprovalNotification (userId, sessionDeviceInfo.uuid)
+        } catch (error) {
+          console.error('Error sending secondary approval:', error);
+        }
+      }
+
+      return {
+        success: true,
+        userId,
+        isFirstDevice,
+        registrationStatus: 'pending',
+        isSecondaryDevice
+      };
+    } catch (error) {
+      throw new Meteor.Error(error.error || 'registration-failed', error.reason);
     }
-    
-    console.log(" ### Log Step 5.3 : Inside server/main.js, Now registering the current device in deviceDetails collection");
-    
-    // Register or update device details
-    const appId = await Meteor.callAsync('deviceDetails', {
-      username,
-      biometricSecret,
-      userId,
-      email,
-      deviceUUID: sessionDeviceInfo.uuid,
-      fcmToken: fcmDeviceToken,
-      firstName,
-      lastName,
-      isPrimaryDevice: isFirstDevice,
-      deviceStatus: isFirstDevice ? 'pending' : 'approved'
-    });
-
-if (isFirstDevice) {
-  try {
-    // Generate an approval token
-    const approvalToken = await Meteor.call('users.generateApprovalToken', userId);
-    console.log("approval token", approvalToken)
-    
-    // Create the approval URL
-    const approvalUrl = Meteor.absoluteUrl(`api/approve-user?userId=${userId}&token=${approvalToken}`);
-
-    console.log("approval Url", approvalUrl)
-    
-    // Get admin emails from settings
-    const adminEmails = Meteor.settings.private?.email?.adminEmails
-    
-    // Get verified sender email from settings
-    const fromEmail = Meteor.settings.private?.email?.fromEmail
-
-    
-    // Send notification email to admin with HTML that includes a button
-    Email.sendAsync({
-      to: adminEmails,
-      from: fromEmail,
-      subject: `New device approval required for user: ${username}`,
-      html: `
-        <p>A new user has registered with the following details:</p>
-        <ul>
-          <li><strong>Username:</strong> ${username}</li>
-          <li><strong>Email:</strong> ${email}</li>
-          <li><strong>Name:</strong> ${firstName} ${lastName}</li>
-          <li><strong>Device UUID:</strong> ${sessionDeviceInfo.uuid}</li>
-        </ul>
-        <p>Please approve or reject this registration:</p>
-        <p>
-          <a href="${approvalUrl}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block; margin-right: 10px;">
-            Approve Registration
-          </a>
-          <a href="${Meteor.absoluteUrl(`api/reject-user?userId=${userId}&token=${approvalToken}`)}" style="background-color: #f44336; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">
-            Reject Registration
-          </a>
-        </p>
-      `
-    });
-    
-    console.log(`### Log Step 5.4: Sent approval request email to admin for user: ${username}`);
-  } catch (emailError) {
-    console.error('Failed to send admin notification email:', emailError);
-    // Continue execution even if email fails
-  }
-}
-    
-    return {
-      success: true,
-      userId,
-      isFirstDevice,
-      registrationStatus: userRegistrationStatus,
-      message: isFirstDevice ? 
-        'Your registration is pending approval by an administrator. You will be notified once approved.' : 
-        'Device registered successfully'
-    };
-  } catch (error) {
-    console.error('Registration error:', error);
-    throw new Meteor.Error(
-      error.error || 'registration-failed',
-      error.reason || 'Failed to register user'
-    );
-  }
-},
+  },
 
   /**
    * Get user details by email
@@ -968,48 +940,56 @@ if (isFirstDevice) {
   };
 },
 
-/**
- * Request approval for secondary device from primary device
- * 
- * @param {Object} options - Request details
- * @returns {Object} Request result
- */
-'devices.requestSecondaryApproval': async function(options) {
-  check(options, {
-    userId: String,
-    primaryDeviceUUID: String,
-    newDeviceUUID: String
-  });
+// /**
+//  * Request approval for secondary device from primary device
+//  * 
+//  * @param {Object} options - Request details
+//  * @returns {Object} Request result
+//  */
+// 'devices.requestSecondaryApproval': async function(options) {
+//   check(options, {
+//     userId: String,
+//   });
   
-  const { userId, primaryDeviceUUID, newDeviceUUID } = options;
+//   const { userId } = options;
   
-  // Find the user and devices
-  const userDeviceDoc = await DeviceDetails.findOneAsync({ userId });
+//   // Find the user and devices
+//   const userDeviceDoc = await DeviceDetails.findOneAsync({ userId });
   
-  if (!userDeviceDoc) {
-    throw new Meteor.Error('not-found', 'User device not found');
-  }
+//   if (!userDeviceDoc) {
+//     throw new Meteor.Error('not-found', 'User device not found');
+//   }
   
-  const primaryDevice = userDeviceDoc.devices.find(d => d.deviceUUID === primaryDeviceUUID);
-  if (!primaryDevice || !primaryDevice.isPrimary) {
-    throw new Meteor.Error('not-found', 'Primary device not found');
-  }
+//   // Find the primary device
+//   const primaryDevice = userDeviceDoc.devices.find(d => d.isPrimary === true);
+//   if (!primaryDevice) {
+//     throw new Meteor.Error('not-found', 'Primary device not found');
+//   }
+
+//   console.log(`Primary device found: ${primaryDevice.deviceUUID}`);
+
+//   // Find the new device that's requesting approval
+//   const newDevice = userDeviceDoc.devices.find(d => d.deviceUUID === newDeviceUUID);
+//   if (!newDevice) {
+//     throw new Meteor.Error('not-found', 'Requesting device not found');
+//   }
   
-  const newDevice = userDeviceDoc.devices.find(d => d.deviceUUID === newDeviceUUID);
-  if (!newDevice) {
-    throw new Meteor.Error('not-found', 'New device not found');
-  }
+//   // Send notification to primary device requesting approval
+//   const { sendSecondaryDeviceApprovalRequest } = await import('../server/firebase.js');
   
-  // Send notification to primary device requesting approval
-  import('../server/firebase.js').then(({ sendSecondaryDeviceApprovalRequest }) => {
-    sendSecondaryDeviceApprovalRequest(userId, primaryDeviceUUID, newDevice);
-  });
-  
-  return {
-    success: true,
-    message: 'Secondary device approval requested'
-  };
-},
+//   try {
+//     // Send the request and await response
+//     const result = await sendSecondaryDeviceApprovalRequest(userId, primaryDevice.deviceUUID, newDevice);
+    
+//     return {
+//       success: true,
+//       message: 'Secondary device approval requested',
+//       result
+//     };
+//   } catch (error) {
+//     throw new Meteor.Error('notification-failed', 'Failed to send approval request: ' + error.message);
+//   }
+// },
 
 /**
  * Primary device responds to secondary device approval request

@@ -129,6 +129,8 @@ dist
 .yarn/install-state.gz
 .pnp.*
 
+settings.json
+
 
 server/private/google-services.json
 server/private/miewebauthapp-ffab4fc33682.json
