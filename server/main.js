@@ -10,6 +10,11 @@ import {NotificationHistory} from "../utils/api/notificationHistory.js"
 import { ApprovalTokens } from "../utils/api/approvalTokens";
 import { isValidToken } from "../utils/utils";
 import { successTemplate, errorTemplate, rejectionTemplate, previouslyUsedTemplate } from './templates/email';
+import dotenv from 'dotenv';
+
+
+//load the env to process.env
+dotenv.confg();
 
 
 // Create Maps to store pending notifications and response promises
@@ -580,8 +585,8 @@ Meteor.methods({
         try {
           const approvalToken = await Meteor.callAsync('users.generateApprovalToken', userId);
           const approvalUrl = Meteor.absoluteUrl(`api/approve-user?userId=${userId}&token=${approvalToken}`);
-          const adminEmails = Meteor.settings.private?.email?.adminEmails;
-          const fromEmail = Meteor.settings.private?.email?.fromEmail;
+          const adminEmails = process.env.EMAIL_ADMIN;
+          const fromEmail = process.env.EMAIL_FROM;
 
           Email.sendAsync({
             to: adminEmails,
@@ -1093,10 +1098,10 @@ Meteor.methods({
 
 Meteor.startup(() => {
   // Configure SMTP from settings
-  if (Meteor.settings.private && Meteor.settings.private.sendgrid) {
-    process.env.MAIL_URL = `smtp://apikey:${Meteor.settings.private.sendgrid.apiKey}@smtp.sendgrid.net:587`;
+  if (process.env.SENDGRID_API_KEY) {
+    process.env.MAIL_URL = `smtp://apikey:${process.env.SENDGRID_API_KEY}@smtp.sendgrid.net:587`;
     console.log("Email service configured");
   } else {
-    console.warn("SendGrid API key not found in settings");
+    console.warn("SendGrid API key not found in env");
   }
 });
