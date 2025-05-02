@@ -65,6 +65,11 @@ export const LandingPage = () => {
     handleCloseActionModal
   } = useNotificationHandler(userId, username, fetchNotificationHistory); // Pass refetch
 
+  const handleTimeout = async () => {
+    // handleReject();
+    console.log("timeout")
+  };
+
   // Logout Function
   const handleLogout = () => {
     Meteor.logout((err) => {
@@ -142,6 +147,7 @@ export const LandingPage = () => {
         notification={notificationDetails} // Pass details from hook
         isLoading={isProcessingAction}
         error={actionError}
+        onTimeOut={handleTimeout}
       />
       <ResultModal
         isOpen={isResultModalOpen}

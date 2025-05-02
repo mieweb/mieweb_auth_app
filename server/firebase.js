@@ -48,7 +48,7 @@ export const sendNotification = async (fcmToken, title, body, data = {}) => {
         priority: "high",
         notification: {
           sound: "default",
-          channelId: "high_importance_channel"
+          channelId: "default"
         }
       },
       apns: {

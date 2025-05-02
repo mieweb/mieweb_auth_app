@@ -137,24 +137,22 @@ export const RegistrationPage = ({ deviceDetails }) => {
   const handleBiometricComplete = useCallback((wasSuccessful) => {
   console.log('### Log Step 4.7: Biometric completion:', wasSuccessful);
   setShowBiometricModal(false);
-  navigate('/login');
-  
-    
-    // Now check registration status after biometric handling is done
-  // if (registeredUser) {
-  //   if (registeredUser.isFirstDevice && registeredUser.registrationStatus === 'pending') {
-  //     console.log('### Log Step 4.8: First device registration pending approval');
-  //       setRegistrationStatus('pending');
-  //       setShowPendingScreen(true);
-  //     } else {
-  //       console.log('### Log Step 4.9: Registration fully completed, redirecting to login');
-  //       navigate('/login');
-  //     }
-  //   } else {
-  //     // Fallback if user data is missing
-  //     console.log('### Log Step 4.10: No user data found, redirecting to login');
-  //     navigate('/login');
-  //   }
+ 
+    //Now check registration status after biometric handling is done
+  if (registeredUser) {
+    if (registeredUser.isFirstDevice && registeredUser.registrationStatus === 'pending') {
+      console.log('### Log Step 4.8: First device registration pending approval');
+        setRegistrationStatus('pending');
+        setShowPendingScreen(true);
+      } else {
+        console.log('### Log Step 4.9: Registration fully completed, redirecting to login');
+        navigate('/login');
+      }
+    } else {
+      // Fallback if user data is missing
+      console.log('### Log Step 4.10: No user data found, redirecting to login');
+      navigate('/login');
+    }
   }, [navigate, registeredUser]);
 
   const goToLogin = useCallback(() => {

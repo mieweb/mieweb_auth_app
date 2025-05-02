@@ -69,7 +69,8 @@ const sendSyncNotificationToDevices = async (username, notificationId, action) =
       notId: 'sync',
       isDismissal: 'false',
       isSync: 'true',
-      syncData: JSON.stringify(syncData)
+      syncData: JSON.stringify(syncData),
+      sound: 'default'
     };
 
     const sendPromises = fcmTokens.map(token =>
@@ -132,6 +133,8 @@ WebApp.connectHandlers.use("/send-notification", async (req, res) => {
         messageFrom: 'mie',
         notificationType: 'approval',
         content_available: '1',
+        forceStart: '1',
+        priority:'high',
         notId: '10',
         isDismissal: 'false',
         isSync: 'false',
@@ -816,55 +819,55 @@ Meteor.methods({
     }
   },
 
-  'notifications.handleResponse': async function (username, action) {
-    check(username, String);
-    check(action, String);
+  // 'notifications.handleResponse': async function (appId, action) {
+  //   check(appId, String);
+  //   check(action, String);
 
-    try {
-      const user = await Meteor.users.findOneAsync({ username });
-      if (!user) {
-        throw new Meteor.Error('user-not-found', 'User not found');
-      }
+  //   try {
+  //     const user = await Meteor.users.findOneAsync({ username });
+  //     if (!user) {
+  //       throw new Meteor.Error('user-not-found', 'User not found');
+  //     }
 
-      const latestNotification = await NotificationHistory.findOneAsync(
-        { userId: user._id },
-        { sort: { createdAt: -1 } }
-      );
+  //     const latestNotification = await NotificationHistory.findOneAsync(
+  //       { userId: user._id },
+  //       { sort: { createdAt: -1 } }
+  //     );
 
-      if (!latestNotification) {
-        throw new Meteor.Error('no-notification', 'No notification found');
-      }
+  //     if (!latestNotification) {
+  //       throw new Meteor.Error('no-notification', 'No notification found');
+  //     }
 
-      // Check if notification is already handled
-      if (latestNotification.status !== 'pending') {
-        console.log('Notification already handled, sending sync to other devices');
-        // Still send sync notification to other devices
-        await sendSyncNotificationToDevices(username, latestNotification.notificationId, action);
-        return { status: 'already-handled' };
-      }
+  //     // Check if notification is already handled
+  //     if (latestNotification.status !== 'pending') {
+  //       console.log('Notification already handled, sending sync to other devices');
+  //       // Still send sync notification to other devices
+  //       await sendSyncNotificationToDevices(username, latestNotification.notificationId, action);
+  //       return { status: 'already-handled' };
+  //     }
 
-      // Update notification status
-      await NotificationHistory.updateAsync(
-        { _id: latestNotification._id },
-        { $set: { status: action === 'approve' ? 'approved' : 'rejected' } }
-      );
+  //     // Update notification status
+  //     await NotificationHistory.updateAsync(
+  //       { _id: latestNotification._id },
+  //       { $set: { status: action === 'approve' ? 'approved' : 'rejected' } }
+  //     );
 
-      // Send sync notification to other devices
-      await sendSyncNotificationToDevices(username, latestNotification.notificationId, action);
+  //     // Send sync notification to other devices
+  //     await sendSyncNotificationToDevices(username, latestNotification.notificationId, action);
 
-      // Resolve any pending promises for this notification
-      if (responsePromises.has(username)) {
-        const resolve = responsePromises.get(username);
-        resolve(action);
-        responsePromises.delete(username);
-      }
+  //     // Resolve any pending promises for this notification
+  //     if (responsePromises.has(username)) {
+  //       const resolve = responsePromises.get(username);
+  //       resolve(action);
+  //       responsePromises.delete(username);
+  //     }
 
-      return { status: 'success', action };
-    } catch (error) {
-      console.error('Error handling notification response:', error);
-      throw new Meteor.Error('response-failed', error.message);
-    }
-  },
+  //     return { status: 'success', action };
+  //   } catch (error) {
+  //     console.error('Error handling notification response:', error);
+  //     throw new Meteor.Error('response-failed', error.message);
+  //   }
+  // },
   /**
  * Admin approves or rejects first device
  * 
