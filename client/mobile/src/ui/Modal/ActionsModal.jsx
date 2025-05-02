@@ -9,15 +9,13 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, currentNotificatio
   const calculateInitialTime = () => {
     if (!currentNotification?.createdAt) return 0;
     
-    // Get timestamp in milliseconds from createdAt
-    const createdAt = typeof currentNotification.createdAt === 'string'
-      ? new Date(currentNotification.createdAt).getTime()
-      : currentNotification.createdAt instanceof Date
-        ? currentNotification.createdAt.getTime()
-        : currentNotification.createdAt;
+    // Handle both ISO string and timestamp formats
+    const createdAt = typeof currentNotification.createdAt === 'string' ?
+      new Date(currentNotification.createdAt).getTime() :
+      currentNotification.createdAt;
     
     const now = Date.now();
-    const remainingTime = Math.floor((createdAt + 24000 - now) / 1000); // 24 seconds total
+    const remainingTime = Math.floor((createdAt + 24000 - now) / 1000);
     return Math.max(0, remainingTime);
   };
 
@@ -25,10 +23,23 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, currentNotificatio
     let timer;
     let statusCheckInterval;
 
-    if (isOpen) {
-      // Set initial time based on notification creation
+    const checkStatus = async () => {
+      if (!currentNotification?.notificationId) return;
+      try {
+        const isHandled = await Meteor.callAsync(
+          'notificationHistory.isHandled',
+          currentNotification.notificationId
+        );
+        if (isHandled) onClose();
+      } catch (error) {
+        console.error('Status check error:', error);
+      }
+    };
+
+    if (isOpen && currentNotification) {
       const initialTime = calculateInitialTime();
-      
+      console.log('Initial timer value:', initialTime);
+
       if (initialTime <= 0) {
         onTimeOut();
         return;
@@ -36,9 +47,9 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, currentNotificatio
 
       setTimeLeft(initialTime);
 
-      // Start countdown timer
+      // Countdown timer
       timer = setInterval(() => {
-        setTimeLeft((prev) => {
+        setTimeLeft(prev => {
           if (prev <= 1) {
             clearInterval(timer);
             onTimeOut();
@@ -48,33 +59,15 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, currentNotificatio
         });
       }, 1000);
 
-      // Start status checking
-      setIsStatusChecking(true);
-      statusCheckInterval = setInterval(async () => {
-        if (!currentNotification?.notificationId) return;
-
-        try {
-          const isHandled = await Meteor.callAsync(
-            'notificationHistory.isHandled',
-            currentNotification.notificationId
-          );
-
-          if (isHandled) {
-            console.log('Notification already handled, closing modal');
-            onClose();
-          }
-        } catch (error) {
-          console.error('Error checking notification status:', error);
-        }
-      }, 1000);
+      // Status checking
+      statusCheckInterval = setInterval(checkStatus, 2000);
     }
 
     return () => {
-      if (timer) clearInterval(timer);
-      if (statusCheckInterval) clearInterval(statusCheckInterval);
-      setIsStatusChecking(false);
+      clearInterval(timer);
+      clearInterval(statusCheckInterval);
     };
-  }, [isOpen, currentNotification]);
+  }, [isOpen, currentNotification, onClose, onTimeOut]);
 
   if (!isOpen) return null;
 

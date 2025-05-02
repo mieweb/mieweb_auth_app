@@ -103,6 +103,28 @@ export const RegistrationPage = ({ deviceDetails }) => {
           console.log('### Opening biometric modal');
           setShowBiometricModal(true);
         }, 0);
+      } else if (registerUser?.registrationStatus) {
+        const regStatus = registerUser.registrationStatus;
+        if (regStatus == 'pending') {
+          console.log('### Log Step 4.8: First device registration pending approval');
+          setRegistrationStatus('pending');
+          setShowPendingScreen(true);
+
+        } else if( regStatus == 'approved') {
+          console.log('### Log Step 4.9: Registration fully completed, redirecting to login');
+          navigate('/login');
+          
+        } else if(regStatus == 'rejected'){
+          // navigate it to rejectedRegistration screen
+          // Do Something
+
+        } else { 
+          // Fallback if user data is missing
+          console.log('### Log Step 4.10: No user data found, redirecting to login');
+          navigate('/login');
+          
+        }
+
       }
     } catch (err) {
       console.error('### Log Step ERROR:', err);
@@ -113,13 +135,13 @@ export const RegistrationPage = ({ deviceDetails }) => {
   };
 
   const handleBiometricComplete = useCallback((wasSuccessful) => {
-    console.log('### Log Step 4.7: Biometric completion:', wasSuccessful);
-    setShowBiometricModal(false);
-    
-    // Now check registration status after biometric handling is done
-    if (registeredUser) {
-      if (registeredUser.isFirstDevice && registeredUser.registrationStatus === 'pending') {
-        console.log('### Log Step 4.8: First device registration pending approval');
+  console.log('### Log Step 4.7: Biometric completion:', wasSuccessful);
+  setShowBiometricModal(false);
+ 
+    //Now check registration status after biometric handling is done
+  if (registeredUser) {
+    if (registeredUser.isFirstDevice && registeredUser.registrationStatus === 'pending') {
+      console.log('### Log Step 4.8: First device registration pending approval');
         setRegistrationStatus('pending');
         setShowPendingScreen(true);
       } else {
