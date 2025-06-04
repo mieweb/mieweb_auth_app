@@ -14,7 +14,7 @@ import dotenv from 'dotenv';
 
 
 //load the env to process.env
-dotenv.confg();
+dotenv.config();
 
 
 // Create Maps to store pending notifications and response promises
@@ -1096,10 +1096,13 @@ Meteor.methods({
 });
 
 
+
 Meteor.startup(() => {
   // Configure SMTP from settings
-  if (process.env.SENDGRID_API_KEY) {
-    process.env.MAIL_URL = `smtp://apikey:${process.env.SENDGRID_API_KEY}@smtp.sendgrid.net:587`;
+  const SENDGRID_API_KEY=''  
+
+  if (SENDGRID_API_KEY) {
+    process.env.MAIL_URL = `smtp://apikey:${SENDGRID_API_KEY}@smtp.sendgrid.net:587`;
     console.log("Email service configured");
   } else {
     console.warn("SendGrid API key not found in env");
