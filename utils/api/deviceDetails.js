@@ -220,6 +220,23 @@ Meteor.methods({
     // Return array of FCM tokens from all devices
     return userDoc.devices.map(device => device.fcmToken);
   },
+
+    /**
+   * Get all FCM tokens by username
+   * @param {String} userId - User ID
+   * @returns {Array} Array of FCM tokens
+   */
+  'deviceDetails.getFCMTokenByUserId': async function(userId) {
+    check(userId, String);
+    
+    const userDoc = await DeviceDetails.findOneAsync({ userId });
+    if (!userDoc) {
+      throw new Meteor.Error('invalid-username', 'No device found with this UserId');
+    }
+    
+    // Return array of FCM tokens from all devices
+    return userDoc.devices.map(device => device.fcmToken);
+  },
   
   /**
    * Get FCM token by device UUID
