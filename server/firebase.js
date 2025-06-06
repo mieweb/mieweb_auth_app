@@ -1,5 +1,5 @@
 import admin from 'firebase-admin';
-import serviceAccount from '../server/private/miewebauthapp-ffab4fc33682.json';
+import serviceAccount from '../server/private/mieweb-auth-dev-2a7559d6c697.json';
 import { Meteor } from 'meteor/meteor';
 import { DeviceDetails } from '../utils/api/deviceDetails.js';
 import { Email } from 'meteor/email';
