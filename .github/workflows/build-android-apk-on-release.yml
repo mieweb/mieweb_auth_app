@@ -1,0 +1,49 @@
+name: Build Android APK on Release
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install Meteor
+        run: curl https://install.meteor.com/ | sh
+
+      - name: Install Cordova & Java
+        run: |
+          meteor npm install -g cordova
+          sudo apt-get update
+          sudo apt-get install -y openjdk-17-jdk
+          echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
+
+      - name: Install App Dependencies
+        run: meteor npm install
+
+      - name: Build Android APK
+        run: |
+          meteor build ./android-build \
+            --server=https://auth.mieweb.org \
+            --platforms android \
+            --packageType=apk
+
+      - name: Rename APK
+        run: |
+          mv android-build/android/project/app/build/outputs/apk/debug/app-debug.apk android-app.apk
+
+      - name: Upload APK to GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: android-app.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
