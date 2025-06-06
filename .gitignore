@@ -135,4 +135,6 @@ server/private/miewebauthapp-ffab4fc33682.json
 server/private/AuthKey_25AZQU2X57.p8
 server/private/GoogleService-Info.plist
 
-server/private
+server/private/*
+public/android/google-services.json
+public/android/GoogleService-Info.plist

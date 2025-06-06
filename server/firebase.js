@@ -1,5 +1,10 @@
 import admin from 'firebase-admin';
-import serviceAccount from '../server/private/miewebauthapp-ffab4fc33682.json';
+
+import dotenv from 'dotenv';
+dotenv.config();
+
+//import serviceAccount from '../server/private/mieweb-auth-dev-2a7559d6c697.json';
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
 
 
 admin.initializeApp({
