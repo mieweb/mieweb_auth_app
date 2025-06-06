@@ -44,7 +44,7 @@ jobs:
 
       - name: Rename APK
         run: |
-          mv android-build/android/project/app/build/outputs/apk/debug/app-debug.apk android-app.apk
+           mv .meteor/local/cordova-build/platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk android-app.apk
 
       - name: Upload APK to GitHub Release
         uses: softprops/action-gh-release@v1
