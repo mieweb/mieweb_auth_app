@@ -5,7 +5,7 @@
           },
           "packages":{
             "accounts":{
-                "clientStorage":"sesssion",
+                "clientStorage":"session",
                 "sessionManagement": true
             }
           }
