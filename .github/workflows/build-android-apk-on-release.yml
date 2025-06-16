@@ -41,17 +41,47 @@ jobs:
       - name: Build Android APK
         run: |
           meteor build ./android-build \
-            --server=https://auth.mieweb.org \
-            --platforms android \
+            --server=https://auth.mieweb.org:443 \
+            --platforms=android \
             --packageType=apk
 
-      - name: Rename APK
+      - name: Move unsigned APK to expected location
         run: |
-           mv .meteor/local/cordova-build/platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk android-app.apk
+          mkdir -p .meteor/local/cordova-build/platforms/android/app/build/outputs/apk/release
+          cp android-build/android/project/app/build/outputs/apk/release/app-release-unsigned.apk \
+            .meteor/local/cordova-build/platforms/android/app/build/outputs/apk/release/
 
-      - name: Upload APK to GitHub Release
+      - name: Decode keystore from Base64
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > mieauth-release-key.jks
+
+      - name: Zipalign APK
+        run: |
+          ZIPALIGN="$ANDROID_SDK_ROOT/build-tools/34.0.0/zipalign"
+          APK_DIR=".meteor/local/cordova-build/platforms/android/app/build/outputs/apk/release"
+          $ZIPALIGN -v 4 $APK_DIR/app-release-unsigned.apk $APK_DIR/app-release-aligned.apk
+
+      - name: Sign APK
+        run: |
+          APKSIGNER="$ANDROID_SDK_ROOT/build-tools/34.0.0/apksigner"
+          APK_DIR=".meteor/local/cordova-build/platforms/android/app/build/outputs/apk/release"
+          $APKSIGNER sign \
+            --ks mieauth-release-key.jks \
+            --ks-key-alias ${{ secrets.ANDROID_KEYSTORE_ALIAS }} \
+            --ks-pass pass:${{ secrets.ANDROID_KEYSTORE_PASSWORD }} \
+            --key-pass pass:${{ secrets.ANDROID_KEY_PASSWORD }} \
+            --out $APK_DIR/app-release-final.apk \
+            $APK_DIR/app-release-aligned.apk
+
+      - name: Verify signed APK
+        run: |
+          APKSIGNER="$ANDROID_SDK_ROOT/build-tools/34.0.0/apksigner"
+          APK_DIR=".meteor/local/cordova-build/platforms/android/app/build/outputs/apk/release"
+          $APKSIGNER verify --verbose --print-certs $APK_DIR/app-release-final.apk
+
+      - name: Upload Signed APK to GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          files: android-app.apk
+          files: .meteor/local/cordova-build/platforms/android/app/build/outputs/apk/release/app-release-final.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
