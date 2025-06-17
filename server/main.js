@@ -551,19 +551,29 @@ Meteor.methods({
         
         // if the status is approved 
         userId = existingUser._id;
-        isFirstDevice = false
-        isSecondaryDevice = true
-      } 
-      // if new user
-      else {
-        console.log('Not the existing user, so creating a new user');
-        
+      } else {
+        // Create new user account
         userId = await Accounts.createUser({
-          email,
-          username,
-          password: pin,
-          profile: { firstName, lastName, registrationStatus: 'pending' }
-        });
+            email,
+            username,
+            password: pin,
+            profile: {
+              firstName,
+              lastName
+            }
+          }, (err) => {
+            if (err) {
+              console.error('Error creating user:', err);
+              reject(err);
+            } else {
+              const newUser = Accounts.findUserByEmail(email);
+              if (!newUser) {
+                reject(new Meteor.Error('user-creation-failed', 'Failed to create user'));
+              } else {
+                resolve(newUser._id);
+              }
+            }
+          });
       }
       // appId is equivalent to specific device id not but expsoed to client directly
       const deviceResp = await Meteor.callAsync('deviceDetails', {
