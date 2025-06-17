@@ -208,14 +208,10 @@ export const initializePushNotifications = () => {
     setupRejectHandler(push);
     setupErrorHandler(push);
 
-    // Add channel verification
+    // Ensure default channel exists every 30 seconds
     setInterval(() => {
-      PushNotification.channelExists('default', (exists) => {
-        if (!exists) {
-          console.warn('Notification channel missing - recreating');
-          createNotificationChannel();
-        }
-      });
+        console.warn('Re-creating default notification channel to ensure it exists');
+        createNotificationChannel();
     }, 30000);
 
     console.log('Push notification system ready');

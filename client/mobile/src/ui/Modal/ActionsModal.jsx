@@ -1,21 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { Meteor } from 'meteor/meteor';
 import { CheckCircle, XCircle, Clock } from 'lucide-react';
+import { TIMEOUT_DURATION_MS } from '../../../../../utils/constants';
 
-const ActionsModal = ({ isOpen, onApprove, onReject, onClose, currentNotification, onTimeOut }) => {
+const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notification }) => {
   const [timeLeft, setTimeLeft] = useState(0);
-  const [isStatusChecking, setIsStatusChecking] = useState(false);
 
   const calculateInitialTime = () => {
-    if (!currentNotification?.createdAt) return 0;
-    
-    // Handle both ISO string and timestamp formats
-    const createdAt = typeof currentNotification.createdAt === 'string' ?
-      new Date(currentNotification.createdAt).getTime() :
-      currentNotification.createdAt;
-    
-    const now = Date.now();
-    const remainingTime = Math.floor((createdAt + 24000 - now) / 1000);
+    if (!notification?.createdAt) return 0;
+
+    let createdAt = notification.createdAt;
+
+    // Convert to number if it's a string
+    if (typeof createdAt === 'string' || typeof createdAt === 'object') {
+      createdAt = new Date(createdAt).getTime();
+    } else if (typeof createdAt === 'number' && createdAt < 1e12) {
+      // If it's a Unix timestamp in seconds, convert to milliseconds
+      createdAt *= 1000;
+    }
+
+    const remainingTime = Math.max(0, Math.floor((createdAt + TIMEOUT_DURATION_MS - Date.now()) / 1000));
+
     return Math.max(0, remainingTime);
   };
 
@@ -24,11 +29,11 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, currentNotificatio
     let statusCheckInterval;
 
     const checkStatus = async () => {
-      if (!currentNotification?.notificationId) return;
+      if (!notification?.notificationId) return;
       try {
         const isHandled = await Meteor.callAsync(
           'notificationHistory.isHandled',
-          currentNotification.notificationId
+          notification.notificationId
         );
         if (isHandled) onClose();
       } catch (error) {
@@ -36,7 +41,7 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, currentNotificatio
       }
     };
 
-    if (isOpen && currentNotification) {
+    if (isOpen && notification) {
       const initialTime = calculateInitialTime();
       console.log('Initial timer value:', initialTime);
 
@@ -67,7 +72,7 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, currentNotificatio
       clearInterval(timer);
       clearInterval(statusCheckInterval);
     };
-  }, [isOpen, currentNotification, onClose, onTimeOut]);
+  }, [isOpen, notification, onClose, onTimeOut]);
 
   if (!isOpen) return null;
 

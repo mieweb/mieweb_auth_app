@@ -73,7 +73,7 @@ export const useNotificationHandler = (userId, username, fetchNotificationHistor
 
   // Action handling with improved error states
   const sendUserAction = useCallback(async (action) => {
-    if (!notificationIdForAction || !username) return;
+    if (!notificationIdForAction || !userId) return;
 
     setIsProcessingAction(true);
     setActionError(null);
@@ -81,7 +81,7 @@ export const useNotificationHandler = (userId, username, fetchNotificationHistor
     try {
       const result = await Meteor.callAsync(
         "notifications.handleResponse",
-        username,
+        userId,
         action,
         notificationIdForAction
       );

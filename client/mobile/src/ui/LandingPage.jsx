@@ -66,7 +66,7 @@ export const LandingPage = () => {
   } = useNotificationHandler(userId, username, fetchNotificationHistory); // Pass refetch
 
   const handleTimeout = async () => {
-    // handleReject();
+    handleCloseActionModal()
     console.log("timeout")
   };
 

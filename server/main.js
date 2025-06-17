@@ -14,7 +14,7 @@ import dotenv from 'dotenv';
 
 
 //load the env to process.env
-dotenv.confg();
+dotenv.config();
 
 
 // Create Maps to store pending notifications and response promises
@@ -55,9 +55,9 @@ const saveUserNotificationHistory = async (notification) => {
  * Helper function to send sync notifications to all user devices
  * @private
  */
-const sendSyncNotificationToDevices = async (username, notificationId, action) => {
+const sendSyncNotificationToDevices = async (userId, notificationId, action) => {
   try {
-    const fcmTokens = await Meteor.callAsync('deviceDetails.getFCMTokenByUsername', username);
+    const fcmTokens = await Meteor.callAsync('deviceDetails.getFCMTokenByUserId', userId);
     if (!fcmTokens || fcmTokens.length === 0) return;
 
     const syncData = {
@@ -373,73 +373,71 @@ Meteor.methods({
    * @param {String} action - User action
    * @returns {Object} Response status
    */
-  async "notifications.handleResponse"(username, action) {
-    check(username, String);
-    check(action, String);
+  async "notifications.handleResponse"(userId, action, notificationIdForAction) {
+  check(userId, String);
+  check(action, String);
+  check(notificationIdForAction, String);
 
-    console.log(`Handling notification response for username: ${username}, action: ${action}`);
-    
-    // First, find the user and latest notification to update its status
-    const userDoc = await DeviceDetails.findOneAsync({ username });
-    if (!userDoc) {
-      throw new Meteor.Error("user-not-found", "User not found");
+  // Fetch user to get the username
+  const user = await Meteor.users.findOneAsync({ _id: userId });
+  if (!user || !user.username) {
+    console.log("User not found or missing username");
+    return { success: false, message: "User not found or missing username" };
+  }
+
+  const username = user.username;
+
+  const targetNotification = await NotificationHistory.findOneAsync({
+    userId,
+    notificationId: notificationIdForAction
+  });
+
+  if (!targetNotification) {
+    console.log("Notification not found for given userId and notificationId");
+    return { success: false, message: "Notification not found" };
+  }
+
+  if (targetNotification.status !== 'pending') {
+    console.log(`Notification ${targetNotification.notificationId} already handled with status: ${targetNotification.status}`);
+
+    try {
+      await sendSyncNotificationToDevices(userId, targetNotification.notificationId, action);
+    } catch (error) {
+      console.error("Error sending sync notification:", error);
     }
     
-    // Get the latest notification for this user
-    const latestNotification = await NotificationHistory.findOneAsync(
-      { userId: userDoc.userId },
-      { sort: { createdAt: -1 } }
-    );
-    
-    if (!latestNotification) {
-      console.log("No notification found for user");
-      return { success: false, message: "No notification found" };
-    }
-    
-    // Check if notification is already handled
-    if (latestNotification.status !== 'pending') {
-      console.log(`Notification ${latestNotification.notificationId} already handled with status: ${latestNotification.status}`);
-      
-      // If this is a duplicate response, still send the sync notification to other devices
-      try {
-        await sendSyncNotificationToDevices(username, latestNotification.notificationId, action);
-      } catch (error) {
-        console.error("Error sending sync notification for already handled notification:", error);
-      }
-      
-      // If there's still a pending promise (rare race condition), resolve it
-      if (responsePromises.has(username)) {
-        const resolve = responsePromises.get(username);
-        resolve(latestNotification.status);
-        responsePromises.delete(username);
-        return { success: true, message: `Using existing status: ${latestNotification.status}` };
-      }
-      
-      return { success: true, message: `Notification already handled with status: ${latestNotification.status}` };
-    }
-    
-    // Update notification status in database
-    const newStatus = action === "approve" ? "approved" : action === "reject" ? "rejected" : action;
-    await Meteor.callAsync("notificationHistory.updateStatus", latestNotification.notificationId, newStatus);
-    console.log(`Updated notification ${latestNotification.notificationId} status to ${newStatus}`);
-    
-    // Resolve the promise if it exists
     if (responsePromises.has(username)) {
       const resolve = responsePromises.get(username);
-      resolve(action); // Return the action to the original request
+      resolve(targetNotification.status);
       responsePromises.delete(username);
-      console.log(`Resolved response promise for username ${username} with action ${action}`);
-    } else {
-      console.log(`No pending promise found for username: ${username}, but notification was updated`);
+      return { success: true, message: `Using existing status: ${targetNotification.status}` };
     }
-    
-    // Send sync notification to all devices
-    await sendSyncNotificationToDevices(username, latestNotification.notificationId, action);
-    
-    return {
-      success: true,
-      message: `Response ${action} processed successfully`,
-    };
+
+    return { success: true, message: `Notification already handled` };
+  }
+
+  // Update status
+  await NotificationHistory.updateAsync(
+    { _id: targetNotification._id },
+    { $set: { status: action, respondedAt: new Date() } }
+  );
+
+  console.log(`Notification ${targetNotification.notificationId} updated with action: ${action}`);
+
+  try {
+    await sendSyncNotificationToDevices(userId, targetNotification.notificationId, action);
+  } catch (error) {
+    console.error("Error sending sync notification:", error);
+  }
+
+  if (responsePromises.has(username)) {
+    const resolve = responsePromises.get(username);
+    resolve(action);
+    responsePromises.delete(username);
+  }
+
+  return { success: true, message: `Notification updated with status: ${action}` };
+
   },
   
   /**
@@ -1096,10 +1094,13 @@ Meteor.methods({
 });
 
 
+
 Meteor.startup(() => {
   // Configure SMTP from settings
-  if (process.env.SENDGRID_API_KEY) {
-    process.env.MAIL_URL = `smtp://apikey:${process.env.SENDGRID_API_KEY}@smtp.sendgrid.net:587`;
+  const SENDGRID_API_KEY=''  
+
+  if (SENDGRID_API_KEY) {
+    process.env.MAIL_URL = `smtp://apikey:${SENDGRID_API_KEY}@smtp.sendgrid.net:587`;
     console.log("Email service configured");
   } else {
     console.warn("SendGrid API key not found in env");
