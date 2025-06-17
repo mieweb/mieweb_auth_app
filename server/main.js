@@ -551,6 +551,8 @@ Meteor.methods({
         
         // if the status is approved 
         userId = existingUser._id;
+        isFirstDevice = false
+        isSecondaryDevice = true
       } else {
         // Create new user account
         userId = await Accounts.createUser({
