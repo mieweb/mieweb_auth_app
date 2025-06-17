@@ -1,4 +1,4 @@
-name: Build Android APK on Release
+name: Build Prod Android APK on Release
 
 on:
   release:
@@ -70,7 +70,7 @@ jobs:
             --ks-key-alias ${{ secrets.ANDROID_KEYSTORE_ALIAS }} \
             --ks-pass pass:${{ secrets.ANDROID_KEYSTORE_PASSWORD }} \
             --key-pass pass:${{ secrets.ANDROID_KEY_PASSWORD }} \
-            --out $APK_DIR/app-release-final.apk \
+            --out $APK_DIR/prod/app-release-final.apk \
             $APK_DIR/app-release-aligned.apk
 
       - name: Verify signed APK
