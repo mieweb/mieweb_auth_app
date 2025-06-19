@@ -6,7 +6,7 @@ import { Accounts } from "meteor/accounts-base";
 import { check } from "meteor/check";
 import { Random } from "meteor/random";
 import { DeviceDetails } from "../utils/api/deviceDetails.js";
-import {NotificationHistory} from "../utils/api/notificationHistory.js"
+import { NotificationHistory } from "../utils/api/notificationHistory.js"
 import { ApprovalTokens } from "../utils/api/approvalTokens";
 import { isValidToken } from "../utils/utils";
 import { successTemplate, errorTemplate, rejectionTemplate, previouslyUsedTemplate } from './templates/email';
@@ -36,13 +36,13 @@ const saveUserNotificationHistory = async (notification) => {
 
   try {
     // Generate a unique notification ID
-    const notificationId = await Meteor.callAsync("notificationHistory.insert", { 
-      userId, 
-      appId, 
-      title, 
-      body 
+    const notificationId = await Meteor.callAsync("notificationHistory.insert", {
+      userId,
+      appId,
+      title,
+      body
     });
-    
+
     console.log(`Notification history saved with ID: ${notificationId}`);
     return notificationId;
   } catch (error) {
@@ -139,7 +139,7 @@ WebApp.connectHandlers.use("/send-notification", async (req, res) => {
         notificationType: 'approval',
         content_available: '1',
         forceStart: '1',
-        priority:'high',
+        priority: 'high',
         notId: '10',
         isDismissal: 'false',
         isSync: 'false',
@@ -158,8 +158,8 @@ WebApp.connectHandlers.use("/send-notification", async (req, res) => {
         } catch (error) {
           console.error(`Error sending to token ${fcmToken}:`, error);
           // If token is invalid, we should remove it from the database
-          if (error.code === 'messaging/invalid-registration-token' || 
-              error.code === 'messaging/registration-token-not-registered') {
+          if (error.code === 'messaging/invalid-registration-token' ||
+            error.code === 'messaging/registration-token-not-registered') {
             await DeviceDetails.updateAsync(
               { username },
               { $pull: { 'devices.fcmToken': fcmToken } }
@@ -217,29 +217,35 @@ WebApp.connectHandlers.use("/send-notification", async (req, res) => {
 });
 
 // For approval
-WebApp.connectHandlers.use('/api/approve-user', async(req, res) => {
+WebApp.connectHandlers.use('/api/approve-user', async (req, res) => {
   const { userId, token } = req.query;
   const isValid = await isValidToken(userId, token);
-  
+
   if (isValid) {
     // Mark token as used with 'approved' action
     await ApprovalTokens.updateAsync(
       { userId, token },
-      { 
-        $set: { 
+      {
+        $set: {
           used: true,
           action: 'approved',
           usedAt: new Date()
-        } 
+        }
       }
     );
-    
+
     // Update user's registration status
     await Meteor.users.updateAsync(
       { _id: userId },
       { $set: { 'profile.registrationStatus': 'approved' } }
     );
-    
+
+    await DeviceDetails.updateAsync(
+      { userId },
+      { $set: { 'devices.$[].deviceRegistrationStatus': 'approved' } }
+    )
+
+
     // Return a success page
     res.writeHead(200, {
       'Content-Type': 'text/html'
@@ -252,13 +258,13 @@ WebApp.connectHandlers.use('/api/approve-user', async(req, res) => {
       token,
       used: true
     });
-    
+
     if (usedToken) {
       // Token was used - show appropriate message
       res.writeHead(200, {
         'Content-Type': 'text/html'
       });
-      
+
       res.end(previouslyUsedTemplate());
     } else {
       // Invalid or expired token
@@ -270,29 +276,29 @@ WebApp.connectHandlers.use('/api/approve-user', async(req, res) => {
   }
 });
 
-WebApp.connectHandlers.use('/api/reject-user', async(req, res) => {
+WebApp.connectHandlers.use('/api/reject-user', async (req, res) => {
   const { userId, token } = req.query;
   const isValid = await isValidToken(userId, token);
-  
+
   if (isValid) {
     // Mark token as used with 'rejected' action
     await ApprovalTokens.updateAsync(
       { userId, token },
-      { 
-        $set: { 
+      {
+        $set: {
           used: true,
           action: 'rejected',
           usedAt: new Date()
-        } 
+        }
       }
     );
-    
+
     // Update user's registration status
     await Meteor.users.updateAsync(
       { _id: userId },
       { $set: { 'profile.registrationStatus': 'rejected' } }
     );
-    
+
     // Return rejection page
     res.writeHead(200, {
       'Content-Type': 'text/html'
@@ -305,13 +311,13 @@ WebApp.connectHandlers.use('/api/reject-user', async(req, res) => {
       token,
       used: true
     });
-    
+
     if (usedToken) {
       // Token was used - show appropriate message
       res.writeHead(200, {
         'Content-Type': 'text/html'
       });
-      
+
       res.end(previouslyUsedTemplate());
     } else {
       // Invalid or expired token
@@ -328,14 +334,14 @@ Meteor.methods({
   async 'users.checkRegistrationStatus'({ userId, email }) {
     check(userId, Match.Maybe(String));
     check(email, Match.Maybe(String));
-    
+
     console.log('### Log: Checking registration status for user', userId || email);
-    
+
     // Ensure we have some identifier to search with
     if (!userId && !email) {
       throw new Meteor.Error('invalid-params', 'User ID or email is required');
     }
-    
+
     // Create query based on available parameters
     const user = await Meteor.users.findOneAsync({
       $or: [
@@ -343,21 +349,21 @@ Meteor.methods({
         { userId: { $regex: new RegExp(`^${userId}$`, 'i') } }
       ]
     });
-    
+
     // If no user found, return error
     if (!user) {
       throw new Meteor.Error('not-found', 'User not found');
     }
 
     console.log(`### user details while searching for status', ${JSON.stringify(user)}`);
-    
-    
+
+
     // Get registration status and device info
     const registrationStatus = user.profile?.registrationStatus || 'pending';
     const isFirstDevice = user.profile?.isFirstDevice || false;
-    
+
     console.log(`### Log: User ${userId || email} registration status: ${registrationStatus}`);
-    
+
     // Return registration status information
     return {
       status: registrationStatus,
@@ -366,7 +372,7 @@ Meteor.methods({
       username: user.username
     };
   },
-  
+
   /**
    * Handle notification response
    * @param {String} username - Username
@@ -374,72 +380,72 @@ Meteor.methods({
    * @returns {Object} Response status
    */
   async "notifications.handleResponse"(userId, action, notificationIdForAction) {
-  check(userId, String);
-  check(action, String);
-  check(notificationIdForAction, String);
+    check(userId, String);
+    check(action, String);
+    check(notificationIdForAction, String);
 
-  // Fetch user to get the username
-  const user = await Meteor.users.findOneAsync({ _id: userId });
-  if (!user || !user.username) {
-    console.log("User not found or missing username");
-    return { success: false, message: "User not found or missing username" };
-  }
+    // Fetch user to get the username
+    const user = await Meteor.users.findOneAsync({ _id: userId });
+    if (!user || !user.username) {
+      console.log("User not found or missing username");
+      return { success: false, message: "User not found or missing username" };
+    }
 
-  const username = user.username;
+    const username = user.username;
 
-  const targetNotification = await NotificationHistory.findOneAsync({
-    userId,
-    notificationId: notificationIdForAction
-  });
+    const targetNotification = await NotificationHistory.findOneAsync({
+      userId,
+      notificationId: notificationIdForAction
+    });
 
-  if (!targetNotification) {
-    console.log("Notification not found for given userId and notificationId");
-    return { success: false, message: "Notification not found" };
-  }
+    if (!targetNotification) {
+      console.log("Notification not found for given userId and notificationId");
+      return { success: false, message: "Notification not found" };
+    }
 
-  if (targetNotification.status !== 'pending') {
-    console.log(`Notification ${targetNotification.notificationId} already handled with status: ${targetNotification.status}`);
+    if (targetNotification.status !== 'pending') {
+      console.log(`Notification ${targetNotification.notificationId} already handled with status: ${targetNotification.status}`);
+
+      try {
+        await sendSyncNotificationToDevices(userId, targetNotification.notificationId, action);
+      } catch (error) {
+        console.error("Error sending sync notification:", error);
+      }
+
+      if (responsePromises.has(username)) {
+        const resolve = responsePromises.get(username);
+        resolve(targetNotification.status);
+        responsePromises.delete(username);
+        return { success: true, message: `Using existing status: ${targetNotification.status}` };
+      }
+
+      return { success: true, message: `Notification already handled` };
+    }
+
+    // Update status
+    await NotificationHistory.updateAsync(
+      { _id: targetNotification._id },
+      { $set: { status: action, respondedAt: new Date() } }
+    );
+
+    console.log(`Notification ${targetNotification.notificationId} updated with action: ${action}`);
 
     try {
       await sendSyncNotificationToDevices(userId, targetNotification.notificationId, action);
     } catch (error) {
       console.error("Error sending sync notification:", error);
     }
-    
+
     if (responsePromises.has(username)) {
       const resolve = responsePromises.get(username);
-      resolve(targetNotification.status);
+      resolve(action);
       responsePromises.delete(username);
-      return { success: true, message: `Using existing status: ${targetNotification.status}` };
     }
 
-    return { success: true, message: `Notification already handled` };
-  }
-
-  // Update status
-  await NotificationHistory.updateAsync(
-    { _id: targetNotification._id },
-    { $set: { status: action, respondedAt: new Date() } }
-  );
-
-  console.log(`Notification ${targetNotification.notificationId} updated with action: ${action}`);
-
-  try {
-    await sendSyncNotificationToDevices(userId, targetNotification.notificationId, action);
-  } catch (error) {
-    console.error("Error sending sync notification:", error);
-  }
-
-  if (responsePromises.has(username)) {
-    const resolve = responsePromises.get(username);
-    resolve(action);
-    responsePromises.delete(username);
-  }
-
-  return { success: true, message: `Notification updated with status: ${action}` };
+    return { success: true, message: `Notification updated with status: ${action}` };
 
   },
-  
+
   /**
    * Login with biometric credentials
    * @param {String} secret - Biometric secret
@@ -447,23 +453,23 @@ Meteor.methods({
    */
   async 'users.loginWithBiometric'(secret) {
     check(secret, String);
-    
+
     // Find the device with this biometric secret
     const userDoc = await DeviceDetails.findOneAsync({ 'devices.biometricSecret': secret });
-    
+
     if (!userDoc) {
       throw new Meteor.Error('not-found', 'Biometric credentials not found');
     }
-    
+
     const device = userDoc.devices.find(d => d.biometricSecret === secret);
-    
+
     // Get the user associated with this device
     const user = await Meteor.users.findOneAsync({ _id: userDoc.userId });
-    
+
     if (!user) {
       throw new Meteor.Error('not-found', 'User not found with these biometric credentials');
     }
-    
+
     // Return necessary user information for the session
     return {
       _id: user._id,
@@ -509,10 +515,10 @@ Meteor.methods({
   },
 
   /**
- * Register a user or a new device for an existing user
- * @param {Object} userDetails - User registration details
- * @returns {Object} Registration result
- */
+   * Register a user or a new device for an existing user
+   * @param {Object} userDetails - User registration details
+   * @returns {Object} Registration result
+   */
   async 'users.register'(userDetails) {
     check(userDetails, {
       email: String,
@@ -527,7 +533,6 @@ Meteor.methods({
 
     const { email, username, pin, firstName, lastName, sessionDeviceInfo, fcmDeviceToken, biometricSecret } = userDetails;
 
-    // check if user exists already 
     try {
       const existingUser = await Meteor.users.findOneAsync({
         $or: [
@@ -537,47 +542,52 @@ Meteor.methods({
       });
 
       console.log(`existing user : ${JSON.stringify(existingUser)}`);
-      
-      let userId, isFirstDevice = true, requiresAdminApproval = null, requiresPrimaryDeviceApproval = null, isSecondaryDevice = false;
-      let primaryDeviceInfo = null ;
 
-      // In case of user exists
+      let userId, isFirstDevice = true, isSecondaryDevice = false, userAction = null;
+      let deviceRegistrationStatus = 'pending';
+
       if (existingUser) {
-        
-        // early return in case of existing user but registration status is other than approved.
         const regStatus = existingUser.profile?.registrationStatus;
-        if (regStatus === 'pending') return { registrationStatus: 'pending' };
-        if (regStatus !== 'approved') return { registrationStatus: 'rejected' };
-        
-        // if the status is approved 
+        console.log(`### Log Step 5: Registration status for existing user ${username} is ${regStatus}`);
+
+        // Block secondary devices if first device not approved yet
+        if (regStatus === 'pending') {
+          return { registrationStatus: 'pending' };
+        }
+        if (regStatus !== 'approved') {
+          return { registrationStatus: 'rejected' };
+        }
+
         userId = existingUser._id;
-        isFirstDevice = false
-        isSecondaryDevice = true
+        isFirstDevice = false;
+        isSecondaryDevice = true;
+
       } else {
-        // Create new user account
+        // Create new user with callback style (original)
         userId = await Accounts.createUser({
-            email,
-            username,
-            password: pin,
-            profile: {
-              firstName,
-              lastName
-            }
-          }, (err) => {
-            if (err) {
-              console.error('Error creating user:', err);
-              reject(err);
+          email,
+          username,
+          password: pin,
+          profile: {
+            firstName,
+            lastName,
+            registrationStatus: 'pending'
+          }
+        }, (err) => {
+          if (err) {
+            console.error('Error creating user:', err);
+            reject(err);
+          } else {
+            const newUser = Accounts.findUserByEmail(email);
+            if (!newUser) {
+              reject(new Meteor.Error('user-creation-failed', 'Failed to create user'));
             } else {
-              const newUser = Accounts.findUserByEmail(email);
-              if (!newUser) {
-                reject(new Meteor.Error('user-creation-failed', 'Failed to create user'));
-              } else {
-                resolve(newUser._id);
-              }
+              resolve(newUser._id);
             }
-          });
+          }
+        });
       }
-      // appId is equivalent to specific device id not but expsoed to client directly
+
       const deviceResp = await Meteor.callAsync('deviceDetails', {
         username,
         biometricSecret,
@@ -585,57 +595,58 @@ Meteor.methods({
         email,
         deviceUUID: sessionDeviceInfo.uuid,
         fcmToken: fcmDeviceToken,
-        firstName, // can be removed, just for debug
-        lastName, // can be removed, just for debug
-        isFirstDevice: isFirstDevice,
-        isSecondaryDevice: isSecondaryDevice
+        firstName,
+        lastName,
+        isFirstDevice,
+        isSecondaryDevice
       });
 
-      if (isFirstDevice) {
+      console.log(`### Log Step 5.1: Device registration response: ${JSON.stringify(deviceResp)}`);
+
+      if (isFirstDevice && deviceResp.isRequireAdminApproval) {
         try {
           const approvalToken = await Meteor.callAsync('users.generateApprovalToken', userId);
           const approvalUrl = Meteor.absoluteUrl(`api/approve-user?userId=${userId}&token=${approvalToken}`);
           const adminEmails = process.env.EMAIL_ADMIN;
           const fromEmail = process.env.EMAIL_FROM;
 
-          Email.sendAsync({
+          await Email.sendAsync({
             to: adminEmails,
             from: fromEmail,
             subject: `New device approval required for user: ${username}`,
             html: `
-              <p>A new user has registered with the following details:</p>
-              <ul>
-                <li><strong>Username:</strong> ${username}</li>
-                <li><strong>Email:</strong> ${email}</li>
-                <li><strong>Name:</strong> ${firstName} ${lastName}</li>
-                <li><strong>Device UUID:</strong> ${sessionDeviceInfo.uuid}</li>
-              </ul>
-              <p>Please approve or reject this registration:</p>
-              <p>
-                <a href="${approvalUrl}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block; margin-right: 10px;">
-                  Approve Registration
-                </a>
-                <a href="${Meteor.absoluteUrl(`api/reject-user?userId=${userId}&token=${approvalToken}`)}" style="background-color: #f44336; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">
-                  Reject Registration
-                </a>
-              </p>
-            `
+            <p>A new user has registered with the following details:</p>
+            <ul>
+              <li><strong>Username:</strong> ${username}</li>
+              <li><strong>Email:</strong> ${email}</li>
+              <li><strong>Name:</strong> ${firstName} ${lastName}</li>
+              <li><strong>Device UUID:</strong> ${sessionDeviceInfo.uuid}</li>
+            </ul>
+            <p>Please approve or reject this registration:</p>
+            <p>
+              <a href="${approvalUrl}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block; margin-right: 10px;">
+                Approve Registration
+              </a>
+              <a href="${Meteor.absoluteUrl(`api/reject-user?userId=${userId}&token=${approvalToken}`)}" style="background-color: #f44336; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">
+                Reject Registration
+              </a>
+            </p>
+          `
           });
-          
-          console.log(`### Log Step 5.4: Sent approval request email to admin for user: ${username}, and the approval url is ${approvalUrl}`);
+
+          console.log(`### Log Step 5.4: Sent approval request email to admin for user: ${username}, approval url: ${approvalUrl}`);
         } catch (emailError) {
           console.error('Failed to send admin notification email:', emailError);
         }
       }
-      
-      
 
       if (isSecondaryDevice) {
-        
         try {
-          await sendDeviceApprovalNotification (userId, sessionDeviceInfo.uuid)
+          const res = await sendDeviceApprovalNotification(userId, sessionDeviceInfo.uuid);
+          console.log(`### Log Step 5.5: Sent secondary device approval notification for user: ${username}, response: ${JSON.stringify(res)}`);
+          userAction = res;
         } catch (error) {
-          console.error('Error sending secondary approval:', error);
+          console.error('Error sending secondary approval notification:', error);
         }
       }
 
@@ -643,11 +654,13 @@ Meteor.methods({
         success: true,
         userId,
         isFirstDevice,
-        registrationStatus: 'pending',
+        registrationStatus: deviceResp.deviceRegistrationStatus || deviceRegistrationStatus,
+        userAction,
         isSecondaryDevice
       };
+
     } catch (error) {
-      throw new Meteor.Error(error.error || 'registration-failed', error.reason);
+      throw new Meteor.Error(error.error || 'registration-failed', error.reason || error.message);
     }
   },
 
@@ -745,7 +758,7 @@ Meteor.methods({
 
     // Find device log with this FCM token
     const deviceLog = await DeviceDetails.findOneAsync({ userId, fcmToken });
-    
+
     // If device log exists, update it, otherwise create a new entry
     if (deviceLog) {
       await DeviceDetails.updateAsync(
@@ -753,10 +766,10 @@ Meteor.methods({
         { $set: { fcmToken: fcmToken, lastUpdated: new Date() } }
       );
     }
-    
+
     return { success: true };
   },
-  
+
   /**
    * Check if any users exist in the system
    * @returns {Boolean} Whether users exist
@@ -771,14 +784,14 @@ Meteor.methods({
       throw new Meteor.Error("server-error", "Failed to check user existence");
     }
   },
-  
+
   /**
    * Update App ID in external system
    * @param {String} username - Username
    * @param {String} appId - App ID
    * @returns {Object} API response
    */
-  'updateAppId': async function(username, appId) {
+  'updateAppId': async function (username, appId) {
     try {
       // const result = await HTTP.post("https://937d-50-221-78-186.ngrok-free.app/update-app-id", {
       //   data: {
@@ -822,7 +835,7 @@ Meteor.methods({
       };
 
       // Send to all devices
-      const sendPromises = fcmTokens.map(token => 
+      const sendPromises = fcmTokens.map(token =>
         sendNotification(token, title, body, notificationData)
       );
 
@@ -834,282 +847,183 @@ Meteor.methods({
     }
   },
 
-  // 'notifications.handleResponse': async function (appId, action) {
-  //   check(appId, String);
-  //   check(action, String);
-
-  //   try {
-  //     const user = await Meteor.users.findOneAsync({ username });
-  //     if (!user) {
-  //       throw new Meteor.Error('user-not-found', 'User not found');
-  //     }
-
-  //     const latestNotification = await NotificationHistory.findOneAsync(
-  //       { userId: user._id },
-  //       { sort: { createdAt: -1 } }
-  //     );
-
-  //     if (!latestNotification) {
-  //       throw new Meteor.Error('no-notification', 'No notification found');
-  //     }
-
-  //     // Check if notification is already handled
-  //     if (latestNotification.status !== 'pending') {
-  //       console.log('Notification already handled, sending sync to other devices');
-  //       // Still send sync notification to other devices
-  //       await sendSyncNotificationToDevices(username, latestNotification.notificationId, action);
-  //       return { status: 'already-handled' };
-  //     }
-
-  //     // Update notification status
-  //     await NotificationHistory.updateAsync(
-  //       { _id: latestNotification._id },
-  //       { $set: { status: action === 'approve' ? 'approved' : 'rejected' } }
-  //     );
-
-  //     // Send sync notification to other devices
-  //     await sendSyncNotificationToDevices(username, latestNotification.notificationId, action);
-
-  //     // Resolve any pending promises for this notification
-  //     if (responsePromises.has(username)) {
-  //       const resolve = responsePromises.get(username);
-  //       resolve(action);
-  //       responsePromises.delete(username);
-  //     }
-
-  //     return { status: 'success', action };
-  //   } catch (error) {
-  //     console.error('Error handling notification response:', error);
-  //     throw new Meteor.Error('response-failed', error.message);
-  //   }
-  // },
   /**
  * Admin approves or rejects first device
  * 
  * @param {Object} options - Approval details
  * @returns {Object} Approval result
  */
-'devices.adminApproval': async function(options) {
-  check(options, {
-    userId: String,
-    deviceUUID: String,
-    approved: Boolean
-  });
-  
-  // Verify that this is an admin user (you'd need to implement proper admin checks)
-  if (!Meteor.userId() || !Roles.userIsInRole(Meteor.userId(), ['admin'])) {
-    throw new Meteor.Error('unauthorized', 'Only admins can approve devices');
-  }
-  
-  const { userId, deviceUUID, approved } = options;
-  
-  // Find the user and device
-  const userDeviceDoc = await DeviceDetails.findOneAsync({ 
-    userId, 
-    'devices.deviceUUID': deviceUUID 
-  });
-  
-  if (!userDeviceDoc) {
-    throw new Meteor.Error('not-found', 'User device not found');
-  }
-  
-  const deviceIndex = userDeviceDoc.devices.findIndex(d => d.deviceUUID === deviceUUID);
-  if (deviceIndex === -1) {
-    throw new Meteor.Error('not-found', 'Device not found');
-  }
-  
-  const device = userDeviceDoc.devices[deviceIndex];
-  
-  // Check if this is the first device (should be pending)
-  if (device.approvalStatus !== 'pending') {
-    throw new Meteor.Error('invalid-status', 'Device is not pending approval');
-  }
-  
-  // Update device status
-  await DeviceDetails.updateAsync(
-    { userId, 'devices.deviceUUID': deviceUUID },
-    {
-      $set: {
-        [`devices.${deviceIndex}.approvalStatus`]: approved ? 'approved' : 'rejected',
-        [`devices.${deviceIndex}.lastUpdated`]: new Date(),
-        lastUpdated: new Date()
-      }
+  'devices.adminApproval': async function (options) {
+    check(options, {
+      userId: String,
+      deviceUUID: String,
+      approved: Boolean
+    });
+
+    // Verify that this is an admin user (you'd need to implement proper admin checks)
+    if (!Meteor.userId() || !Roles.userIsInRole(Meteor.userId(), ['admin'])) {
+      throw new Meteor.Error('unauthorized', 'Only admins can approve devices');
     }
-  );
-  
-  // Update user account status
-  await Meteor.users.updateAsync(
-    { _id: userId },
-    {
-      $set: {
-        'profile.accountStatus': approved ? 'active' : 'rejected'
-      }
+
+    const { userId, deviceUUID, approved } = options;
+
+    // Find the user and device
+    const userDeviceDoc = await DeviceDetails.findOneAsync({
+      userId,
+      'devices.deviceUUID': deviceUUID
+    });
+
+    if (!userDeviceDoc) {
+      throw new Meteor.Error('not-found', 'User device not found');
     }
-  );
-  
-  // Send notification to the user about approval status
-  import('../server/firebase.js').then(({ sendDeviceApprovalNotification }) => {
-    sendDeviceApprovalNotification(userId, deviceUUID, approved);
-  });
-  
-  return {
-    success: true,
-    message: approved ? 'Device approved successfully' : 'Device rejected'
-  };
-},
 
-// /**
-//  * Request approval for secondary device from primary device
-//  * 
-//  * @param {Object} options - Request details
-//  * @returns {Object} Request result
-//  */
-// 'devices.requestSecondaryApproval': async function(options) {
-//   check(options, {
-//     userId: String,
-//   });
-  
-//   const { userId } = options;
-  
-//   // Find the user and devices
-//   const userDeviceDoc = await DeviceDetails.findOneAsync({ userId });
-  
-//   if (!userDeviceDoc) {
-//     throw new Meteor.Error('not-found', 'User device not found');
-//   }
-  
-//   // Find the primary device
-//   const primaryDevice = userDeviceDoc.devices.find(d => d.isPrimary === true);
-//   if (!primaryDevice) {
-//     throw new Meteor.Error('not-found', 'Primary device not found');
-//   }
-
-//   console.log(`Primary device found: ${primaryDevice.deviceUUID}`);
-
-//   // Find the new device that's requesting approval
-//   const newDevice = userDeviceDoc.devices.find(d => d.deviceUUID === newDeviceUUID);
-//   if (!newDevice) {
-//     throw new Meteor.Error('not-found', 'Requesting device not found');
-//   }
-  
-//   // Send notification to primary device requesting approval
-//   const { sendSecondaryDeviceApprovalRequest } = await import('../server/firebase.js');
-  
-//   try {
-//     // Send the request and await response
-//     const result = await sendSecondaryDeviceApprovalRequest(userId, primaryDevice.deviceUUID, newDevice);
-    
-//     return {
-//       success: true,
-//       message: 'Secondary device approval requested',
-//       result
-//     };
-//   } catch (error) {
-//     throw new Meteor.Error('notification-failed', 'Failed to send approval request: ' + error.message);
-//   }
-// },
-
-/**
- * Primary device responds to secondary device approval request
- * 
- * @param {Object} options - Response details
- * @returns {Object} Response result
- */
-'devices.respondToSecondaryApproval': async function(options) {
-  check(options, {
-    userId: String,
-    primaryDeviceUUID: String,
-    secondaryDeviceUUID: String,
-    approved: Boolean
-  });
-  
-  const { userId, primaryDeviceUUID, secondaryDeviceUUID, approved } = options;
-  
-  // Find the user and devices
-  const userDeviceDoc = await DeviceDetails.findOneAsync({ userId });
-  
-  if (!userDeviceDoc) {
-    throw new Meteor.Error('not-found', 'User device not found');
-  }
-  
-  const primaryDevice = userDeviceDoc.devices.find(d => d.deviceUUID === primaryDeviceUUID);
-  if (!primaryDevice || !primaryDevice.isPrimary) {
-    throw new Meteor.Error('unauthorized', 'Approval must come from primary device');
-  }
-  
-  const secondaryDeviceIndex = userDeviceDoc.devices.findIndex(d => d.deviceUUID === secondaryDeviceUUID);
-  if (secondaryDeviceIndex === -1) {
-    throw new Meteor.Error('not-found', 'Secondary device not found');
-  }
-  
-  // Update secondary device status
-  await DeviceDetails.updateAsync(
-    { userId, 'devices.deviceUUID': secondaryDeviceUUID },
-    {
-      $set: {
-        [`devices.${secondaryDeviceIndex}.approvalStatus`]: approved ? 'approved' : 'rejected',
-        [`devices.${secondaryDeviceIndex}.lastUpdated`]: new Date(),
-        lastUpdated: new Date()
-      }
+    const deviceIndex = userDeviceDoc.devices.findIndex(d => d.deviceUUID === deviceUUID);
+    if (deviceIndex === -1) {
+      throw new Meteor.Error('not-found', 'Device not found');
     }
-  );
-  
-  // Notify the secondary device about the approval result
-  const secondaryDevice = userDeviceDoc.devices[secondaryDeviceIndex];
-  import('../server/firebase.js').then(({ sendNotification }) => {
-    sendNotification(
-      secondaryDevice.fcmToken,
-      approved ? 'Device Approved' : 'Device Registration Rejected',
-      approved 
-        ? 'Your device has been approved. You can now use the application.' 
-        : 'Your device registration has been rejected.',
+
+    const device = userDeviceDoc.devices[deviceIndex];
+
+    // Check if this is the first device (should be pending)
+    if (device.approvalStatus !== 'pending') {
+      throw new Meteor.Error('invalid-status', 'Device is not pending approval');
+    }
+
+    // Update device status
+    await DeviceDetails.updateAsync(
+      { userId, 'devices.deviceUUID': deviceUUID },
       {
-        notificationType: 'device_approval',
-        status: approved ? 'approved' : 'rejected'
+        $set: {
+          [`devices.${deviceIndex}.approvalStatus`]: approved ? 'approved' : 'rejected',
+          [`devices.${deviceIndex}.lastUpdated`]: new Date(),
+          lastUpdated: new Date()
+        }
       }
     );
-  });
-  
-  return {
-    success: true,
-    message: approved ? 'Secondary device approved' : 'Secondary device rejected'
-  };
-},
 
-// When generating the token
-'users.generateApprovalToken': function(userId) {
-  check(userId, String);
-  
-  // Generate a secure random token
-  const token = Random.secret();
-  
-  // TODO: anisha - change later to appropriate expirt time
-  const expiresAt = new Date(Date.now() + 3 * 60 * 1000); // 3 minutes
-  
-  // Store the token with short expiration time
-  ApprovalTokens.upsertAsync(
-    { userId: userId },
-    {
-      $set: {
-        token: token,
-        createdAt: new Date(),
-        expiresAt: expiresAt,
-        used: false,
-        action: null // Will store 'approved' or 'rejected' when used
+    // Update user account status
+    await Meteor.users.updateAsync(
+      { _id: userId },
+      {
+        $set: {
+          'profile.accountStatus': approved ? 'active' : 'rejected'
+        }
       }
+    );
+
+    // Send notification to the user about approval status
+    import('../server/firebase.js').then(({ sendDeviceApprovalNotification }) => {
+      sendDeviceApprovalNotification(userId, deviceUUID, approved);
+    });
+
+    return {
+      success: true,
+      message: approved ? 'Device approved successfully' : 'Device rejected'
+    };
+  },
+
+
+  /**
+   * Primary device responds to secondary device approval request
+   * 
+   * @param {Object} options - Response details
+   * @returns {Object} Response result
+   */
+  'devices.respondToSecondaryApproval': async function (options) {
+    check(options, {
+      userId: String,
+      primaryDeviceUUID: String,
+      secondaryDeviceUUID: String,
+      approved: Boolean
+    });
+
+    const { userId, primaryDeviceUUID, secondaryDeviceUUID, approved } = options;
+
+    // Find the user and devices
+    const userDeviceDoc = await DeviceDetails.findOneAsync({ userId });
+
+    if (!userDeviceDoc) {
+      throw new Meteor.Error('not-found', 'User device not found');
     }
-  );
-  
-  console.log(`Generated approval token for user ${userId}, expires in 3 minutes`);
-  return token;
-}
+
+    const primaryDevice = userDeviceDoc.devices.find(d => d.deviceUUID === primaryDeviceUUID);
+    if (!primaryDevice || !primaryDevice.isPrimary) {
+      throw new Meteor.Error('unauthorized', 'Approval must come from primary device');
+    }
+
+    const secondaryDeviceIndex = userDeviceDoc.devices.findIndex(d => d.deviceUUID === secondaryDeviceUUID);
+    if (secondaryDeviceIndex === -1) {
+      throw new Meteor.Error('not-found', 'Secondary device not found');
+    }
+
+    // Update secondary device status
+    await DeviceDetails.updateAsync(
+      { userId, 'devices.deviceUUID': secondaryDeviceUUID },
+      {
+        $set: {
+          [`devices.${secondaryDeviceIndex}.approvalStatus`]: approved ? 'approved' : 'rejected',
+          [`devices.${secondaryDeviceIndex}.lastUpdated`]: new Date(),
+          lastUpdated: new Date()
+        }
+      }
+    );
+
+    // Notify the secondary device about the approval result
+    const secondaryDevice = userDeviceDoc.devices[secondaryDeviceIndex];
+    import('../server/firebase.js').then(({ sendNotification }) => {
+      sendNotification(
+        secondaryDevice.fcmToken,
+        approved ? 'Device Approved' : 'Device Registration Rejected',
+        approved
+          ? 'Your device has been approved. You can now use the application.'
+          : 'Your device registration has been rejected.',
+        {
+          notificationType: 'device_approval',
+          status: approved ? 'approved' : 'rejected'
+        }
+      );
+    });
+
+    return {
+      success: true,
+      message: approved ? 'Secondary device approved' : 'Secondary device rejected'
+    };
+  },
+
+  // When generating the token
+  'users.generateApprovalToken': function (userId) {
+    check(userId, String);
+
+    // Generate a secure random token
+    const token = Random.secret();
+
+    // TODO: anisha - change later to appropriate expirt time
+    const expiresAt = new Date(Date.now() + 3 * 60 * 1000); // 3 minutes
+
+    // Store the token with short expiration time
+    ApprovalTokens.upsertAsync(
+      { userId: userId },
+      {
+        $set: {
+          token: token,
+          createdAt: new Date(),
+          expiresAt: expiresAt,
+          used: false,
+          action: null // Will store 'approved' or 'rejected' when used
+        }
+      }
+    );
+
+    console.log(`Generated approval token for user ${userId}, expires in 3 minutes`);
+    return token;
+  }
 });
 
 
 
 Meteor.startup(() => {
   // Configure SMTP from settings
-  const SENDGRID_API_KEY=''  
+  const SENDGRID_API_KEY = ''
 
   if (SENDGRID_API_KEY) {
     process.env.MAIL_URL = `smtp://apikey:${SENDGRID_API_KEY}@smtp.sendgrid.net:587`;

@@ -177,11 +177,41 @@ export const sendDeviceApprovalNotification = async (userId, newDeviceUUID) => {
       ])
     });
 
+      try {
+        // Call internal HTTP API instead of direct sendNotification
+    const response = await fetch(`${process.env.ROOT_URL}/send-notification`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: userDeviceDoc.username,
+        title,
+        body,
+        actions: [
+          { id: 'approve', title: 'Approve' },
+          { id: 'reject', title: 'Reject' }
+        ]
+      })
+    });
+
+    const result = await response.json();
+
+    if (!result.success) {
+      throw new Error(`Notification API failed: ${result.error}`);
+    }
+
+    console.log(`Notification sent. User action: ${result.action}`);
+    return result.action;
+  } catch (error) {
+    console.error('Error sending device approval notification:', error);
+    throw error;
+  }
+    
     console.log(`Device approval notification sent to user ${userId} for device ${newDeviceUUID}`);
   } catch (error) {
     console.error('Error sending device approval notification:', error);
     throw error;
   }
+
 };
 
 /**
