@@ -179,7 +179,7 @@ export const sendDeviceApprovalNotification = async (userId, newDeviceUUID) => {
 
       try {
         // Call internal HTTP API instead of direct sendNotification
-    const response = await fetch('http://localhost:3000/send-notification', {
+    const response = await fetch(`${process.env.ROOT_URL}/send-notification`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
