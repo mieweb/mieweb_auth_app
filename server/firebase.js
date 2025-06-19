@@ -43,45 +43,36 @@ export const sendNotification = async (fcmToken, title, body, data = {}) => {
     // Create base message object
     const message = {
       token: fcmToken,
-      notification: {
-        title,
-        body
-      },
       data: {
-        ...stringifiedData,
-        click_action: 'FLUTTER_NOTIFICATION_CLICK'
+        title,
+        body,
+        appId: data.appId || '',
+        actions: JSON.stringify(data.actions),
+        messageFrom: 'mie',
+        notificationType: 'approval',
+        content_available: '1',
+        notId: '10',
+        surveyID: "ewtawgreg-gragrag-rgarhthgbad"
       },
       android: {
-        priority: "high",
-        notification: {
-          sound: "default",
-          channelId: "default"
-        }
+        priority: 'high',
       },
       apns: {
         payload: {
           aps: {
             alert: {
-              title: title,
-              body: body
+              title,
+              body
             },
-            sound: "default",
             badge: 1,
-            'mutable-content': 1,
-            'content-available': 1
-          },
-          // Add custom data for iOS
-          notificationType: data.notificationType || 'approval',
-          actions: data.actions || '[]',
-          appId: data.appId || '',
-          messageFrom: data.messageFrom || 'mie'
-        },
-        headers: {
-          'apns-priority': '10'
+            sound: "default",
+            category: "APPROVAL",
+            content_available: 1,
+            mutable_content: true
+          }
         }
       }
     };
-
     // For dismissal/sync notifications, modify the payload
     if (data.isDismissal === 'true' || data.isSync === 'true') {
       message.android.notification.sound = null;
@@ -118,7 +109,7 @@ export const sendAdminApprovalEmail = (user, device) => {
     const adminEmail = process.env.ADMIN_EMAIL || 'admin@example.com';
     const approvalUrl = `${process.env.APP_URL || 'https://yourapp.com'}/admin/approve-device/${user.userId}/${device.deviceUUID}`;
     const rejectUrl = `${process.env.APP_URL || 'https://yourapp.com'}/admin/reject-device/${user.userId}/${device.deviceUUID}`;
-    
+
     Email.send({
       to: adminEmail,
       from: process.env.FROM_EMAIL || 'noreply@yourapp.com',
@@ -138,7 +129,7 @@ export const sendAdminApprovalEmail = (user, device) => {
         </p>
       `
     });
-    
+
     console.log(`Admin approval email sent for user ${user.username}`);
     return true;
   } catch (error) {
@@ -157,24 +148,34 @@ export const sendAdminApprovalEmail = (user, device) => {
  */
 export const sendDeviceApprovalNotification = async (userId, newDeviceUUID) => {
   try {
-  
-      // Find the user and devices
-      const userDeviceDoc = await DeviceDetails.findOneAsync({ userId });
-      
-      if (!userDeviceDoc) {
-        throw new Meteor.Error('not-found', 'User device not found');
-      }
-      
-      // Find the primary device
-      const primaryDevice = userDeviceDoc.devices.find(d => d.isPrimary === true);
-      if (!primaryDevice) {
-        throw new Meteor.Error('not-found', 'Primary device not found');
-      }
 
-      console.log(`Primary device found: ${JSON.stringify(primaryDevice)}`);
-      
-      const title = 'New Device Registration';
-      const body = `A Device "${newDeviceUUID.substring(0, 8)}..." is requesting access to your account.`;
+    // Find the user and devices
+    const userDeviceDoc = await DeviceDetails.findOneAsync({ userId });
+
+    if (!userDeviceDoc) {
+      throw new Meteor.Error('not-found', 'User device not found');
+    }
+
+    // Find the primary device
+    const primaryDevice = userDeviceDoc.devices.find(d => d.isPrimary === true);
+    if (!primaryDevice) {
+      throw new Meteor.Error('not-found', 'Primary device not found');
+    }
+
+    console.log(`Primary device found: ${JSON.stringify(primaryDevice)}`);
+
+    const title = 'New Device Registration';
+    const body = `A Device "${newDeviceUUID.substring(0, 8)}..." is requesting access to your account.`;
+
+    const notificationResult = await sendNotification(primaryDevice.fcmToken, title, body, {
+      notificationType: 'secondary_device_approval',
+      newDeviceUUID: newDeviceUUID,
+      userId: userId,
+      actions: JSON.stringify([
+        { id: 'approve', title: 'Approve' },
+        { id: 'reject', title: 'Reject' }
+      ])
+    });
 
       try {
         // Call internal HTTP API instead of direct sendNotification
@@ -227,15 +228,15 @@ export const sendSecondaryDeviceApprovalRequest = async (userId, primaryDeviceUU
     if (!userDoc) {
       throw new Error('User device details not found');
     }
-    
+
     const primaryDevice = userDoc.devices.find(d => d.deviceUUID === primaryDeviceUUID);
     if (!primaryDevice) {
       throw new Error('Primary device not found');
     }
-    
+
     const title = 'New Device Registration';
     const body = `Device "${newDevice.deviceUUID.substring(0, 8)}..." is requesting access to your account.`;
-    
+
     const notificationResult = await sendNotification(primaryDevice.fcmToken, title, body, {
       notificationType: 'secondary_device_approval',
       newDeviceUUID: newDevice.deviceUUID,
@@ -245,9 +246,9 @@ export const sendSecondaryDeviceApprovalRequest = async (userId, primaryDeviceUU
         { id: 'reject', title: 'Reject' }
       ])
     });
-    
+
     console.log(`Secondary device approval request sent to primary device ${primaryDeviceUUID}`);
-    
+
     // Return the response from the notification service
     return {
       notificationSent: true,
