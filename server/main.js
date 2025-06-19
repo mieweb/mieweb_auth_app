@@ -847,55 +847,6 @@ Meteor.methods({
     }
   },
 
-  // 'notifications.handleResponse': async function (appId, action) {
-  //   check(appId, String);
-  //   check(action, String);
-
-  //   try {
-  //     const user = await Meteor.users.findOneAsync({ username });
-  //     if (!user) {
-  //       throw new Meteor.Error('user-not-found', 'User not found');
-  //     }
-
-  //     const latestNotification = await NotificationHistory.findOneAsync(
-  //       { userId: user._id },
-  //       { sort: { createdAt: -1 } }
-  //     );
-
-  //     if (!latestNotification) {
-  //       throw new Meteor.Error('no-notification', 'No notification found');
-  //     }
-
-  //     // Check if notification is already handled
-  //     if (latestNotification.status !== 'pending') {
-  //       console.log('Notification already handled, sending sync to other devices');
-  //       // Still send sync notification to other devices
-  //       await sendSyncNotificationToDevices(username, latestNotification.notificationId, action);
-  //       return { status: 'already-handled' };
-  //     }
-
-  //     // Update notification status
-  //     await NotificationHistory.updateAsync(
-  //       { _id: latestNotification._id },
-  //       { $set: { status: action === 'approve' ? 'approved' : 'rejected' } }
-  //     );
-
-  //     // Send sync notification to other devices
-  //     await sendSyncNotificationToDevices(username, latestNotification.notificationId, action);
-
-  //     // Resolve any pending promises for this notification
-  //     if (responsePromises.has(username)) {
-  //       const resolve = responsePromises.get(username);
-  //       resolve(action);
-  //       responsePromises.delete(username);
-  //     }
-
-  //     return { status: 'success', action };
-  //   } catch (error) {
-  //     console.error('Error handling notification response:', error);
-  //     throw new Meteor.Error('response-failed', error.message);
-  //   }
-  // },
   /**
  * Admin approves or rejects first device
  * 
@@ -971,56 +922,6 @@ Meteor.methods({
     };
   },
 
-  // /**
-  //  * Request approval for secondary device from primary device
-  //  * 
-  //  * @param {Object} options - Request details
-  //  * @returns {Object} Request result
-  //  */
-  // 'devices.requestSecondaryApproval': async function(options) {
-  //   check(options, {
-  //     userId: String,
-  //   });
-
-  //   const { userId } = options;
-
-  //   // Find the user and devices
-  //   const userDeviceDoc = await DeviceDetails.findOneAsync({ userId });
-
-  //   if (!userDeviceDoc) {
-  //     throw new Meteor.Error('not-found', 'User device not found');
-  //   }
-
-  //   // Find the primary device
-  //   const primaryDevice = userDeviceDoc.devices.find(d => d.isPrimary === true);
-  //   if (!primaryDevice) {
-  //     throw new Meteor.Error('not-found', 'Primary device not found');
-  //   }
-
-  //   console.log(`Primary device found: ${primaryDevice.deviceUUID}`);
-
-  //   // Find the new device that's requesting approval
-  //   const newDevice = userDeviceDoc.devices.find(d => d.deviceUUID === newDeviceUUID);
-  //   if (!newDevice) {
-  //     throw new Meteor.Error('not-found', 'Requesting device not found');
-  //   }
-
-  //   // Send notification to primary device requesting approval
-  //   const { sendSecondaryDeviceApprovalRequest } = await import('../server/firebase.js');
-
-  //   try {
-  //     // Send the request and await response
-  //     const result = await sendSecondaryDeviceApprovalRequest(userId, primaryDevice.deviceUUID, newDevice);
-
-  //     return {
-  //       success: true,
-  //       message: 'Secondary device approval requested',
-  //       result
-  //     };
-  //   } catch (error) {
-  //     throw new Meteor.Error('notification-failed', 'Failed to send approval request: ' + error.message);
-  //   }
-  // },
 
   /**
    * Primary device responds to secondary device approval request
