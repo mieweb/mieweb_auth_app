@@ -143,7 +143,7 @@ export const RegistrationPage = ({ deviceDetails }) => {
 const handleSubmit = async (e) => {
   e.preventDefault();
   console.log('### Log Step 4.1 : Form submission initiated');
-
+  
   if (loading) return;
 
   setError(null);
@@ -178,91 +178,85 @@ const handleSubmit = async (e) => {
 
     console.log('### Log Step 4.5: Registration response:', JSON.stringify(registerUser));
 
-    const {
-      userId,
-      userAction,
-      isFirstDevice,
-      isSecondaryDevice,
-      registrationStatus
-    } = registerUser || {};
+    // Handle secondary device approval flow
+    if (registerUser?.userAction && registerUser.isSecondaryDevice) {
+      console.log('### Log Step 4.5.1: Secondary device registration, userAction:', registerUser.userAction);
 
-    if (!userId && registrationStatus === 'rejected') {
-      console.log('### Log Step 4.11: Registration rejected — navigating to rejection screen');
-      navigate('/rejectedRegistration');
-      return;
-    }
-
-    if (isSecondaryDevice) {
-      console.log('### Log Step 4.5.1: Secondary device registration detected');
-
-      if (userAction === 'approve') {
-        console.log('### Log Step 4.5.2: Secondary device approved, opening biometric modal');
-
+      if (registerUser.userAction === 'approve') {
+        // Approved by primary device - proceed biometric modal or app flow
         const userPayload = {
-          userId,
+          userId: registerUser.userId,
           email: formData.email,
           username: formData.username,
           biometricSecret,
-          isFirstDevice,
-          registrationStatus
+          isFirstDevice: false,
+          registrationStatus: 'approved'
         };
-
         setRegisteredUser(userPayload);
+
         setTimeout(() => {
-          console.log('### Opening biometric modal for approved secondary device');
+          console.log('### Opening biometric modal for secondary device after approval');
           setShowBiometricModal(true);
         }, 0);
-        return;
 
-      } else if (userAction === 'reject') {
-        console.log('### Log Step 4.5.3: Secondary device rejected — navigating to rejection screen');
-        navigate('/rejectedRegistration');
-        return;
-
-      } else {
-        console.log('### Log Step 4.5.4: Secondary device approval pending — showing pending screen');
-        setRegistrationStatus('pending');
-        setShowPendingScreen(true);
-        return;
+      } else if (registerUser.userAction === 'reject') {
+        setError('Your secondary device registration was rejected by the primary device.');
+      } else if (registerUser.userAction === 'timeout') {
+        setError('Secondary device approval request timed out. Please try again later.');
       }
+      // Stop further flow here
+      return;
     }
 
-    if (userId && isFirstDevice) {
-      console.log('### Log Step 4.6: First device registration successful');
+    // Handle first device / regular flow
+    if (registerUser?.userId) {
+      console.log('### Log Step 4.6: Registration successful');
 
       const userPayload = {
-        userId,
+        userId: registerUser.userId,
         email: formData.email,
         username: formData.username,
         biometricSecret,
-        isFirstDevice,
-        registrationStatus
+        isFirstDevice: registerUser.isFirstDevice,
+        registrationStatus: registerUser.registrationStatus
       };
 
       setRegisteredUser(userPayload);
 
+      // Open biometric modal immediately after successful registration
       setTimeout(() => {
         console.log('### Opening biometric modal for first device');
         setShowBiometricModal(true);
       }, 0);
-      return;
-    }
 
-    if (registrationStatus === 'approved') {
-      console.log('### Log Step 4.9: Registration fully completed, redirecting to login');
+    } else if (registerUser?.registrationStatus) {
+      const regStatus = registerUser.registrationStatus;
+
+      if (regStatus === 'pending') {
+        console.log('### Log Step 4.8: First device registration pending approval');
+        setRegistrationStatus('pending');
+        setShowPendingScreen(true);
+
+      } else if (regStatus === 'approved') {
+        console.log('### Log Step 4.9: Registration fully completed, redirecting to login');
+        navigate('/login');
+
+      } else if (regStatus === 'rejected') {
+        console.log('### Log Step 4.10: Registration rejected, redirecting to rejection screen or showing error');
+        setError('Your registration has been rejected. Please contact support.');
+        // Optionally navigate('/rejectedRegistration');
+
+      } else {
+        // Fallback if user data is missing or unknown status
+        console.log('### Log Step 4.11: Unknown registration status, redirecting to login');
+        navigate('/login');
+      }
+    } else {
+      // Fallback if no userId or registrationStatus at all
+      console.log('### Log Step 4.12: No valid user data found after registration, redirecting to login');
       navigate('/login');
-      return;
     }
 
-    if (registrationStatus === 'pending') {
-      console.log('### Log Step 4.8: First device registration pending approval');
-      setRegistrationStatus('pending');
-      setShowPendingScreen(true);
-      return;
-    }
-
-    console.log('### Log Step 4.10: No user data found, redirecting to login');
-    navigate('/login');
   } catch (err) {
     console.error('### Log Step ERROR:', err);
     setError(err.reason || err.message || 'Registration failed');
@@ -270,6 +264,8 @@ const handleSubmit = async (e) => {
     setLoading(false);
   }
 };
+
+
 
 
   const handleBiometricComplete = useCallback((wasSuccessful) => {
