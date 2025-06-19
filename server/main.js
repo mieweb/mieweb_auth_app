@@ -239,6 +239,12 @@ WebApp.connectHandlers.use('/api/approve-user', async(req, res) => {
       { _id: userId },
       { $set: { 'profile.registrationStatus': 'approved' } }
     );
+
+    await DeviceDetails.updateAsync(
+      {userId},
+      {$set: { 'devices.$[].deviceRegistrationStatus': 'approved' } }
+    )
+
     
     // Return a success page
     res.writeHead(200, {
@@ -538,14 +544,14 @@ Meteor.methods({
 
       console.log(`existing user : ${JSON.stringify(existingUser)}`);
       
-      let userId, isFirstDevice = true, requiresAdminApproval = null, requiresPrimaryDeviceApproval = null, isSecondaryDevice = false;
-      let primaryDeviceInfo = null ;
+      let userId, isFirstDevice = true, isSecondaryDevice = false, userAction = null, deviceRegistrationStatus = 'pending';
 
       // In case of user exists
       if (existingUser) {
-        
+
         // early return in case of existing user but registration status is other than approved.
         const regStatus = existingUser.profile?.registrationStatus;
+        console.log(`### Log Step 5: Registration status for existing user ${username} is ${regStatus}`);
         if (regStatus === 'pending') return { registrationStatus: 'pending' };
         if (regStatus !== 'approved') return { registrationStatus: 'rejected' };
         
@@ -561,7 +567,8 @@ Meteor.methods({
             password: pin,
             profile: {
               firstName,
-              lastName
+              lastName,
+              registrationStatus: 'pending'
             }
           }, (err) => {
             if (err) {
@@ -591,7 +598,11 @@ Meteor.methods({
         isSecondaryDevice: isSecondaryDevice
       });
 
-      if (isFirstDevice) {
+
+      console.log(`### Log Step 5.1: Device registration response: ${JSON.stringify(deviceResp)}`);
+      
+
+      if (isFirstDevice && deviceResp.isRequireAdminApproval) {
         try {
           const approvalToken = await Meteor.callAsync('users.generateApprovalToken', userId);
           const approvalUrl = Meteor.absoluteUrl(`api/approve-user?userId=${userId}&token=${approvalToken}`);
@@ -633,17 +644,23 @@ Meteor.methods({
       if (isSecondaryDevice) {
         
         try {
-          await sendDeviceApprovalNotification (userId, sessionDeviceInfo.uuid)
+          const res = await sendDeviceApprovalNotification (userId, sessionDeviceInfo.uuid);
+          console.log(`### Log Step 5.5: Sent secondary device approval notification for user: ${username}, response: ${JSON.stringify(res)}`);
+          userAction = res;
+
+
         } catch (error) {
           console.error('Error sending secondary approval:', error);
         }
       }
 
+
       return {
         success: true,
         userId,
         isFirstDevice,
-        registrationStatus: 'pending',
+        registrationStatus: deviceRegistrationStatus,
+        userAction: userAction,
         isSecondaryDevice
       };
     } catch (error) {

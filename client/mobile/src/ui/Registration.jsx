@@ -45,94 +45,232 @@ export const RegistrationPage = ({ deviceDetails }) => {
     }
   ], []);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    console.log('### Log Step 4.1 : Form submission initiated');
+  // const handleSubmit = async (e) => {
+  //   e.preventDefault();
+  //   console.log('### Log Step 4.1 : Form submission initiated');
     
-    if (loading) return;
+  //   if (loading) return;
     
-    setError(null);
-    setLoading(true);
+  //   setError(null);
+  //   setLoading(true);
 
-    try {
-      const sessionDeviceInfo = Session.get('capturedDeviceInfo');
-      const fcmDeviceToken = Session.get('deviceToken');
-      console.log('### Log Step 4.2: Session data:', JSON.stringify({
-        sessionDeviceInfo,
-        fcmDeviceToken
-      }));
+  //   try {
+  //     const sessionDeviceInfo = Session.get('capturedDeviceInfo');
+  //     const fcmDeviceToken = Session.get('deviceToken');
+  //     console.log('### Log Step 4.2: Session data:', JSON.stringify({
+  //       sessionDeviceInfo,
+  //       fcmDeviceToken
+  //     }));
 
-      if (!sessionDeviceInfo?.uuid || !fcmDeviceToken) {
-        throw new Error('Device information or FCM token not available');
-      }
+  //     if (!sessionDeviceInfo?.uuid || !fcmDeviceToken) {
+  //       throw new Error('Device information or FCM token not available');
+  //     }
 
-      if (sessionDeviceInfo.uuid !== deviceDetails) {
-        throw new Error('Device UUID mismatch');
-      }
+  //     if (sessionDeviceInfo.uuid !== deviceDetails) {
+  //       throw new Error('Device UUID mismatch');
+  //     }
 
-      const biometricSecret = Random.secret(32);
-      console.log('### Log Step 4.3: Generated biometric secret');
+  //     const biometricSecret = Random.secret(32);
+  //     console.log('### Log Step 4.3: Generated biometric secret');
 
-      console.log('### Log Step 4.4: Calling users.register method...');
-      const registerUser = await Meteor.callAsync('users.register', {
-        ...formData,
-        sessionDeviceInfo,
-        fcmDeviceToken,
-        biometricSecret
-      });
+  //     console.log('### Log Step 4.4: Calling users.register method...');
+  //     const registerUser = await Meteor.callAsync('users.register', {
+  //       ...formData,
+  //       sessionDeviceInfo,
+  //       fcmDeviceToken,
+  //       biometricSecret
+  //     });
 
-      console.log('### Log Step 4.5: Registration response:', JSON.stringify(registerUser));
+  //     console.log('### Log Step 4.5: Registration response:', JSON.stringify(registerUser));
 
-      if (registerUser?.userId) {
-        console.log('### Log Step 4.6: Registration successful');
+  //     if (registerUser?.userAction && registerUser.isSecondaryDevice) 
+  //       {
+  //       // Handle secondary device approval flow
+  //       console.log('### Log Step 4.5.1: Secondary device registration, redirecting to approval page');
+  //       // check the user
+  //     }
+
+  //     if (registerUser?.userId) {
+  //       console.log('### Log Step 4.6: Registration successful');
         
-        // Store user info with registration details for use after biometric handling
+  //       // Store user info with registration details for use after biometric handling
+  //       const userPayload = {
+  //         userId: registerUser.userId,
+  //         email: formData.email,
+  //         username: formData.username,
+  //         biometricSecret,
+  //         isFirstDevice: registerUser.isFirstDevice,
+  //         registrationStatus: registerUser.registrationStatus
+  //       };
+        
+  //       setRegisteredUser(userPayload);
+        
+  //       // Proceed to biometric modal immediately after successful registration
+  //       setTimeout(() => {
+  //         console.log('### Opening biometric modal');
+  //         setShowBiometricModal(true);
+  //       }, 0);
+  //     } else if (registerUser?.registrationStatus) {
+  //       const regStatus = registerUser.registrationStatus;
+  //       if (regStatus == 'pending') {
+  //         console.log('### Log Step 4.8: First device registration pending approval');
+  //         setRegistrationStatus('pending');
+  //         setShowPendingScreen(true);
+
+  //       } else if( regStatus == 'approved') {
+  //         console.log('### Log Step 4.9: Registration fully completed, redirecting to login');
+  //         navigate('/login');
+          
+  //       } else if(regStatus == 'rejected'){
+  //         // navigate it to rejectedRegistration screen
+  //         // Do Something
+
+  //       } else { 
+  //         // Fallback if user data is missing
+  //         console.log('### Log Step 4.10: No user data found, redirecting to login');
+  //         navigate('/login');
+          
+  //       }
+
+  //     }
+  //   } catch (err) {
+  //     console.error('### Log Step ERROR:', err);
+  //     setError(err.reason || err.message || 'Registration failed');
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  console.log('### Log Step 4.1 : Form submission initiated');
+
+  if (loading) return;
+
+  setError(null);
+  setLoading(true);
+
+  try {
+    const sessionDeviceInfo = Session.get('capturedDeviceInfo');
+    const fcmDeviceToken = Session.get('deviceToken');
+    console.log('### Log Step 4.2: Session data:', JSON.stringify({
+      sessionDeviceInfo,
+      fcmDeviceToken
+    }));
+
+    if (!sessionDeviceInfo?.uuid || !fcmDeviceToken) {
+      throw new Error('Device information or FCM token not available');
+    }
+
+    if (sessionDeviceInfo.uuid !== deviceDetails) {
+      throw new Error('Device UUID mismatch');
+    }
+
+    const biometricSecret = Random.secret(32);
+    console.log('### Log Step 4.3: Generated biometric secret');
+
+    console.log('### Log Step 4.4: Calling users.register method...');
+    const registerUser = await Meteor.callAsync('users.register', {
+      ...formData,
+      sessionDeviceInfo,
+      fcmDeviceToken,
+      biometricSecret
+    });
+
+    console.log('### Log Step 4.5: Registration response:', JSON.stringify(registerUser));
+
+    const {
+      userId,
+      userAction,
+      isFirstDevice,
+      isSecondaryDevice,
+      registrationStatus
+    } = registerUser || {};
+
+    if (!userId && registrationStatus === 'rejected') {
+      console.log('### Log Step 4.11: Registration rejected — navigating to rejection screen');
+      navigate('/rejectedRegistration');
+      return;
+    }
+
+    if (isSecondaryDevice) {
+      console.log('### Log Step 4.5.1: Secondary device registration detected');
+
+      if (userAction === 'approve') {
+        console.log('### Log Step 4.5.2: Secondary device approved, opening biometric modal');
+
         const userPayload = {
-          userId: registerUser.userId,
+          userId,
           email: formData.email,
           username: formData.username,
           biometricSecret,
-          isFirstDevice: registerUser.isFirstDevice,
-          registrationStatus: registerUser.registrationStatus
+          isFirstDevice,
+          registrationStatus
         };
-        
+
         setRegisteredUser(userPayload);
-        
-        // Proceed to biometric modal immediately after successful registration
         setTimeout(() => {
-          console.log('### Opening biometric modal');
+          console.log('### Opening biometric modal for approved secondary device');
           setShowBiometricModal(true);
         }, 0);
-      } else if (registerUser?.registrationStatus) {
-        const regStatus = registerUser.registrationStatus;
-        if (regStatus == 'pending') {
-          console.log('### Log Step 4.8: First device registration pending approval');
-          setRegistrationStatus('pending');
-          setShowPendingScreen(true);
+        return;
 
-        } else if( regStatus == 'approved') {
-          console.log('### Log Step 4.9: Registration fully completed, redirecting to login');
-          navigate('/login');
-          
-        } else if(regStatus == 'rejected'){
-          // navigate it to rejectedRegistration screen
-          // Do Something
+      } else if (userAction === 'reject') {
+        console.log('### Log Step 4.5.3: Secondary device rejected — navigating to rejection screen');
+        navigate('/rejectedRegistration');
+        return;
 
-        } else { 
-          // Fallback if user data is missing
-          console.log('### Log Step 4.10: No user data found, redirecting to login');
-          navigate('/login');
-          
-        }
-
+      } else {
+        console.log('### Log Step 4.5.4: Secondary device approval pending — showing pending screen');
+        setRegistrationStatus('pending');
+        setShowPendingScreen(true);
+        return;
       }
-    } catch (err) {
-      console.error('### Log Step ERROR:', err);
-      setError(err.reason || err.message || 'Registration failed');
-    } finally {
-      setLoading(false);
     }
-  };
+
+    if (userId && isFirstDevice) {
+      console.log('### Log Step 4.6: First device registration successful');
+
+      const userPayload = {
+        userId,
+        email: formData.email,
+        username: formData.username,
+        biometricSecret,
+        isFirstDevice,
+        registrationStatus
+      };
+
+      setRegisteredUser(userPayload);
+
+      setTimeout(() => {
+        console.log('### Opening biometric modal for first device');
+        setShowBiometricModal(true);
+      }, 0);
+      return;
+    }
+
+    if (registrationStatus === 'approved') {
+      console.log('### Log Step 4.9: Registration fully completed, redirecting to login');
+      navigate('/login');
+      return;
+    }
+
+    if (registrationStatus === 'pending') {
+      console.log('### Log Step 4.8: First device registration pending approval');
+      setRegistrationStatus('pending');
+      setShowPendingScreen(true);
+      return;
+    }
+
+    console.log('### Log Step 4.10: No user data found, redirecting to login');
+    navigate('/login');
+  } catch (err) {
+    console.error('### Log Step ERROR:', err);
+    setError(err.reason || err.message || 'Registration failed');
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const handleBiometricComplete = useCallback((wasSuccessful) => {
   console.log('### Log Step 4.7: Biometric completion:', wasSuccessful);

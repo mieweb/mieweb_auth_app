@@ -176,21 +176,41 @@ export const sendDeviceApprovalNotification = async (userId, newDeviceUUID) => {
       const title = 'New Device Registration';
       const body = `A Device "${newDeviceUUID.substring(0, 8)}..." is requesting access to your account.`;
 
-      const notificationResult = await sendNotification(primaryDevice.fcmToken, title, body, {
-        notificationType: 'secondary_device_approval',
-        newDeviceUUID: newDeviceUUID,
-        userId: userId,
-        actions: JSON.stringify([
+      try {
+        // Call internal HTTP API instead of direct sendNotification
+    const response = await fetch('http://localhost:3000/send-notification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: userDeviceDoc.username,
+        title,
+        body,
+        actions: [
           { id: 'approve', title: 'Approve' },
           { id: 'reject', title: 'Reject' }
-        ])
-      });
+        ]
+      })
+    });
+
+    const result = await response.json();
+
+    if (!result.success) {
+      throw new Error(`Notification API failed: ${result.error}`);
+    }
+
+    console.log(`Notification sent. User action: ${result.action}`);
+    return result.action;
+  } catch (error) {
+    console.error('Error sending device approval notification:', error);
+    throw error;
+  }
     
     console.log(`Device approval notification sent to user ${userId} for device ${newDeviceUUID}`);
   } catch (error) {
     console.error('Error sending device approval notification:', error);
     throw error;
   }
+
 };
 
 /**
