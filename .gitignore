@@ -144,3 +144,6 @@ public/android/GoogleService-Info.plist
 mieauth-release-key.jks
 mieauth-release-key.jks.base64
 screenshots/
+
+public
+.github/workflows/build-android-apk-dev-on-release.yml
