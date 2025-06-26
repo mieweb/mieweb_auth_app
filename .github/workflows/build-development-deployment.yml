@@ -61,5 +61,5 @@ jobs:
           else
             echo "⚠️ Neither pm2 nor node-server.service found. Please restart manually."
           fi
-      INNER
-      EOSCRIPT
+          INNER
+          EOSCRIPT
