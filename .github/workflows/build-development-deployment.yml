@@ -1,82 +1,65 @@
 name: Dev Deploy to mie-2fa via Jump Server
-
 on:
   push:
     branches:
       - development
-
 jobs:
   deploy-dev:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
-
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 18
-
       - name: Install Meteor
         run: curl https://install.meteor.com/ | sh
-
       - name: Install NPM Dependencies
         run: meteor npm install
-
       - name: Decode google-services.json for Dev
         run: |
           mkdir -p public/android/dev
           echo "${{ secrets.GOOGLE_SERVICES_JSON_DEV_BASE64 }}" | base64 -d > public/android/dev/google-services.json
-
       - name: Build Meteor Server (Server Only)
         run: |
           meteor build ./server-build \
             --directory \
             --server=https://mie-2fa.opensource.mieweb.com \
             --server-only
-
       - name: Clean Unnecessary Files
         run: |
           rm -rf server-build/programs/web.cordova
           rm -rf server-build/public/android
-
       - name: Tar the server bundle
         run: |
           cd server-build
           tar -czf ../meteor-server.tar.gz *
-
       - name: Setup SSH Access to Jump Server and Deploy
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.JUMP_SERVER_SSH_KEY }}" > ~/.ssh/id_jump
           chmod 600 ~/.ssh/id_jump
           ssh-keyscan -p ${{ secrets.JUMP_SERVER_PORT }} ${{ secrets.JUMP_SERVER_HOST }} >> ~/.ssh/known_hosts
-
           scp -i ~/.ssh/id_jump -P ${{ secrets.JUMP_SERVER_PORT }} meteor-server.tar.gz \
             ${{ secrets.JUMP_SERVER_USER }}@${{ secrets.JUMP_SERVER_HOST }}:/tmp/meteor-server.tar.gz
-
-            ssh -i ~/.ssh/id_jump -p ${{ secrets.JUMP_SERVER_PORT }} ${{ secrets.JUMP_SERVER_USER }}@${{ secrets.JUMP_SERVER_HOST }} 'bash -s' <<'EOSCRIPT'
-            echo "[*] Logged into jump server..."
-
-            echo "[*] Copying tar to mie-2fa..."
-            scp -i ~/.ssh/id_mie2fa_deploy /tmp/meteor-server.tar.gz root@mie-2fa:/tmp/meteor-server.tar.gz
-
-            echo "[*] Deploying on mie-2fa..."
-            ssh -i ~/.ssh/id_mie2fa_deploy root@mie-2fa 'bash -s' <<'INNER'
-              set -e
-              echo "[*] Extracting tar..."
-              mkdir -p /opt/dev-server
-              tar -xzf /tmp/meteor-server.tar.gz -C /opt/dev-server
-
-              echo "[*] Restarting app..."
-              if command -v pm2 >/dev/null 2>&1; then
-                pm2 restart all
-              elif systemctl list-units --type=service | grep -q node-server; then
-                systemctl restart node-server
-              else
-                echo "⚠️  Neither pm2 nor node-server.service found. Please restart manually."
-              fi
-            INNER
-          EOSCRIPT
-
+          ssh -i ~/.ssh/id_jump -p ${{ secrets.JUMP_SERVER_PORT }} ${{ secrets.JUMP_SERVER_USER }}@${{ secrets.JUMP_SERVER_HOST }} 'bash -s' <<'EOSCRIPT'
+          echo "[*] Logged into jump server..."
+          echo "[*] Copying tar to mie-2fa..."
+          scp -i ~/.ssh/id_mie2fa_deploy /tmp/meteor-server.tar.gz root@mie-2fa:/tmp/meteor-server.tar.gz
+          echo "[*] Deploying on mie-2fa..."
+          ssh -i ~/.ssh/id_mie2fa_deploy root@mie-2fa 'bash -s' <<'INNER'
+          set -e
+          echo "[*] Extracting tar..."
+          mkdir -p /opt/dev-server
+          tar -xzf /tmp/meteor-server.tar.gz -C /opt/dev-server
+          echo "[*] Restarting app..."
+          if command -v pm2 >/dev/null 2>&1; then
+            pm2 restart all
+          elif systemctl list-units --type=service | grep -q node-server; then
+            systemctl restart node-server
+          else
+            echo "⚠️ Neither pm2 nor node-server.service found. Please restart manually."
+          fi
+      INNER
+      EOSCRIPT
