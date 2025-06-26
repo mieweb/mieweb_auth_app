@@ -13,4 +13,4 @@ App.configurePlugin('cordova-plugin-device', {
 });
 
 App.addResourceFile('public/android/dev/google-services.json', 'app/google-services.json', 'android');
-App.addResourceFile('public/ios/dev/GoogleService-Info.plist', 'GoogleService-Info.plist', 'ios');
+//App.addResourceFile('public/ios/dev/GoogleService-Info.plist', 'GoogleService-Info.plist', 'ios');
