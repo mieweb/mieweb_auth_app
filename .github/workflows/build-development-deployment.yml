@@ -247,17 +247,20 @@ jobs:
           BUNDLE_FILE="${{ needs.build-production-server.outputs.server-bundle }}"
           scp -i ~/.ssh/id_jump -P ${{ secrets.JUMP_SERVER_PORT }} $BUNDLE_FILE ${{ secrets.JUMP_SERVER_USER }}@${{ secrets.JUMP_SERVER_HOST }}:/tmp/meteor-server-dev-prod.tar.gz
 
-      - name: Deploy Production Build to Development Server
+      - name: Copy Bundle to Jump Server and Deploy
         run: |
-          ssh -i ~/.ssh/id_jump -p ${{ secrets.JUMP_SERVER_PORT }} ${{ secrets.JUMP_SERVER_USER }}@${{ secrets.JUMP_SERVER_HOST }} << 'EOF'
+          # Create deployment script locally
+          cat > deploy_script.sh << 'DEPLOY_EOF'
+          #!/bin/bash
           set -e
           echo "Starting production-quality deployment to development server..."
           
           # Copy to target container
           scp -i ~/.ssh/id_mie2fa_deploy /tmp/meteor-server-dev-prod.tar.gz root@mie-2fa:/tmp/meteor-server-dev-prod.tar.gz
           
-          # Deploy on container
-          ssh -i ~/.ssh/id_mie2fa_deploy root@mie-2fa << 'CONTAINER_EOF'
+          # Create container deployment script
+          cat > container_deploy.sh << 'CONTAINER_SCRIPT_EOF'
+          #!/bin/bash
           set -e
           APP_DIR="/opt/meteor-app"
           BACKUP_DIR="${APP_DIR}_backup_prod_$(date +%Y%m%d_%H%M%S)"
@@ -266,16 +269,35 @@ jobs:
           echo "Bundle: meteor-server-dev-prod.tar.gz"
           echo "Target URL: mie-2fa.opensource.mieweb.com"
           
-          # Ensure tar is available (install if missing)
-          if ! command -v tar &> /dev/null; then
+          # Check for required utilities and install if needed
+          install_packages() {
+            if command -v apk >/dev/null 2>&1; then
+              # Alpine Linux
+              apk add --no-cache tar
+            elif command -v yum >/dev/null 2>&1; then
+              # RHEL/CentOS
+              yum install -y tar
+            elif command -v apt-get >/dev/null 2>&1; then
+              # Debian/Ubuntu
+              apt-get update && apt-get install -y tar
+            elif command -v dnf >/dev/null 2>&1; then
+              # Fedora
+              dnf install -y tar
+            else
+              echo "Warning: Could not install tar - trying busybox tar"
+            fi
+          }
+          
+          # Ensure tar is available
+          if ! command -v tar >/dev/null 2>&1; then
             echo "Installing tar utility..."
-            apt-get update && apt-get install -y tar
+            install_packages || echo "Continuing without tar installation"
           fi
           
           # Create production-quality backup
           if [ -d "$APP_DIR" ]; then
             echo "Creating production backup: $BACKUP_DIR"
-            cp -r $APP_DIR $BACKUP_DIR
+            cp -r "$APP_DIR" "$BACKUP_DIR"
             # Keep last 3 production backups
             ls -dt ${APP_DIR}_backup_prod_* 2>/dev/null | tail -n +4 | xargs rm -rf 2>/dev/null || true
           fi
@@ -284,19 +306,19 @@ jobs:
           echo "Gracefully stopping current application..."
           if [ -f /var/run/meteor-app.pid ]; then
             PID=$(cat /var/run/meteor-app.pid)
-            if ps -p $PID > /dev/null 2>&1; then
-              kill -TERM $PID
+            if ps -p "$PID" > /dev/null 2>&1; then
+              kill -TERM "$PID"
               # Wait up to 30 seconds for graceful shutdown
-              for i in {1..30}; do
-                if ! ps -p $PID > /dev/null 2>&1; then
+              for i in $(seq 1 30); do
+                if ! ps -p "$PID" > /dev/null 2>&1; then
                   echo "Application stopped gracefully after ${i}s"
                   break
                 fi
                 sleep 1
               done
               # Force kill if still running
-              if ps -p $PID > /dev/null 2>&1; then
-                kill -KILL $PID
+              if ps -p "$PID" > /dev/null 2>&1; then
+                kill -KILL "$PID"
                 echo "Application force terminated"
               fi
             fi
@@ -308,19 +330,25 @@ jobs:
           
           # Extract production build
           echo "Extracting production server build..."
-          mkdir -p $APP_DIR
-          rm -rf $APP_DIR/*
-          cd $APP_DIR
-          tar -xzf /tmp/meteor-server-dev-prod.tar.gz
+          mkdir -p "$APP_DIR"
+          rm -rf "$APP_DIR"/*
+          cd "$APP_DIR"
+          
+          if command -v tar >/dev/null 2>&1; then
+            tar -xzf /tmp/meteor-server-dev-prod.tar.gz
+          else
+            echo "Error: tar command not available for extraction"
+            exit 1
+          fi
           
           # Production dependencies installation
           echo "Installing production dependencies..."
-          cd $APP_DIR/programs/server
+          cd "$APP_DIR/programs/server"
           npm ci --production --no-audit --no-fund --silent
           
           # Set production permissions
           echo "Setting production permissions..."
-          cd $APP_DIR
+          cd "$APP_DIR"
           chown -R root:root .
           chmod +x main.js
           find . -type f -name "*.js" -exec chmod 644 {} \;
@@ -328,4 +356,42 @@ jobs:
           
           # Create production startup script
           echo "Creating production startup configuration..."
-          cat > $APP_DIR/start-production.sh << 'STARTEOF'
+          cat > "$APP_DIR/start-production.sh" << 'START_SCRIPT_EOF'
+          #!/bin/bash
+          export MONGO_URL="mongodb://localhost:27017/meteor"
+          export ROOT_URL="https://mie-2fa.opensource.mieweb.com"
+          export PORT=3000
+          export NODE_ENV=production
+          cd /opt/meteor-app
+          node main.js
+          START_SCRIPT_EOF
+          
+          chmod +x "$APP_DIR/start-production.sh"
+          
+          # Start the application
+          echo "Starting production application..."
+          nohup "$APP_DIR/start-production.sh" > /var/log/meteor-app.log 2>&1 &
+          echo $! > /var/run/meteor-app.pid
+          
+          # Verify deployment
+          sleep 5
+          if [ -f /var/run/meteor-app.pid ] && ps -p "$(cat /var/run/meteor-app.pid)" > /dev/null 2>&1; then
+            echo "Production deployment successful!"
+            echo "Application running at: https://mie-2fa.opensource.mieweb.com"
+          else
+            echo "Deployment failed - check logs"
+            exit 1
+          fi
+          
+          # Cleanup
+          rm -f /tmp/meteor-server-dev-prod.tar.gz
+          CONTAINER_SCRIPT_EOF
+          
+          # Execute container deployment script
+          scp -i ~/.ssh/id_mie2fa_deploy container_deploy.sh root@mie-2fa:/tmp/container_deploy.sh
+          ssh -i ~/.ssh/id_mie2fa_deploy root@mie-2fa "chmod +x /tmp/container_deploy.sh && /tmp/container_deploy.sh && rm -f /tmp/container_deploy.sh"
+          DEPLOY_EOF
+          
+          # Execute deployment via jump server
+          scp -i ~/.ssh/id_jump -P ${{ secrets.JUMP_SERVER_PORT }} deploy_script.sh ${{ secrets.JUMP_SERVER_USER }}@${{ secrets.JUMP_SERVER_HOST }}:/tmp/deploy_script.sh
+          ssh -i ~/.ssh/id_jump -p ${{ secrets.JUMP_SERVER_PORT }} ${{ secrets.JUMP_SERVER_USER }}@${{ secrets.JUMP_SERVER_HOST }} "chmod +x /tmp/deploy_script.sh && /tmp/deploy_script.sh && rm -f /tmp/deploy_script.sh"
