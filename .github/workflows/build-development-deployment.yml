@@ -1,4 +1,5 @@
 name: Development Branch - Production APK and Server Build
+
 on:
   push:
     branches:
@@ -11,9 +12,9 @@ on:
         default: 'both'
         type: choice
         options:
-        - both
-        - apk-only
-        - server-only
+          - both
+          - apk-only
+          - server-only
 
 permissions:
   contents: write
@@ -34,69 +35,69 @@ jobs:
       apk-name: ${{ steps.build-info.outputs.apk-name }}
       version: ${{ steps.version.outputs.version }}
     steps:
-      - name: 📱 Production APK Build Setup
+      - name: Production APK Build Setup
         run: echo "Starting production APK build for development branch"
-        
-      - name: 🔄 Checkout Code
+
+      - name: Checkout Code
         uses: actions/checkout@v4
-        
-      - name: 📋 Generate Version
+
+      - name: Generate Version
         id: version
         run: |
           VERSION="dev-prod-$(date +'%Y%m%d')-$(echo ${{ github.sha }} | cut -c1-7)"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "📱 Production APK Version: $VERSION"
-          
-      - name: ⚙️ Setup Node.js
+          echo "Production APK Version: $VERSION"
+
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          
-      - name: 🚀 Install Meteor
+
+      - name: Install Meteor
         run: |
           curl https://install.meteor.com/ | sh
           echo "$HOME/.meteor" >> $GITHUB_PATH
-          
-      - name: 📦 Install Cordova & Java
+
+      - name: Install Cordova & Java
         run: |
           meteor npm install -g cordova
           sudo apt-get update
           sudo apt-get install -y openjdk-${{ env.JAVA_VERSION }}-jdk
           echo "JAVA_HOME=/usr/lib/jvm/java-${{ env.JAVA_VERSION }}-openjdk-amd64" >> $GITHUB_ENV
-          
-      - name: 📦 Install App Dependencies
+
+      - name: Install App Dependencies
         run: meteor npm install
-        
-      - name: 🔐 Setup Firebase Services (Production)
+
+      - name: Setup Firebase Services (development)
         run: |
           mkdir -p public/android/dev
-          echo "${{ secrets.FIREBASE_SERVICES_PROD }}" | base64 -d > public/android/dev/google-services.json
-          
-      - name: 🏗️ Build Android APK
+          echo "${{ secrets.GOOGLE_SERVICES_JSON_DEV_BASE64 }}" | base64 -d > public/android/dev/google-services.json
+
+      - name: Build Android APK
         run: |
           meteor build ./android-build \
             --server=${{ env.DEV_SERVER_URL }}:443 \
             --platforms=android \
             --packageType=apk
-            
-      - name: 📁 Setup APK Build Structure
+
+      - name: Setup APK Build Structure
         run: |
           mkdir -p .meteor/local/cordova-build/platforms/android/app/build/outputs/apk/release
           cp android-build/android/project/app/build/outputs/apk/release/app-release-unsigned.apk \
             .meteor/local/cordova-build/platforms/android/app/build/outputs/apk/release/
-            
-      - name: 🔐 Decode Keystore
+
+      - name: Decode Keystore
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > mieauth-release-key.jks
-          
-      - name: 🔧 Zipalign APK
+
+      - name: Zipalign APK
         run: |
           ZIPALIGN="$ANDROID_SDK_ROOT/build-tools/${{ env.ANDROID_BUILD_TOOLS }}/zipalign"
           APK_DIR=".meteor/local/cordova-build/platforms/android/app/build/outputs/apk/release"
           $ZIPALIGN -v 4 $APK_DIR/app-release-unsigned.apk $APK_DIR/app-release-aligned.apk
-          
-      - name: ✍️ Sign APK
+
+      - name: Sign APK
         run: |
           APKSIGNER="$ANDROID_SDK_ROOT/build-tools/${{ env.ANDROID_BUILD_TOOLS }}/apksigner"
           APK_DIR=".meteor/local/cordova-build/platforms/android/app/build/outputs/apk/release"
@@ -107,29 +108,29 @@ jobs:
             --key-pass pass:${{ secrets.ANDROID_KEY_PASSWORD }} \
             --out $APK_DIR/app-release-final.apk \
             $APK_DIR/app-release-aligned.apk
-            
-      - name: ✅ Verify Signed APK
+
+      - name: Verify Signed APK
         run: |
           APKSIGNER="$ANDROID_SDK_ROOT/build-tools/${{ env.ANDROID_BUILD_TOOLS }}/apksigner"
           APK_DIR=".meteor/local/cordova-build/platforms/android/app/build/outputs/apk/release"
           $APKSIGNER verify --verbose --print-certs $APK_DIR/app-release-final.apk
-          
-      - name: 📋 Set Build Info
+
+      - name: Set Build Info
         id: build-info
         run: |
           APK_PATH=".meteor/local/cordova-build/platforms/android/app/build/outputs/apk/release/app-release-final.apk"
           APK_NAME="mieauth-dev-prod-${{ steps.version.outputs.version }}.apk"
           echo "apk-path=$APK_PATH" >> $GITHUB_OUTPUT
           echo "apk-name=$APK_NAME" >> $GITHUB_OUTPUT
-          
-      - name: 📤 Upload APK Artifact
+
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: production-apk-${{ steps.version.outputs.version }}
           path: ${{ steps.build-info.outputs.apk-path }}
           retention-days: 90
-          
-      - name: 🧹 Cleanup Sensitive Files
+
+      - name: Cleanup Sensitive Files
         if: always()
         run: |
           rm -f mieauth-release-key.jks
@@ -142,81 +143,81 @@ jobs:
       server-bundle: ${{ steps.build-info.outputs.server-bundle }}
       version: ${{ steps.version.outputs.version }}
     steps:
-      - name: 🖥️ Production Server Build Setup  
+      - name: Production Server Build Setup
         run: echo "Starting production server build for development branch"
-        
-      - name: 🔄 Checkout Code
+
+      - name: Checkout Code
         uses: actions/checkout@v4
-        
-      - name: 📋 Generate Version
+
+      - name: Generate Version
         id: version
         run: |
           VERSION="dev-prod-$(date +'%Y%m%d')-$(echo ${{ github.sha }} | cut -c1-7)"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "🖥️ Production Server Version: $VERSION"
-          
-      - name: ⚙️ Setup Node.js
+          echo "Production Server Version: $VERSION"
+
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          
-      - name: 🚀 Install Meteor
+
+      - name: Install Meteor
         run: |
           curl https://install.meteor.com/ | sh
           echo "$HOME/.meteor" >> $GITHUB_PATH
-          
-      - name: 📦 Install NPM Dependencies
+
+      - name: Install NPM Dependencies
         run: meteor npm install
-        
-      - name: 🔐 Setup Firebase Services (Production)
+
+      - name: Setup Firebase Services (development)
         run: |
           mkdir -p public/android/dev
-          echo "${{ secrets.FIREBASE_SERVICES_PROD }}" | base64 -d > public/android/dev/google-services.json
-          
-      - name: 🏗️ Build Meteor Server (Production)
+          echo "${{ secrets.GOOGLE_SERVICES_JSON_DEV_BASE64 }}" | base64 -d > public/android/dev/google-services.json
+
+      - name: Build Meteor Server (Production)
         run: |
           meteor build ./server-build \
             --directory \
             --server=${{ env.DEV_SERVER_URL }} \
             --server-only \
             --architecture=os.linux.x86_64
-            
-      - name: 🧹 Clean Unnecessary Files
+
+      - name: Clean Unnecessary Files
         run: |
           rm -rf server-build/programs/web.cordova
           rm -rf server-build/public/android
-          
-      - name: 📊 Server Build Info
+
+      - name: Server Build Info
         run: |
-          echo "📊 Server build statistics:"
-          echo "   Build size: $(du -sh server-build | cut -f1)"
-          echo "   Node version: $(node --version)"
-          echo "   Meteor version: $(meteor --version)"
-          
-      - name: 📦 Create Server Bundle
+          echo "Server build statistics:"
+          echo " Build size: $(du -sh server-build | cut -f1)"
+          echo " Node version: $(node --version)"
+          echo " Meteor version: $(meteor --version)"
+
+      - name: Create Server Bundle
         run: |
           cd server-build
           tar -czf ../meteor-server-dev-prod.tar.gz *
           cd ..
-          echo "📦 Server bundle created: $(ls -lh meteor-server-dev-prod.tar.gz)"
-          
-      - name: 📋 Set Build Info
+          echo "Server bundle created: $(ls -lh meteor-server-dev-prod.tar.gz)"
+
+      - name: Set Build Info
         id: build-info
         run: |
           BUNDLE_NAME="meteor-server-dev-prod-${{ steps.version.outputs.version }}.tar.gz"
           mv meteor-server-dev-prod.tar.gz $BUNDLE_NAME
           echo "server-bundle=$BUNDLE_NAME" >> $GITHUB_OUTPUT
-          echo "📦 Server bundle: $BUNDLE_NAME"
-          
-      - name: 📤 Upload Server Bundle Artifact
+          echo "Server bundle: $BUNDLE_NAME"
+
+      - name: Upload Server Bundle Artifact
         uses: actions/upload-artifact@v4
         with:
           name: production-server-${{ steps.version.outputs.version }}
           path: ${{ steps.build-info.outputs.server-bundle }}
           retention-days: 90
-          
-      - name: 🧹 Cleanup Sensitive Files
+
+      - name: Cleanup Sensitive Files
         if: always()
         run: |
           rm -f public/android/dev/google-services.json
@@ -226,32 +227,31 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-production-server]
     steps:
-      - name: 🚀 Development Deployment Setup
+      - name: Development Deployment Setup
         run: echo "Deploying production-quality server to development environment"
-        
-      - name: 📤 Download Server Bundle
+
+      - name: Download Server Bundle
         uses: actions/download-artifact@v4
         with:
           name: production-server-${{ needs.build-production-server.outputs.version }}
-          
-      - name: 🔐 Setup SSH Access to Jump Server
+
+      - name: Setup SSH Access to Jump Server
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.JUMP_SERVER_SSH_KEY }}" > ~/.ssh/id_jump
           chmod 600 ~/.ssh/id_jump
           ssh-keyscan -H -p ${{ secrets.JUMP_SERVER_PORT }} ${{ secrets.JUMP_SERVER_HOST }} >> ~/.ssh/known_hosts
-          
-      - name: 📤 Copy Server Bundle to Jump Server
+
+      - name: Copy Server Bundle to Jump Server
         run: |
           BUNDLE_FILE="${{ needs.build-production-server.outputs.server-bundle }}"
           scp -i ~/.ssh/id_jump -P ${{ secrets.JUMP_SERVER_PORT }} $BUNDLE_FILE ${{ secrets.JUMP_SERVER_USER }}@${{ secrets.JUMP_SERVER_HOST }}:/tmp/meteor-server-dev-prod.tar.gz
-          
-      - name: 🚀 Deploy Production Build to Development Server
+
+      - name: Deploy Production Build to Development Server
         run: |
           ssh -i ~/.ssh/id_jump -p ${{ secrets.JUMP_SERVER_PORT }} ${{ secrets.JUMP_SERVER_USER }}@${{ secrets.JUMP_SERVER_HOST }} << 'EOF'
           set -e
-          
-          echo "🚀 Starting production-quality deployment to development server..."
+          echo "Starting production-quality deployment to development server..."
           
           # Copy to target container
           scp -i ~/.ssh/id_mie2fa_deploy /tmp/meteor-server-dev-prod.tar.gz root@mie-2fa:/tmp/meteor-server-dev-prod.tar.gz
@@ -259,23 +259,29 @@ jobs:
           # Deploy on container
           ssh -i ~/.ssh/id_mie2fa_deploy root@mie-2fa << 'CONTAINER_EOF'
           set -e
-          
           APP_DIR="/opt/meteor-app"
           BACKUP_DIR="${APP_DIR}_backup_prod_$(date +%Y%m%d_%H%M%S)"
           
-          echo "🎯 Deploying PRODUCTION build to development environment"
-          echo "📦 Bundle: meteor-server-dev-prod.tar.gz"
+          echo "Deploying PRODUCTION build to development environment"
+          echo "Bundle: meteor-server-dev-prod.tar.gz"
+          echo "Target URL: mie-2fa.opensource.mieweb.com"
+          
+          # Ensure tar is available (install if missing)
+          if ! command -v tar &> /dev/null; then
+            echo "Installing tar utility..."
+            apt-get update && apt-get install -y tar
+          fi
           
           # Create production-quality backup
           if [ -d "$APP_DIR" ]; then
-            echo "💾 Creating production backup: $BACKUP_DIR"
+            echo "Creating production backup: $BACKUP_DIR"
             cp -r $APP_DIR $BACKUP_DIR
             # Keep last 3 production backups
             ls -dt ${APP_DIR}_backup_prod_* 2>/dev/null | tail -n +4 | xargs rm -rf 2>/dev/null || true
           fi
           
           # Graceful shutdown with timeout
-          echo "⏹️ Gracefully stopping current application..."
+          echo "Gracefully stopping current application..."
           if [ -f /var/run/meteor-app.pid ]; then
             PID=$(cat /var/run/meteor-app.pid)
             if ps -p $PID > /dev/null 2>&1; then
@@ -283,7 +289,7 @@ jobs:
               # Wait up to 30 seconds for graceful shutdown
               for i in {1..30}; do
                 if ! ps -p $PID > /dev/null 2>&1; then
-                  echo "✅ Application stopped gracefully after ${i}s"
+                  echo "Application stopped gracefully after ${i}s"
                   break
                 fi
                 sleep 1
@@ -291,7 +297,7 @@ jobs:
               # Force kill if still running
               if ps -p $PID > /dev/null 2>&1; then
                 kill -KILL $PID
-                echo "⚠️ Application force terminated"
+                echo "Application force terminated"
               fi
             fi
             rm -f /var/run/meteor-app.pid
@@ -301,19 +307,19 @@ jobs:
           pkill -f "node.*main.js" || true
           
           # Extract production build
-          echo "📦 Extracting production server build..."
+          echo "Extracting production server build..."
           mkdir -p $APP_DIR
           rm -rf $APP_DIR/*
           cd $APP_DIR
           tar -xzf /tmp/meteor-server-dev-prod.tar.gz
           
           # Production dependencies installation
-          echo "📦 Installing production dependencies..."
+          echo "Installing production dependencies..."
           cd $APP_DIR/programs/server
           npm ci --production --no-audit --no-fund --silent
           
           # Set production permissions
-          echo "🔐 Setting production permissions..."
+          echo "Setting production permissions..."
           cd $APP_DIR
           chown -R root:root .
           chmod +x main.js
@@ -321,5 +327,5 @@ jobs:
           find . -type d -exec chmod 755 {} \;
           
           # Create production startup script
-          echo "⚙️ Creating production startup configuration..."
+          echo "Creating production startup configuration..."
           cat > $APP_DIR/start-production.sh << 'STARTEOF'
