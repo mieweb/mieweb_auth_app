@@ -26,8 +26,8 @@ jobs:
 
       - name: Decode google-services.json for Dev
         run: |
-          mkdir -p public/android
-          echo "${{ secrets.FIREBASE_SERVICES_DEV }}" | base64 -d > public/android/google-services.json
+          mkdir -p public/android/dev
+          echo "${{ secrets.GOOGLE_SERVICES_JSON_DEV_BASE64 }}" | base64 -d > public/android/dev/google-services.json
 
       - name: Build Meteor Server (Server Only)
         run: |
@@ -49,18 +49,18 @@ jobs:
       - name: Setup SSH Access to Jump Server
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.JUMP_SSH_KEY }}" > ~/.ssh/id_jump
+          echo "${{ secrets.JUMP_SERVER_SSH_KEY }}" > ~/.ssh/id_jump
           chmod 600 ~/.ssh/id_jump
-          ssh-keyscan -p ${{ secrets.JUMP_PORT }} ${{ secrets.JUMP_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -p ${{ secrets.JUMP_SERVER_PORT }} ${{ secrets.JUMP_SERVER_HOST }} >> ~/.ssh/known_hosts
 
       - name: Copy server tar to Jump Server
         run: |
-          scp -i ~/.ssh/id_jump -P ${{ secrets.JUMP_PORT }} meteor-server.tar.gz \
-            ${{ secrets.JUMP_USER }}@${{ secrets.JUMP_HOST }}:/tmp/meteor-server.tar.gz
+          scp -i ~/.ssh/id_jump -P ${{ secrets.JUMP_SERVER_PORT }} meteor-server.tar.gz \
+            ${{ secrets.JUMP_SERVER_USER }}@${{ secrets.JUMP_SERVER_HOST }}:/tmp/meteor-server.tar.gz
 
       - name: SSH into mie-2fa and Deploy
         run: |
-          ssh -i ~/.ssh/id_jump -p ${{ secrets.JUMP_PORT }} ${{ secrets.JUMP_USER }}@${{ secrets.JUMP_HOST }} << 'EOF'
+          ssh -i ~/.ssh/id_jump -p ${{ secrets.JUMP_SERVER_PORT }} ${{ secrets.JUMP_SERVER_USER }}@${{ secrets.JUMP_SERVER_HOST }} << 'EOF'
             echo "[*] Jumped into jump server..."
 
             echo "[*] Logging into mie-2fa..."
