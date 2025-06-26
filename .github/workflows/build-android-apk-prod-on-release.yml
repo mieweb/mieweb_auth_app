@@ -35,7 +35,7 @@ jobs:
 
       - name: Decode google-services.json from Secret
         run: |
-          mkdir -p public/android
+          mkdir -p public/android/dev
           echo "${{ secrets.FIREBASE_SERVICES_PROD }}" | base64 -d > public/android/dev/google-services.json
 
       - name: Build Android APK
