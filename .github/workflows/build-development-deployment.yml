@@ -48,17 +48,14 @@ jobs:
 
       - name: Setup SSH Access to Jump Server and Deploy
         run: |
-          # Configure SSH
           mkdir -p ~/.ssh
           echo "${{ secrets.JUMP_SERVER_SSH_KEY }}" > ~/.ssh/id_jump
           chmod 600 ~/.ssh/id_jump
           ssh-keyscan -p ${{ secrets.JUMP_SERVER_PORT }} ${{ secrets.JUMP_SERVER_HOST }} >> ~/.ssh/known_hosts
 
-          # Copy tar to jump server
           scp -i ~/.ssh/id_jump -P ${{ secrets.JUMP_SERVER_PORT }} meteor-server.tar.gz \
             ${{ secrets.JUMP_SERVER_USER }}@${{ secrets.JUMP_SERVER_HOST }}:/tmp/meteor-server.tar.gz
 
-          # SSH into jump server and then into mie-2fa
           ssh -i ~/.ssh/id_jump -p ${{ secrets.JUMP_SERVER_PORT }} ${{ secrets.JUMP_SERVER_USER }}@${{ secrets.JUMP_SERVER_HOST }} 'bash -s' <<'EOSCRIPT'
             echo "[*] Logged into jump server..."
 
@@ -66,7 +63,7 @@ jobs:
             scp /tmp/meteor-server.tar.gz root@mie-2fa:/tmp/meteor-server.tar.gz
 
             echo "[*] Deploying on mie-2fa..."
-            ssh root@mie-2fa 'bash -s' <<'INNER'
+            ssh -i ~/.ssh/id_mie2fa_deploy root@mie-2fa 'bash -s' <<'INNER'
               set -e
               echo "[*] Extracting tar..."
               mkdir -p /opt/dev-server
