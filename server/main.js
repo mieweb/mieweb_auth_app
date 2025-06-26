@@ -643,12 +643,20 @@ Meteor.methods({
       if (isSecondaryDevice) {
         try {
           const res = await sendDeviceApprovalNotification(userId, sessionDeviceInfo.uuid);
-          console.log(`### Log Step 5.5: Sent secondary device approval notification for user: ${username}, response: ${JSON.stringify(res)}`);
+
+          if (res === 'timeout' || res === 'rejected' || res === 'reject') {
+            await DeviceDetails.updateAsync(
+              { userId: userId },
+              { $pull: { devices: { appId: deviceResp.appId } } }
+            );
+          }
           userAction = res;
         } catch (error) {
           console.error('Error sending secondary approval notification:', error);
+          userAction = 'error';
         }
       }
+
 
       return {
         success: true,
