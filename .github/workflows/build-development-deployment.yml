@@ -3,7 +3,7 @@ name: Dev Deploy to mie-2fa via Jump Server
 on:
   push:
     branches:
-      - main
+      - development
 
 jobs:
   deploy-dev:
