@@ -26,7 +26,6 @@ jobs:
           meteor build ./server-build \
             --directory \
             --server=https://mie-2fa.opensource.mieweb.org \
-            --server-only
       - name: Clean Unnecessary Files
         run: |
           rm -rf server-build/programs/web.cordova
