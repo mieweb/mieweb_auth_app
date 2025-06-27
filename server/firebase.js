@@ -75,7 +75,7 @@ export const sendNotification = async (fcmToken, title, body, data = {}) => {
     };
     // For dismissal/sync notifications, modify the payload
     if (data.isDismissal === 'true' || data.isSync === 'true') {
-      message.android.notification.sound = null;
+      //message.android.notification.sound = null;
       message.apns.payload.aps.sound = null;
       message.apns.payload.aps['content-available'] = 1;
       message.apns.headers['apns-priority'] = '5';
