@@ -1,0 +1,84 @@
+name: Build Dev Android APK
+
+on:
+  push:
+    branches:
+      - development
+
+jobs:
+  build-android-dev:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install Meteor
+        run: curl https://install.meteor.com/ | sh
+
+      - name: Install Cordova & Java
+        run: |
+          meteor npm install -g cordova
+          sudo apt-get update
+          sudo apt-get install -y openjdk-17-jdk
+          echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
+
+      - name: Install App Dependencies
+        run: meteor npm install
+
+      - name: Decode google-services.json for Dev
+        run: |
+          mkdir -p public/android/dev
+          echo "${{ secrets.GOOGLE_SERVICES_JSON_DEV_BASE64 }}" | base64 -d > public/android/dev/google-services.json
+
+      - name: Build Android APK
+        run: |
+          meteor build ./android-build \
+            --server=https://mie-2fa.opensource.mieweb.org \
+            --platforms=android \
+            --packageType=apk
+
+      - name: Move unsigned APK
+        run: |
+          mkdir -p .meteor/local/cordova-build/platforms/android/app/build/outputs/apk/release
+          cp android-build/android/project/app/build/outputs/apk/release/app-release-unsigned.apk \
+            .meteor/local/cordova-build/platforms/android/app/build/outputs/apk/release/
+
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > mieauth-release-key.jks
+
+      - name: Zipalign APK
+        run: |
+          ZIPALIGN="$ANDROID_SDK_ROOT/build-tools/34.0.0/zipalign"
+          APK_DIR=".meteor/local/cordova-build/platforms/android/app/build/outputs/apk/release"
+          $ZIPALIGN -v 4 $APK_DIR/app-release-unsigned.apk $APK_DIR/app-release-aligned.apk
+
+      - name: Sign APK
+        run: |
+          APKSIGNER="$ANDROID_SDK_ROOT/build-tools/34.0.0/apksigner"
+          APK_DIR=".meteor/local/cordova-build/platforms/android/app/build/outputs/apk/release"
+          $APKSIGNER sign \
+            --ks mieauth-release-key.jks \
+            --ks-key-alias ${{ secrets.ANDROID_KEYSTORE_ALIAS }} \
+            --ks-pass pass:${{ secrets.ANDROID_KEYSTORE_PASSWORD }} \
+            --key-pass pass:${{ secrets.ANDROID_KEY_PASSWORD }} \
+            --out $APK_DIR/app-release-final.apk \
+            $APK_DIR/app-release-aligned.apk
+
+      - name: Verify signed APK
+        run: |
+          APKSIGNER="$ANDROID_SDK_ROOT/build-tools/34.0.0/apksigner"
+          APK_DIR=".meteor/local/cordova-build/platforms/android/app/build/outputs/apk/release"
+          $APKSIGNER verify --verbose --print-certs $APK_DIR/app-release-final.apk
+
+      - name: Upload Signed APK as Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: mieauth-dev-apk
+          path: .meteor/local/cordova-build/platforms/android/app/build/outputs/apk/release/app-release-final.apk
