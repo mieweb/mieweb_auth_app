@@ -11,7 +11,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
@@ -78,7 +78,7 @@ jobs:
           $APKSIGNER verify --verbose --print-certs $APK_DIR/app-release-final.apk
 
       - name: Upload Signed APK as Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: mieauth-dev-apk
           path: .meteor/local/cordova-build/platforms/android/app/build/outputs/apk/release/app-release-final.apk
