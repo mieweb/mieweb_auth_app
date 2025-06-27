@@ -25,7 +25,7 @@ jobs:
         run: |
           meteor build ./server-build \
             --directory \
-            --server=https://mie-2fa.opensource.mieweb.com \
+            --server=https://mie-2fa.opensource.mieweb.org \
             --server-only
       - name: Clean Unnecessary Files
         run: |
@@ -52,6 +52,7 @@ jobs:
           set -e
           echo "[*] Extracting tar..."
           mkdir -p /opt/dev-server
+          rm -rf /opt/dev-server/bundle
           tar -xzf /tmp/meteor-server.tar.gz -C /opt/dev-server
           echo "[*] Restarting app..."
           if command -v pm2 >/dev/null 2>&1; then
