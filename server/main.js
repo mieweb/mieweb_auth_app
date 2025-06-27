@@ -607,9 +607,15 @@ Meteor.methods({
         try {
           const approvalToken = await Meteor.callAsync('users.generateApprovalToken', userId);
           const approvalUrl = Meteor.absoluteUrl(`api/approve-user?userId=${userId}&token=${approvalToken}`);
-          const adminEmails = process.env.EMAIL_ADMIN;
-          const fromEmail = process.env.EMAIL_FROM;
+          let adminEmails, fromEmail;
 
+          if (process.env.ENV === 'prod') {
+            adminEmails = process.env.PROD_EMAIL_ADMIN;
+            fromEmail = process.env.PROD_EMAIL_FROM;
+          } else {
+            adminEmails = process.env.DEV_EMAIL_ADMIN;
+            fromEmail = process.env.DEV_EMAIL_FROM;
+          }
           await Email.sendAsync({
             to: adminEmails,
             from: fromEmail,
@@ -1031,12 +1037,22 @@ Meteor.methods({
 
 Meteor.startup(() => {
   // Configure SMTP from settings
-  const SENDGRID_API_KEY = ''
-
-  if (SENDGRID_API_KEY) {
+  if (process.env.ENV === 'prod') {
+    console.log("Running in production mode");
+    process.env.MAIL_URL = process.env.MIE_SMTP_URL;
+  } else if (process.env.ENV === 'dev') {
+    console.log("Running in development mode");
+    const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
+    if (!SENDGRID_API_KEY) {
+      console.error("SENDGRID_API_KEY is not set in environment variables");
+      throw new Error("SENDGRID_API_KEY is required for email service");
+    }
+    // Configure SendGrid SMTP
+    console.log("SENDGRID_API_KEY is set in environment variables");
     process.env.MAIL_URL = `smtp://apikey:${SENDGRID_API_KEY}@smtp.sendgrid.net:587`;
-    console.log("Email service configured");
   } else {
-    console.warn("SendGrid API key not found in env");
+    console.error("ENV variable must be set to either 'dev' or 'prod'");
+    throw new Error("ENV variable is required. Please set ENV=dev or ENV=prod");
   }
+  console.log("Email service configured");
 });
