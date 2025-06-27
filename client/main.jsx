@@ -19,6 +19,9 @@ Meteor.startup(() => {
       initializePushNotifications();
     }, false);
   }
+  else {
+    console.log("user is not on Cordova, skipping device capture and push notifications initialization");
+  }
 
   root.render(<App />);
 });
