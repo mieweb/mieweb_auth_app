@@ -7,6 +7,7 @@ import { LandingPage } from '../LandingPage';
 import { BiometricRegistrationModal } from '../Modal/BiometricRegistrationModal';
 import PendingRegistrationPage from '../PendingRegistrationPage';
 import { WebNotificationPage } from '../../../../WebNotificationPage';
+import { Meteor } from 'meteor/meteor';
 
 export const AppRoutes = ({ isRegistered, deviceUuid }) => {
   console.log(' ### Log Step 3 : inside AppRoutes.jsx,  App routes called with:', JSON.stringify({ isRegistered, deviceUuid }));
