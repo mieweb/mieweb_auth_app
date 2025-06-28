@@ -1,5 +1,5 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { LoginPage } from '../Login';
 import { RegistrationPage } from '../Registration';
 import { WelcomePage } from '../Welcome';
@@ -9,21 +9,34 @@ import PendingRegistrationPage from '../PendingRegistrationPage';
 import { WebNotificationPage } from '../../../../WebNotificationPage';
 import { Meteor } from 'meteor/meteor';
 
+// separate component for the redirect logic
+const BrowserRedirect = () => {
+  const navigate = useNavigate();
+  
+  useEffect(() => {
+    if (!Meteor.isCordova) {
+      console.log("Web browser detected — redirecting to /send-notification");
+      navigate('/send-notification');
+    }
+  }, [navigate]);
+
+  return null;
+};
+
 export const AppRoutes = ({ isRegistered, deviceUuid }) => {
-  console.log(' ### Log Step 3 : inside AppRoutes.jsx,  App routes called with:', JSON.stringify({ isRegistered, deviceUuid }));
+  console.log(' ### Log Step 3 : inside AppRoutes.jsx, App routes called with:', JSON.stringify({ isRegistered, deviceUuid }));
+  
   return (
     <Router>
+      <BrowserRedirect />
       <Routes>
         <Route
           path="/"
-          element={!Meteor.isCordova ? (
-            <Navigate to="/send-notification" replace />
-          ) : isRegistered ? (
+          element={isRegistered ? (
             <Navigate to="/login" replace />
           ) : (
             <Navigate to="/register" replace />
-          )
-          }
+          )}
         />
         <Route
           path="/login"
@@ -56,4 +69,4 @@ export const AppRoutes = ({ isRegistered, deviceUuid }) => {
       </Routes>
     </Router>
   );
-}; 
+};
