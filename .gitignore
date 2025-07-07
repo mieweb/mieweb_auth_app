@@ -148,3 +148,4 @@ screenshots/
 public
 .github/workflows/build-android-apk-dev-on-release.yml
 .DS_Store
+app-release-final.apk
