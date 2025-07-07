@@ -23,6 +23,10 @@ jobs:
         source /opt/set-mie-env.sh
         echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
         echo "KEYSTORE_PATH=$KEYSTORE_PATH"
+        
+    - name: Setup Gradle PATH
+      run: echo 'export PATH=/opt/gradle/gradle-8.3/bin:$PATH' >> $GITHUB_ENV
+
 
     - name: Build Meteor Cordova app
       run: |
