@@ -24,17 +24,18 @@ jobs:
         echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
         echo "KEYSTORE_PATH=$KEYSTORE_PATH"
         
-    - name: Setup Gradle PATH
-      run: echo 'export PATH=/opt/gradle/gradle-8.3/bin:$PATH' >> $GITHUB_ENV
-
+    - name: Setup Gradle PATH for subsequent steps
+      run: echo 'PATH=/opt/gradle/gradle-8.3/bin:$PATH' >> $GITHUB_ENV
 
     - name: Build Meteor Cordova app
       run: |
+        export PATH=/opt/gradle/gradle-8.3/bin:$PATH
         cd /opt/github/mieweb_auth_app
         meteor build /opt/builds --server=https://mie-2fa.opensource.mieweb.org
 
     - name: Build unsigned APK
       run: |
+        export PATH=/opt/gradle/gradle-8.3/bin:$PATH
         cd /opt/builds/android/project
         ./gradlew assembleRelease
 
