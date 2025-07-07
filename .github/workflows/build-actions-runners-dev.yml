@@ -15,7 +15,7 @@ jobs:
 
     - name: Clear /opt/builds before build
       run: |
-        rm -rf /opt/builds/*
+        sudo rm -rf /opt/builds/android /opt/builds/bundle 
 
     - name: Source environment variables
       run: |
