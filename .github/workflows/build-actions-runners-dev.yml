@@ -15,7 +15,7 @@ jobs:
 
     - name: Clear /opt/builds before build
       run: |
-        sudo rm -rf /opt/builds/android /opt/builds/bundle 
+        sudo rm -rf /opt/builds/android /opt/builds/bundle
 
     - name: Source environment variables
       run: |
@@ -23,19 +23,20 @@ jobs:
         source /opt/set-mie-env.sh
         echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
         echo "KEYSTORE_PATH=$KEYSTORE_PATH"
-        
+
     - name: Setup Gradle PATH for subsequent steps
       run: echo 'PATH=/opt/gradle/gradle-8.3/bin:$PATH' >> $GITHUB_ENV
 
+    - name: Setup Meteor PATH for subsequent steps
+      run: echo 'PATH=/home/runner/.meteor:$PATH' >> $GITHUB_ENV
+
     - name: Build Meteor Cordova app
       run: |
-        export PATH=/opt/gradle/gradle-8.3/bin:$PATH
         cd /opt/github/mieweb_auth_app
         meteor build /opt/builds --server=https://mie-2fa.opensource.mieweb.org
 
     - name: Build unsigned APK
       run: |
-        export PATH=/opt/gradle/gradle-8.3/bin:$PATH
         cd /opt/builds/android/project
         ./gradlew assembleRelease
 
@@ -54,8 +55,8 @@ jobs:
           --key-pass pass:$KEY_PASSWORD \
           --out app-release-final.apk \
           app-release-aligned.apk
-    
-    - name: Clear previous apk if any
+
+    - name: Clear previous APK if any
       run: |
         rm -f /opt/github/mieweb_auth_app/app-release-final.apk
 
