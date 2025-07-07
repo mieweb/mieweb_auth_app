@@ -22,7 +22,7 @@ export const WebNotificationPage = () => {
     try {
       console.log('Sending notification request...');
 
-      const response = await fetch(`${process.env.ROOT_URL}/send-notification`, {
+      const response = await fetch('/send-notification', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
