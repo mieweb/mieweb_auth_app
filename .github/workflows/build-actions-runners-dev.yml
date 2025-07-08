@@ -9,13 +9,17 @@ jobs:
   build-and-deploy:
     runs-on: self-hosted
 
+    defaults:
+      run:
+        shell: /bin/bash -e {0}
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Clear /opt/builds before build
+    - name: Clear /opt/builds/android and /opt/builds/bundle before build
       run: |
-        sudo rm -rf /opt/builds/android /opt/builds/bundle
+        rm -rf /opt/builds/android /opt/builds/bundle || true
 
     - name: Source environment variables
       run: |
@@ -24,11 +28,14 @@ jobs:
         echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
         echo "KEYSTORE_PATH=$KEYSTORE_PATH"
 
-    - name: Setup Gradle PATH for subsequent steps
+    - name: Setup Gradle path
       run: echo 'PATH=/opt/gradle/gradle-8.3/bin:$PATH' >> $GITHUB_ENV
 
-    - name: Setup Meteor PATH for subsequent steps
+    - name: Setup Meteor path
       run: echo 'PATH=/home/runner/.meteor:$PATH' >> $GITHUB_ENV
+
+    - name: Verify Meteor version
+      run: meteor --version
 
     - name: Build Meteor Cordova app
       run: |
@@ -57,8 +64,7 @@ jobs:
           app-release-aligned.apk
 
     - name: Clear previous APK if any
-      run: |
-        rm -f /opt/github/mieweb_auth_app/app-release-final.apk
+      run: rm -f /opt/github/mieweb_auth_app/app-release-final.apk
 
     - name: Copy signed APK into project folder
       run: |
