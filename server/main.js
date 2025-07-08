@@ -96,42 +96,92 @@ const sendSyncNotificationToDevices = async (userId, notificationId, action) => 
 };
 
 // Handle notification endpoint
-WebApp.connectHandlers.use("/send-notification", async (req, res) => {
+WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
+  console.log(`${req.method} /send-notification - Origin: ${req.headers.origin}`);
+  
+  // Always set CORS headers first
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+  res.setHeader("Access-Control-Max-Age", "86400"); // 24 hours
+  
+  // Handle preflight OPTIONS request
+  if (req.method === "OPTIONS") {
+    console.log("Handling OPTIONS preflight request");
+    res.writeHead(200); // Changed from 204 to 200
+    res.end();
+    return;
+  }
+  
+  // Only handle POST requests for actual notification sending
+  if (req.method !== "POST") {
+    console.log(`Method ${req.method} not allowed`);
+    res.writeHead(405, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ success: false, error: "Method not allowed" }));
+    return;
+  }
+  
   let body = "";
-
+  
   req.on("data", (chunk) => {
-    body += chunk;
+    body += chunk.toString();
   });
-
+  
   req.on("end", async () => {
     try {
-      const requestBody = JSON.parse(body);
-      console.log("Received request body:", requestBody);
-
-      const { username, title, body: messageBody, actions } = requestBody;
-
-      if (!username || !title || !messageBody || !actions) {
-        throw new Error("Missing required fields");
+      console.log("Raw request body:", body);
+      
+      if (!body || body.trim() === "") {
+        throw new Error("Empty request body");
       }
-
-      // Get FCM tokens for the username
+      
+      let requestBody;
+      try {
+        requestBody = JSON.parse(body);
+      } catch (parseError) {
+        console.error("JSON parse error:", parseError);
+        throw new Error("Invalid JSON in request body");
+      }
+      
+      console.log("Parsed request body:", requestBody);
+      
+      const { username, title, body: messageBody, actions } = requestBody;
+      
+      // Validate required fields
+      if (!username) throw new Error("Username is required");
+      if (!title) throw new Error("Title is required");  
+      if (!messageBody) throw new Error("Message body is required");
+      if (!actions || !Array.isArray(actions)) throw new Error("Actions array is required");
+      
+      console.log(`Processing notification for user: ${username}`);
+      
+      // Get FCM tokens
       const fcmTokens = await new Promise((resolve, reject) => {
         Meteor.call("deviceDetails.getFCMTokenByUsername", username, (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
+          if (error) {
+            console.error("Error getting FCM tokens:", error);
+            reject(error);
+          } else {
+            console.log("FCM tokens found:", result?.length || 0);
+            resolve(result);
+          }
         });
       });
-
+      
       if (!fcmTokens || fcmTokens.length === 0) {
-        throw new Error("No FCM tokens found for the given username");
+        throw new Error(`No FCM tokens found for username: ${username}`);
       }
-
-      // Get user document for appId
+      
+      // Get user document
       const userDoc = await DeviceDetails.findOneAsync({ username });
       if (!userDoc) {
-        throw new Error("User not found");
+        throw new Error(`User not found: ${username}`);
       }
-
+      
+      if (!userDoc.devices || userDoc.devices.length === 0) {
+        throw new Error(`No devices found for user: ${username}`);
+      }
+      
       // Prepare notification data
       const notificationData = {
         appId: userDoc.devices[0].appId,
@@ -146,20 +196,25 @@ WebApp.connectHandlers.use("/send-notification", async (req, res) => {
         actions: JSON.stringify(actions),
         click_action: 'FLUTTER_NOTIFICATION_CLICK',
         sound: 'default',
-        // Add platform-specific data
         platform: 'both',
         timestamp: new Date().toISOString()
       };
-
-      // Send notification to all devices of the user
-      const notificationPromises = fcmTokens.map(async fcmToken => {
+      
+      console.log("Sending notifications to", fcmTokens.length, "devices");
+      
+      // Send notifications
+      const notificationPromises = fcmTokens.map(async (fcmToken, index) => {
         try {
+          console.log(`Sending notification ${index + 1}/${fcmTokens.length}`);
           return await sendNotification(fcmToken, title, messageBody, notificationData);
         } catch (error) {
           console.error(`Error sending to token ${fcmToken}:`, error);
-          // If token is invalid, we should remove it from the database
-          if (error.code === 'messaging/invalid-registration-token' ||
-            error.code === 'messaging/registration-token-not-registered') {
+          
+          // Handle invalid tokens
+          if (
+            error.code === 'messaging/invalid-registration-token' ||
+            error.code === 'messaging/registration-token-not-registered'
+          ) {
             await DeviceDetails.updateAsync(
               { username },
               { $pull: { 'devices.fcmToken': fcmToken } }
@@ -169,50 +224,62 @@ WebApp.connectHandlers.use("/send-notification", async (req, res) => {
           throw error;
         }
       });
-
+      
       await Promise.all(notificationPromises);
-      console.log("Notifications sent successfully to all devices");
-
-      // Save notification history for the user
+      console.log("All notifications sent successfully");
+      
+      // Save notification history
       await saveUserNotificationHistory({
         appId: userDoc.devices[0].appId,
         title,
         body: messageBody,
         userId: userDoc.userId
       });
-
-      // Create promise for user response
+      
+      // Wait for user response
       const userResponsePromise = new Promise((resolve) => {
         responsePromises.set(username, resolve);
-
         setTimeout(() => {
           if (responsePromises.has(username)) {
+            console.log(`Timeout waiting for response from ${username}`);
             resolve("timeout");
             responsePromises.delete(username);
           }
         }, 25000);
       });
-
+      
+      console.log(`Waiting for response from ${username}...`);
       const userResponse = await userResponsePromise;
-      console.log("USER RESPONSE", userResponse);
-
+      console.log("USER RESPONSE:", userResponse);
+      
+      // Send success response
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(
-        JSON.stringify({
-          success: true,
-          action: userResponse,
-        })
-      );
+      res.end(JSON.stringify({
+        success: true,
+        action: userResponse,
+        message: "Notification sent successfully"
+      }));
+      
     } catch (error) {
       console.error("Error in /send-notification:", error);
+      
+      // Send error response
       res.writeHead(400, { "Content-Type": "application/json" });
-      res.end(
-        JSON.stringify({
-          success: false,
-          error: error.message,
-        })
-      );
+      res.end(JSON.stringify({
+        success: false,
+        error: error.message,
+        details: error.stack
+      }));
     }
+  });
+  
+  req.on("error", (error) => {
+    console.error("Request error:", error);
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      success: false,
+      error: "Internal server error"
+    }));
   });
 });
 
@@ -607,9 +674,15 @@ Meteor.methods({
         try {
           const approvalToken = await Meteor.callAsync('users.generateApprovalToken', userId);
           const approvalUrl = Meteor.absoluteUrl(`api/approve-user?userId=${userId}&token=${approvalToken}`);
-          const adminEmails = process.env.EMAIL_ADMIN;
-          const fromEmail = process.env.EMAIL_FROM;
+          let adminEmails, fromEmail;
 
+          if (process.env.ENV === 'prod') {
+            adminEmails = process.env.PROD_EMAIL_ADMIN;
+            fromEmail = process.env.PROD_EMAIL_FROM;
+          } else {
+            adminEmails = process.env.DEV_EMAIL_ADMIN;
+            fromEmail = process.env.DEV_EMAIL_FROM;
+          }
           await Email.sendAsync({
             to: adminEmails,
             from: fromEmail,
@@ -1031,12 +1104,22 @@ Meteor.methods({
 
 Meteor.startup(() => {
   // Configure SMTP from settings
-  const SENDGRID_API_KEY = ''
-
-  if (SENDGRID_API_KEY) {
+  if (process.env.ENV === 'prod') {
+    console.log("Running in production mode");
+    process.env.MAIL_URL = process.env.MIE_SMTP_URL;
+  } else if (process.env.ENV === 'dev') {
+    console.log("Running in development mode");
+    const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
+    if (!SENDGRID_API_KEY) {
+      console.error("SENDGRID_API_KEY is not set in environment variables");
+      throw new Error("SENDGRID_API_KEY is required for email service");
+    }
+    // Configure SendGrid SMTP
+    console.log("SENDGRID_API_KEY is set in environment variables");
     process.env.MAIL_URL = `smtp://apikey:${SENDGRID_API_KEY}@smtp.sendgrid.net:587`;
-    console.log("Email service configured");
   } else {
-    console.warn("SendGrid API key not found in env");
+    console.error("ENV variable must be set to either 'dev' or 'prod'");
+    throw new Error("ENV variable is required. Please set ENV=dev or ENV=prod");
   }
+  console.log("Email service configured");
 });
