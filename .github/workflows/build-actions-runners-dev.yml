@@ -64,7 +64,7 @@ jobs:
         with:
           name: mieweb-auth-app-apk
           path: /opt/github/mieweb_auth_app/app-release-final.apk
-          retention-days: 30
+          retention-days: 20
           
       - name: Deploy server bundle
         run: |
