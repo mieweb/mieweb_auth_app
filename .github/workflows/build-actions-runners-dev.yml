@@ -8,74 +8,79 @@ on:
 jobs:
   build-and-deploy:
     runs-on: self-hosted
-
-    defaults:
-      run:
-        shell: /bin/bash -e {0}
-
+    
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
-    - name: Clear /opt/builds/android and /opt/builds/bundle before build
-      run: |
-        rm -rf /opt/builds/android /opt/builds/bundle || true
-
-    - name: Source environment variables
-      run: |
-        source /opt/apk-config.sh
-        source /opt/set-mie-env.sh
-        echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-        echo "KEYSTORE_PATH=$KEYSTORE_PATH"
-
-    - name: Setup Gradle path
-      run: echo 'PATH=/opt/gradle/gradle-8.3/bin:$PATH' >> $GITHUB_ENV
-
-    - name: Setup Meteor path
-      run: echo 'PATH=/home/runner/.meteor:$PATH' >> $GITHUB_ENV
-
-    - name: Verify Meteor version
-      run: meteor --version
-
-    - name: Build Meteor Cordova app
-      run: |
-        cd /opt/github/mieweb_auth_app
-        meteor build /opt/builds --server=https://mie-2fa.opensource.mieweb.org
-
-    - name: Build unsigned APK
-      run: |
-        cd /opt/builds/android/project
-        ./gradlew assembleRelease
-
-    - name: Align APK
-      run: |
-        cd /opt/builds/android/project/app/build/outputs/apk/release
-        zipalign -v 4 app-release-unsigned.apk app-release-aligned.apk
-
-    - name: Sign APK
-      run: |
-        cd /opt/builds/android/project/app/build/outputs/apk/release
-        apksigner sign \
-          --ks $KEYSTORE_PATH \
-          --ks-key-alias $KEYSTORE_ALIAS \
-          --ks-pass pass:$KEYSTORE_PASSWORD \
-          --key-pass pass:$KEY_PASSWORD \
-          --out app-release-final.apk \
-          app-release-aligned.apk
-
-    - name: Clear previous APK if any
-      run: rm -f /opt/github/mieweb_auth_app/app-release-final.apk
-
-    - name: Copy signed APK into project folder
-      run: |
-        cp /opt/builds/android/project/app/build/outputs/apk/release/app-release-final.apk /opt/github/mieweb_auth_app/
-
-    - name: Deploy Meteor server bundle
-      run: |
-        cd /opt/builds
-        tar -xzf mieweb_auth_app.tar.gz
-        cd bundle/programs/server
-        npm install
-        cd ../..
-        pkill -f "node main.js" || true
-        nohup node main.js > server.log 2>&1 &
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Set up environment
+        run: |
+          # Source environment variables
+          source /opt/apk-config.sh
+          source /opt/set-mie-env.sh
+          
+          # Add paths to GitHub environment
+          echo "/opt/gradle/gradle-8.3/bin" >> $GITHUB_PATH
+          echo "/home/runner/.meteor" >> $GITHUB_PATH
+          
+      - name: Clean build directories
+        run: |
+          sudo rm -rf /opt/builds/android /opt/builds/bundle || true
+          
+      - name: Verify tools
+        run: |
+          meteor --version
+          gradle --version
+          
+      - name: Build Meteor app
+        run: |
+          meteor build /opt/builds --server=https://mie-2fa.opensource.mieweb.org
+          
+      - name: Build and sign APK
+        run: |
+          cd /opt/builds/android/project
+          ./gradlew assembleRelease
+          
+          # Navigate to APK output directory
+          cd app/build/outputs/apk/release
+          
+          # Align APK
+          zipalign -v 4 app-release-unsigned.apk app-release-aligned.apk
+          
+          # Sign APK
+          apksigner sign \
+            --ks "$KEYSTORE_PATH" \
+            --ks-key-alias "$KEYSTORE_ALIAS" \
+            --ks-pass "pass:$KEYSTORE_PASSWORD" \
+            --key-pass "pass:$KEY_PASSWORD" \
+            --out app-release-final.apk \
+            app-release-aligned.apk
+            
+      - name: Copy APK to project
+        run: |
+          cp /opt/builds/android/project/app/build/outputs/apk/release/app-release-final.apk \
+             ${{ github.workspace }}/app-release-final.apk
+             
+      - name: Deploy server bundle
+        run: |
+          cd /opt/builds
+          tar -xzf mieweb_auth_app.tar.gz
+          cd bundle/programs/server
+          npm install --production
+          
+          # Stop existing server
+          pkill -f "node main.js" || true
+          sleep 5
+          
+          # Start new server
+          cd /opt/builds/bundle
+          nohup node main.js > /tmp/server.log 2>&1 &
+          
+          # Verify server started
+          sleep 10
+          if pgrep -f "node main.js" > /dev/null; then
+            echo "Server started successfully"
+          else
+            echo "Server failed to start"
+            exit 1
+          fi
