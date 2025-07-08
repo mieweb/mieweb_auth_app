@@ -78,7 +78,7 @@ export const sendNotification = async (fcmToken, title, body, data = {}) => {
       //message.android.notification.sound = null;
       message.apns.payload.aps.sound = null;
       message.apns.payload.aps['content-available'] = 1;
-      message.apns.headers['apns-priority'] = '5';
+      //message.apns.headers['apns-priority'] = '5';
     }
 
     console.log("Final message payload:", JSON.stringify(message, null, 2));
