@@ -1,4 +1,4 @@
-name: Build & Deploy Meteor Cordova App
+name: Build & Deploy Meteor Cordova App on mie-2fa-opensource.mieweb.org
 on:
   push:
     branches:
