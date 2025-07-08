@@ -1,4 +1,4 @@
-name: Build & Deploy Meteor Cordova App
+name: Build & Deploy Meteor Cordova App on mie-2fa-opensource.mieweb.org
 on:
   push:
     branches:
@@ -64,7 +64,7 @@ jobs:
         with:
           name: mieweb-auth-app-apk
           path: /opt/github/mieweb_auth_app/app-release-final.apk
-          retention-days: 30
+          retention-days: 20
           
       - name: Deploy server bundle
         run: |
@@ -76,10 +76,9 @@ jobs:
           # Stop existing server
           pkill -f "node main.js" || true
           sleep 5
-          # Set environment variables and start server
-          export MONGO_URL=mongodb://localhost:27017/mie-2fa-dev
-          export ROOT_URL=https://mie-2fa.opensource.mieweb.org
-          export PORT=3000
+          # Source environment variables
+          source /opt/apk-config.sh
+          source /opt/set-mie-env.sh
           nohup node main.js > server.log 2>&1 &
           # Verify server started
           sleep 10
