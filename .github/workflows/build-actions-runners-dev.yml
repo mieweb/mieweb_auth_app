@@ -9,30 +9,35 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+        
       - name: Set up environment
         run: |
           # Source environment variables
           source /opt/apk-config.sh
           source /opt/set-mie-env.sh
+          # Export keystore variables to GitHub Actions environment
+          echo "KEYSTORE_PATH=$KEYSTORE_PATH" >> $GITHUB_ENV
+          echo "KEYSTORE_ALIAS=$KEYSTORE_ALIAS" >> $GITHUB_ENV
+          echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> $GITHUB_ENV
+          echo "KEY_PASSWORD=$KEY_PASSWORD" >> $GITHUB_ENV
           # Add paths to GitHub environment
           echo "/opt/gradle/gradle-8.5/bin" >> $GITHUB_PATH
           echo "/home/runner/.meteor" >> $GITHUB_PATH
-      
+          
       - name: Clean build directories
         run: |
           sudo rm -rf /opt/builds/android /opt/builds/bundle || true
-      
+          
       - name: Verify tools
         run: |
           meteor --version
           gradle --version
-      
+          
       - name: Build Meteor app
         run: |
           cd /opt/github/mieweb_auth_app
           meteor build /opt/builds --server=https://mie-2fa.opensource.mieweb.org
-      
+          
       - name: Build and sign APK
         run: |
           cd /opt/builds/android/project
@@ -49,18 +54,18 @@ jobs:
             --key-pass "pass:$KEY_PASSWORD" \
             --out app-release-final.apk \
             app-release-aligned.apk
-      
+            
       - name: Copy APK to project
         run: |
           cp /opt/builds/android/project/app/build/outputs/apk/release/app-release-final.apk /opt/github/mieweb_auth_app/
-      
+          
       - name: Upload APK as artifact
         uses: actions/upload-artifact@v4
         with:
           name: mieweb-auth-app-apk
           path: /opt/github/mieweb_auth_app/app-release-final.apk
           retention-days: 30
-      
+          
       - name: Deploy server bundle
         run: |
           cd /opt/builds
