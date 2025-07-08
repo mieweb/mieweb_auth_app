@@ -34,7 +34,7 @@ jobs:
           
       - name: Build Meteor app
         run: |
-          cd /optgithub/mieweb_auth_app
+          cd /opt/github/mieweb_auth_app
           meteor npm install
           meteor build /opt/builds --server=https://mie-2fa.opensource.mieweb.org
           
