@@ -16,7 +16,7 @@ jobs:
           source /opt/apk-config.sh
           source /opt/set-mie-env.sh
           # Add paths to GitHub environment
-          echo "/opt/gradle/gradle-8.3/bin" >> $GITHUB_PATH
+          echo "/opt/gradle/gradle-8.5/bin" >> $GITHUB_PATH
           echo "/home/runner/.meteor" >> $GITHUB_PATH
       
       - name: Clean build directories
