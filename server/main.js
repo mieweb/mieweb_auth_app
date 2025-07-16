@@ -1103,23 +1103,11 @@ Meteor.methods({
 
 
 Meteor.startup(() => {
-  // Configure SMTP from settings
-  if (process.env.ENV === 'prod') {
-    console.log("Running in production mode");
-    process.env.MAIL_URL = process.env.MIE_SMTP_URL;
-  } else if (process.env.ENV === 'dev') {
-    console.log("Running in development mode");
-    const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
-    if (!SENDGRID_API_KEY) {
-      console.error("SENDGRID_API_KEY is not set in environment variables");
-      throw new Error("SENDGRID_API_KEY is required for email service");
-    }
-    // Configure SendGrid SMTP
-    console.log("SENDGRID_API_KEY is set in environment variables");
-    process.env.MAIL_URL = `smtp://apikey:${SENDGRID_API_KEY}@smtp.sendgrid.net:587`;
-  } else {
-    console.error("ENV variable must be set to either 'dev' or 'prod'");
-    throw new Error("ENV variable is required. Please set ENV=dev or ENV=prod");
+  // Configure SMTP from environment variables
+  if (!process.env.MAIL_URL && process.env.SENDGRID_API_KEY) {
+    process.env.MAIL_URL = `smtp://apikey:${process.env.SENDGRID_API_KEY}@smtp.sendgrid.net:587`;
   }
-  console.log("Email service configured");
+  if (!process.env.MAIL_URL) {
+    throw new Error("MAIL_URL or SENDGRID_API_KEY is required for email service");
+  }
 });
