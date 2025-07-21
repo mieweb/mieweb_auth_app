@@ -14,3 +14,9 @@ App.configurePlugin('cordova-plugin-device', {
 
 App.addResourceFile('public/android/dev/google-services.json', 'app/google-services.json', 'android');
 //App.addResourceFile('public/ios/dev/GoogleService-Info.plist', 'GoogleService-Info.plist', 'ios');
+
+App.appendToConfig(`
+  <platform name="android">
+    <preference name="OverrideUserAgent" value="MIEWEB Auth App/1.0 (Android)" />
+  </platform>
+`);
