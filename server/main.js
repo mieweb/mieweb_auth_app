@@ -674,14 +674,14 @@ Meteor.methods({
         try {
           const approvalToken = await Meteor.callAsync('users.generateApprovalToken', userId);
           const approvalUrl = Meteor.absoluteUrl(`api/approve-user?userId=${userId}&token=${approvalToken}`);
-          let adminEmails, fromEmail;
-
-          if (process.env.ENV === 'prod') {
-            adminEmails = process.env.PROD_EMAIL_ADMIN;
-            fromEmail = process.env.PROD_EMAIL_FROM;
-          } else {
-            adminEmails = process.env.DEV_EMAIL_ADMIN;
-            fromEmail = process.env.DEV_EMAIL_FROM;
+          const adminEmails = process.env.EMAIL_ADMIN;
+          const fromEmail = process.env.EMAIL_FROM;
+          
+          if (!adminEmails) {
+            throw new Error("EMAIL_ADMIN is required for sending approval emails");
+          }
+          if (!fromEmail) {
+            throw new Error("EMAIL_FROM is required for sending approval emails");
           }
           await Email.sendAsync({
             to: adminEmails,
