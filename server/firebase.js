@@ -177,8 +177,8 @@ export const sendDeviceApprovalNotification = async (userId, newDeviceUUID) => {
       ])
     });
 
-      try {
-        // Call internal HTTP API instead of direct sendNotification
+  try {
+    // Call internal HTTP API instead of direct sendNotification
     const response = await fetch(`${process.env.ROOT_URL}/send-notification`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -199,11 +199,11 @@ export const sendDeviceApprovalNotification = async (userId, newDeviceUUID) => {
       throw new Error(`Notification API failed: ${result.error}`);
     }
 
-    console.log(`Notification sent. User action: ${result.action}`);
+    console.log(`Device approval notification sent. User action: ${result.action}`);
     return result.action;
   } catch (error) {
     console.error('Error sending device approval notification:', error);
-    throw error;
+    return 'timeout';
   }
     
     console.log(`Device approval notification sent to user ${userId} for device ${newDeviceUUID}`);
