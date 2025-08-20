@@ -33,26 +33,26 @@ export const sendNotification = async (fcmToken, title, body, data = {}) => {
     // Convert all data values to strings
     const stringifiedData = {};
     Object.entries(data).forEach(([key, value]) => {
-      if (typeof value === 'object') {
+      if (typeof value === 'object' && value !== null) {
         stringifiedData[key] = JSON.stringify(value);
       } else {
         stringifiedData[key] = String(value);
       }
     });
 
-    // Create base message object
+    // Create base message object - all data field values must be strings
     const message = {
       token: fcmToken,
       data: {
-        title,
-        body,
-        appId: data.appId || '',
-        actions: JSON.stringify(data.actions),
+        title: String(title),
+        body: String(body),
         messageFrom: 'mie',
-        notificationType: 'approval',
+        notificationType: stringifiedData.notificationType || 'approval',
         content_available: '1',
         notId: '10',
-        surveyID: "ewtawgreg-gragrag-rgarhthgbad"
+        surveyID: "ewtawgreg-gragrag-rgarhthgbad",
+        // Include all other stringified data
+        ...stringifiedData
       },
       android: {
         priority: 'high',
