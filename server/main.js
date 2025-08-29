@@ -8,6 +8,7 @@ import { Random } from "meteor/random";
 import { DeviceDetails } from "../utils/api/deviceDetails.js";
 import { NotificationHistory } from "../utils/api/notificationHistory.js"
 import { ApprovalTokens } from "../utils/api/approvalTokens";
+import { PendingResponses } from "../utils/api/pendingResponses.js";
 import { isValidToken } from "../utils/utils";
 import { successTemplate, errorTemplate, rejectionTemplate, previouslyUsedTemplate } from './templates/email';
 import dotenv from 'dotenv';
@@ -15,11 +16,6 @@ import dotenv from 'dotenv';
 
 //load the env to process.env
 dotenv.config();
-
-
-// Create Maps to store pending notifications and response promises
-const pendingNotifications = new Map();
-const responsePromises = new Map();
 
 /**
  * Save notification history for a user
@@ -236,20 +232,17 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
         userId: userDoc.userId
       });
       
-      // Wait for user response
-      const userResponsePromise = new Promise((resolve) => {
-        responsePromises.set(username, resolve);
-        setTimeout(() => {
-          if (responsePromises.has(username)) {
-            console.log(`Timeout waiting for response from ${username}`);
-            resolve("timeout");
-            responsePromises.delete(username);
-          }
-        }, 25000);
-      });
+      // Create a unique request ID for this notification
+      const requestId = Random.id();
       
-      console.log(`Waiting for response from ${username}...`);
-      const userResponse = await userResponsePromise;
+      // Create pending response entry in database
+      await Meteor.callAsync('pendingResponses.create', username, requestId, 25000);
+      
+      console.log(`Waiting for response from ${username} with request ID: ${requestId}...`);
+      
+      // Wait for user response using database polling
+      const userResponse = await Meteor.callAsync('pendingResponses.waitForResponse', username, requestId, 25000);
+      
       console.log("USER RESPONSE:", userResponse);
       
       // Send success response
@@ -348,29 +341,35 @@ WebApp.connectHandlers.use('/api/reject-user', async (req, res) => {
   const isValid = await isValidToken(userId, token);
 
   if (isValid) {
-    // Mark token as used with 'rejected' action
-    await ApprovalTokens.updateAsync(
-      { userId, token },
-      {
-        $set: {
-          used: true,
-          action: 'rejected',
-          usedAt: new Date()
+    try {
+      // Mark token as used with 'rejected' action
+      await ApprovalTokens.updateAsync(
+        { userId, token },
+        {
+          $set: {
+            used: true,
+            action: 'rejected',
+            usedAt: new Date()
+          }
         }
-      }
-    );
+      );
 
-    // Update user's registration status
-    await Meteor.users.updateAsync(
-      { _id: userId },
-      { $set: { 'profile.registrationStatus': 'rejected' } }
-    );
+      // Remove user completely instead of just marking as rejected
+      console.log(`Admin rejected user ${userId}, removing completely`);
+      await Meteor.callAsync('users.removeCompletely', userId);
 
-    // Return rejection page
-    res.writeHead(200, {
-      'Content-Type': 'text/html'
-    });
-    res.end(rejectionTemplate());
+      // Return rejection page
+      res.writeHead(200, {
+        'Content-Type': 'text/html'
+      });
+      res.end(rejectionTemplate());
+    } catch (error) {
+      console.error('Error during user rejection:', error);
+      res.writeHead(500, {
+        'Content-Type': 'text/html'
+      });
+      res.end(errorTemplate());
+    }
   } else {
     // Check if token was previously used (same logic as approve route)
     const usedToken = await ApprovalTokens.findOneAsync({
@@ -394,6 +393,36 @@ WebApp.connectHandlers.use('/api/reject-user', async (req, res) => {
       res.end(errorTemplate());
     }
   }
+});
+
+// Monitoring endpoint for pending responses
+WebApp.connectHandlers.use("/api/pending-responses", (req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  
+  if (req.method === "OPTIONS") {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  if (req.method !== "GET") {
+    res.writeHead(405, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ success: false, error: "Method not allowed" }));
+    return;
+  }
+
+  // Get all pending responses for monitoring
+  Meteor.call('pendingResponses.getAll', (error, result) => {
+    if (error) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: error.message }));
+    } else {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: true, pendingResponses: result }));
+    }
+  });
 });
 
 // Meteor methods
@@ -479,14 +508,14 @@ Meteor.methods({
         console.error("Error sending sync notification:", error);
       }
 
-      if (responsePromises.has(username)) {
-        const resolve = responsePromises.get(username);
-        resolve(targetNotification.status);
-        responsePromises.delete(username);
-        return { success: true, message: `Using existing status: ${targetNotification.status}` };
+      // Check if there's a pending response for this user and resolve it with existing status
+      const resolveResult = await Meteor.callAsync('pendingResponses.resolve', username, targetNotification.status);
+      
+      if (resolveResult.success) {
+        console.log(`Resolved pending response for ${username} with existing status: ${targetNotification.status}`);
       }
 
-      return { success: true, message: `Notification already handled` };
+      return { success: true, message: `Using existing status: ${targetNotification.status}` };
     }
 
     // Update status
@@ -503,10 +532,13 @@ Meteor.methods({
       console.error("Error sending sync notification:", error);
     }
 
-    if (responsePromises.has(username)) {
-      const resolve = responsePromises.get(username);
-      resolve(action);
-      responsePromises.delete(username);
+    // Check if there's a pending response for this user and resolve it
+    const resolveResult = await Meteor.callAsync('pendingResponses.resolve', username, action);
+    
+    if (resolveResult.success) {
+      console.log(`Resolved pending response for ${username} with action: ${action}`);
+    } else {
+      console.log(`No pending response found for ${username}, but notification updated`);
     }
 
     return { success: true, message: `Notification updated with status: ${action}` };
@@ -548,7 +580,7 @@ Meteor.methods({
   },
 
   /**
-   * Handle user action for notifications
+   * Handle user action for notifications (Legacy method - now handled by notifications.handleResponse)
    * @param {String} action - User action
    * @param {String} requestId - Request identifier
    * @param {String} replyText - Optional reply text
@@ -567,18 +599,11 @@ Meteor.methods({
       );
     }
 
-    const pendingNotification = pendingNotifications.get(requestId);
-    if (pendingNotification) {
-      clearTimeout(pendingNotification.timeout);
-      pendingNotification.resolve({ action, replyText });
-      pendingNotifications.delete(requestId);
-      return { success: true, action, replyText };
-    } else {
-      throw new Meteor.Error(
-        "invalid-request",
-        "No pending notification found for this request."
-      );
-    }
+    // This method is kept for backward compatibility but now uses database-based approach
+    // The actual response handling is done through notifications.handleResponse method
+    console.log(`Legacy userAction called with action: ${action}, requestId: ${requestId}`);
+    
+    return { success: true, action, replyText, message: "Use notifications.handleResponse method instead" };
   },
 
   /**
@@ -1097,12 +1122,117 @@ Meteor.methods({
 
     console.log(`Generated approval token for user ${userId}, expires in 3 minutes`);
     return token;
+  },
+
+  /**
+   * Clean up users with expired approval tokens
+   * @returns {Object} Cleanup result with counts
+   */
+  'users.cleanupExpiredApprovals': async function() {
+    console.log('Starting cleanup of users with expired approval tokens...');
+    
+    const now = new Date();
+    let cleanedUsersCount = 0;
+    let cleanedDevicesCount = 0;
+    let cleanedTokensCount = 0;
+
+    try {
+      // Find all expired tokens that haven't been used
+      const expiredTokens = await ApprovalTokens.find({
+        expiresAt: { $lt: now },
+        used: false
+      }).fetchAsync();
+
+      console.log(`Found ${expiredTokens.length} expired tokens to clean up`);
+
+      for (const token of expiredTokens) {
+        const { userId } = token;
+
+        // Check if user is still pending (not approved) - extra safety check
+        const user = await Meteor.users.findOneAsync({ _id: userId });
+        if (user && user.profile?.registrationStatus === 'pending') {
+          console.log(`Removing user ${userId} with expired approval token`);
+
+          // Remove user from Meteor.users collection
+          await Meteor.users.removeAsync({ _id: userId });
+          cleanedUsersCount++;
+
+          // Remove user's device details
+          const deviceRemoveResult = await DeviceDetails.removeAsync({ userId });
+          if (deviceRemoveResult) {
+            cleanedDevicesCount++;
+          }
+
+          console.log(`Removed user ${userId} and associated device details`);
+        }
+
+        // Remove the expired token
+        await ApprovalTokens.removeAsync({ _id: token._id });
+        cleanedTokensCount++;
+      }
+
+      const result = {
+        success: true,
+        cleanedUsers: cleanedUsersCount,
+        cleanedDevices: cleanedDevicesCount,
+        cleanedTokens: cleanedTokensCount,
+        message: `Cleanup completed: ${cleanedUsersCount} users, ${cleanedDevicesCount} device records, and ${cleanedTokensCount} tokens removed`
+      };
+
+      console.log(result.message);
+      return result;
+
+    } catch (error) {
+      console.error('Error during expired approval cleanup:', error);
+      throw new Meteor.Error('cleanup-failed', error.message);
+    }
+  },
+
+  /**
+   * Remove user completely (used for rejected users)
+   * @param {String} userId - User ID to remove
+   * @returns {Object} Removal result
+   */
+  'users.removeCompletely': async function(userId) {
+    check(userId, String);
+    
+    console.log(`Completely removing user ${userId}`);
+    
+    try {
+      // Remove user from Meteor.users collection
+      const userRemoved = await Meteor.users.removeAsync({ _id: userId });
+      
+      // Remove user's device details
+      const deviceRemoved = await DeviceDetails.removeAsync({ userId });
+      
+      // Remove any pending approval tokens
+      const tokensRemoved = await ApprovalTokens.removeAsync({ userId });
+      
+      console.log(`User removal complete - User: ${userRemoved}, Devices: ${deviceRemoved}, Tokens: ${tokensRemoved}`);
+      
+      return {
+        success: true,
+        userRemoved: userRemoved > 0,
+        deviceRemoved: deviceRemoved > 0,
+        tokensRemoved: tokensRemoved > 0
+      };
+    } catch (error) {
+      console.error(`Error removing user ${userId}:`, error);
+      throw new Meteor.Error('user-removal-failed', error.message);
+    }
   }
 });
 
 
 
 Meteor.startup(() => {
+  // Configure SMTP from environment variables
+  if (!process.env.MAIL_URL && process.env.SENDGRID_API_KEY) {
+    process.env.MAIL_URL = `smtp://apikey:${process.env.SENDGRID_API_KEY}@smtp.sendgrid.net:587`;
+  }
+  if (!process.env.MAIL_URL) {
+    throw new Error("MAIL_URL or SENDGRID_API_KEY is required for email service");
+  }
   // Configure SMTP from environment variables
   if (!process.env.MAIL_URL && process.env.SENDGRID_API_KEY) {
     process.env.MAIL_URL = `smtp://apikey:${process.env.SENDGRID_API_KEY}@smtp.sendgrid.net:587`;
