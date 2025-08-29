@@ -1,4 +1,4 @@
-name: Build & Deploy Meteor Cordova App
+name: Build & Deploy Meteor Cordova App on mie-2fa-opensource.mieweb.org
 on:
   push:
     branches:
@@ -64,7 +64,7 @@ jobs:
         with:
           name: mieweb-auth-app-apk
           path: /opt/github/mieweb_auth_app/app-release-final.apk
-          retention-days: 30
+          retention-days: 20
           
       - name: Deploy server bundle
         run: |
