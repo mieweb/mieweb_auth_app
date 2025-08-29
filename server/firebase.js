@@ -75,10 +75,15 @@ export const sendNotification = async (fcmToken, title, body, data = {}) => {
     };
     // For dismissal/sync notifications, modify the payload
     if (data.isDismissal === 'true' || data.isSync === 'true') {
-      //message.android.notification.sound = null;
-      message.apns.payload.aps.sound = null;
-      message.apns.payload.aps['content-available'] = 1;
-      //message.apns.headers['apns-priority'] = '5';
+      // For dismissal/sync notifications we want a default audible sound per request
+      if (message.apns && message.apns.payload && message.apns.payload.aps) {
+        message.apns.payload.aps.sound = 'default';
+        // Keep alert so the user sees the message; keep content-available to indicate background processing
+        message.apns.payload.aps['content-available'] = 1;
+        // Ensure headers object exists; keep high priority for immediate delivery
+        message.apns.headers = message.apns.headers || {};
+        message.apns.headers['apns-priority'] = '10';
+      }
     }
 
     console.log("Final message payload:", JSON.stringify(message, null, 2));
