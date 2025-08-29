@@ -8,6 +8,7 @@ import { Random } from "meteor/random";
 import { DeviceDetails } from "../utils/api/deviceDetails.js";
 import { NotificationHistory } from "../utils/api/notificationHistory.js"
 import { ApprovalTokens } from "../utils/api/approvalTokens";
+import { PendingResponses } from "../utils/api/pendingResponses.js";
 import { isValidToken } from "../utils/utils";
 import { successTemplate, errorTemplate, rejectionTemplate, previouslyUsedTemplate } from './templates/email';
 import dotenv from 'dotenv';
@@ -15,11 +16,6 @@ import dotenv from 'dotenv';
 
 //load the env to process.env
 dotenv.config();
-
-
-// Create Maps to store pending notifications and response promises
-const pendingNotifications = new Map();
-const responsePromises = new Map();
 
 /**
  * Save notification history for a user
@@ -236,20 +232,17 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
         userId: userDoc.userId
       });
       
-      // Wait for user response
-      const userResponsePromise = new Promise((resolve) => {
-        responsePromises.set(username, resolve);
-        setTimeout(() => {
-          if (responsePromises.has(username)) {
-            console.log(`Timeout waiting for response from ${username}`);
-            resolve("timeout");
-            responsePromises.delete(username);
-          }
-        }, 25000);
-      });
+      // Create a unique request ID for this notification
+      const requestId = Random.id();
       
-      console.log(`Waiting for response from ${username}...`);
-      const userResponse = await userResponsePromise;
+      // Create pending response entry in database
+      await Meteor.callAsync('pendingResponses.create', username, requestId, 25000);
+      
+      console.log(`Waiting for response from ${username} with request ID: ${requestId}...`);
+      
+      // Wait for user response using database polling
+      const userResponse = await Meteor.callAsync('pendingResponses.waitForResponse', username, requestId, 25000);
+      
       console.log("USER RESPONSE:", userResponse);
       
       // Send success response
@@ -402,6 +395,36 @@ WebApp.connectHandlers.use('/api/reject-user', async (req, res) => {
   }
 });
 
+// Monitoring endpoint for pending responses
+WebApp.connectHandlers.use("/api/pending-responses", (req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  
+  if (req.method === "OPTIONS") {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  if (req.method !== "GET") {
+    res.writeHead(405, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ success: false, error: "Method not allowed" }));
+    return;
+  }
+
+  // Get all pending responses for monitoring
+  Meteor.call('pendingResponses.getAll', (error, result) => {
+    if (error) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: error.message }));
+    } else {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: true, pendingResponses: result }));
+    }
+  });
+});
+
 // Meteor methods
 Meteor.methods({
   async 'users.checkRegistrationStatus'({ userId, email }) {
@@ -485,14 +508,14 @@ Meteor.methods({
         console.error("Error sending sync notification:", error);
       }
 
-      if (responsePromises.has(username)) {
-        const resolve = responsePromises.get(username);
-        resolve(targetNotification.status);
-        responsePromises.delete(username);
-        return { success: true, message: `Using existing status: ${targetNotification.status}` };
+      // Check if there's a pending response for this user and resolve it with existing status
+      const resolveResult = await Meteor.callAsync('pendingResponses.resolve', username, targetNotification.status);
+      
+      if (resolveResult.success) {
+        console.log(`Resolved pending response for ${username} with existing status: ${targetNotification.status}`);
       }
 
-      return { success: true, message: `Notification already handled` };
+      return { success: true, message: `Using existing status: ${targetNotification.status}` };
     }
 
     // Update status
@@ -509,10 +532,13 @@ Meteor.methods({
       console.error("Error sending sync notification:", error);
     }
 
-    if (responsePromises.has(username)) {
-      const resolve = responsePromises.get(username);
-      resolve(action);
-      responsePromises.delete(username);
+    // Check if there's a pending response for this user and resolve it
+    const resolveResult = await Meteor.callAsync('pendingResponses.resolve', username, action);
+    
+    if (resolveResult.success) {
+      console.log(`Resolved pending response for ${username} with action: ${action}`);
+    } else {
+      console.log(`No pending response found for ${username}, but notification updated`);
     }
 
     return { success: true, message: `Notification updated with status: ${action}` };
@@ -554,7 +580,7 @@ Meteor.methods({
   },
 
   /**
-   * Handle user action for notifications
+   * Handle user action for notifications (Legacy method - now handled by notifications.handleResponse)
    * @param {String} action - User action
    * @param {String} requestId - Request identifier
    * @param {String} replyText - Optional reply text
@@ -573,18 +599,11 @@ Meteor.methods({
       );
     }
 
-    const pendingNotification = pendingNotifications.get(requestId);
-    if (pendingNotification) {
-      clearTimeout(pendingNotification.timeout);
-      pendingNotification.resolve({ action, replyText });
-      pendingNotifications.delete(requestId);
-      return { success: true, action, replyText };
-    } else {
-      throw new Meteor.Error(
-        "invalid-request",
-        "No pending notification found for this request."
-      );
-    }
+    // This method is kept for backward compatibility but now uses database-based approach
+    // The actual response handling is done through notifications.handleResponse method
+    console.log(`Legacy userAction called with action: ${action}, requestId: ${requestId}`);
+    
+    return { success: true, action, replyText, message: "Use notifications.handleResponse method instead" };
   },
 
   /**
@@ -680,14 +699,14 @@ Meteor.methods({
         try {
           const approvalToken = await Meteor.callAsync('users.generateApprovalToken', userId);
           const approvalUrl = Meteor.absoluteUrl(`api/approve-user?userId=${userId}&token=${approvalToken}`);
-          let adminEmails, fromEmail;
-
-          if (process.env.ENV === 'prod') {
-            adminEmails = process.env.PROD_EMAIL_ADMIN;
-            fromEmail = process.env.PROD_EMAIL_FROM;
-          } else {
-            adminEmails = process.env.DEV_EMAIL_ADMIN;
-            fromEmail = process.env.DEV_EMAIL_FROM;
+          const adminEmails = process.env.EMAIL_ADMIN;
+          const fromEmail = process.env.EMAIL_FROM;
+          
+          if (!adminEmails) {
+            throw new Error("EMAIL_ADMIN is required for sending approval emails");
+          }
+          if (!fromEmail) {
+            throw new Error("EMAIL_FROM is required for sending approval emails");
           }
           await Email.sendAsync({
             to: adminEmails,
@@ -1207,40 +1226,18 @@ Meteor.methods({
 
 
 Meteor.startup(() => {
-  // Configure SMTP from settings
-  if (process.env.ENV === 'prod') {
-    console.log("Running in production mode");
-    process.env.MAIL_URL = process.env.MIE_SMTP_URL;
-  } else if (process.env.ENV === 'dev') {
-    console.log("Running in development mode");
-    const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
-    if (!SENDGRID_API_KEY) {
-      console.error("SENDGRID_API_KEY is not set in environment variables");
-      throw new Error("SENDGRID_API_KEY is required for email service");
-    }
-    // Configure SendGrid SMTP
-    console.log("SENDGRID_API_KEY is set in environment variables");
-    process.env.MAIL_URL = `smtp://apikey:${SENDGRID_API_KEY}@smtp.sendgrid.net:587`;
-  } else {
-    console.error("ENV variable must be set to either 'dev' or 'prod'");
-    throw new Error("ENV variable is required. Please set ENV=dev or ENV=prod");
+  // Configure SMTP from environment variables
+  if (!process.env.MAIL_URL && process.env.SENDGRID_API_KEY) {
+    process.env.MAIL_URL = `smtp://apikey:${process.env.SENDGRID_API_KEY}@smtp.sendgrid.net:587`;
   }
-  console.log("Email service configured");
-
-  // Start background cleanup job for expired approval tokens
-  // Run every 2 minutes to clean up expired tokens (tokens expire after 3 minutes)
-  const cleanupInterval = 2 * 60 * 1000; // 2 minutes in milliseconds
-  
-  Meteor.setInterval(async () => {
-    try {
-      const result = await Meteor.callAsync('users.cleanupExpiredApprovals');
-      if (result.cleanedUsers > 0) {
-        console.log('Background cleanup completed:', result.message);
-      }
-    } catch (error) {
-      console.error('Background cleanup failed:', error);
-    }
-  }, cleanupInterval);
-
-  console.log(`Background cleanup job started - running every ${cleanupInterval / 1000} seconds`);
+  if (!process.env.MAIL_URL) {
+    throw new Error("MAIL_URL or SENDGRID_API_KEY is required for email service");
+  }
+  // Configure SMTP from environment variables
+  if (!process.env.MAIL_URL && process.env.SENDGRID_API_KEY) {
+    process.env.MAIL_URL = `smtp://apikey:${process.env.SENDGRID_API_KEY}@smtp.sendgrid.net:587`;
+  }
+  if (!process.env.MAIL_URL) {
+    throw new Error("MAIL_URL or SENDGRID_API_KEY is required for email service");
+  }
 });

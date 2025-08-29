@@ -33,26 +33,26 @@ export const sendNotification = async (fcmToken, title, body, data = {}) => {
     // Convert all data values to strings
     const stringifiedData = {};
     Object.entries(data).forEach(([key, value]) => {
-      if (typeof value === 'object') {
+      if (typeof value === 'object' && value !== null) {
         stringifiedData[key] = JSON.stringify(value);
       } else {
         stringifiedData[key] = String(value);
       }
     });
 
-    // Create base message object
+    // Create base message object - all data field values must be strings
     const message = {
       token: fcmToken,
       data: {
-        title,
-        body,
-        appId: data.appId || '',
-        actions: JSON.stringify(data.actions),
+        title: String(title),
+        body: String(body),
         messageFrom: 'mie',
-        notificationType: 'approval',
+        notificationType: stringifiedData.notificationType || 'approval',
         content_available: '1',
         notId: '10',
-        surveyID: "ewtawgreg-gragrag-rgarhthgbad"
+        surveyID: "ewtawgreg-gragrag-rgarhthgbad",
+        // Include all other stringified data
+        ...stringifiedData
       },
       android: {
         priority: 'high',
@@ -75,10 +75,15 @@ export const sendNotification = async (fcmToken, title, body, data = {}) => {
     };
     // For dismissal/sync notifications, modify the payload
     if (data.isDismissal === 'true' || data.isSync === 'true') {
-      //message.android.notification.sound = null;
-      message.apns.payload.aps.sound = null;
-      message.apns.payload.aps['content-available'] = 1;
-      //message.apns.headers['apns-priority'] = '5';
+      // For dismissal/sync notifications we want a default audible sound per request
+      if (message.apns && message.apns.payload && message.apns.payload.aps) {
+        message.apns.payload.aps.sound = 'default';
+        // Keep alert so the user sees the message; keep content-available to indicate background processing
+        message.apns.payload.aps['content-available'] = 1;
+        // Ensure headers object exists; keep high priority for immediate delivery
+        message.apns.headers = message.apns.headers || {};
+        message.apns.headers['apns-priority'] = '10';
+      }
     }
 
     console.log("Final message payload:", JSON.stringify(message, null, 2));
@@ -177,8 +182,8 @@ export const sendDeviceApprovalNotification = async (userId, newDeviceUUID) => {
       ])
     });
 
-      try {
-        // Call internal HTTP API instead of direct sendNotification
+  try {
+    // Call internal HTTP API instead of direct sendNotification
     const response = await fetch(`${process.env.ROOT_URL}/send-notification`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -199,11 +204,11 @@ export const sendDeviceApprovalNotification = async (userId, newDeviceUUID) => {
       throw new Error(`Notification API failed: ${result.error}`);
     }
 
-    console.log(`Notification sent. User action: ${result.action}`);
+    console.log(`Device approval notification sent. User action: ${result.action}`);
     return result.action;
   } catch (error) {
     console.error('Error sending device approval notification:', error);
-    throw error;
+    return 'timeout';
   }
     
     console.log(`Device approval notification sent to user ${userId} for device ${newDeviceUUID}`);
