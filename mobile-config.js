@@ -44,11 +44,13 @@ App.icons({
 });
 
 // Splash screens: modern Cordova uses a universal asset on each platform.
-// We include the generated universal PNGs so defaults are fully replaced.
-// iOS (universal launch screen asset)
-App.addResourceFile('resources/Default@2x~universal~anyany.png', 'Default@2x~universal~anyany.png', 'ios');
-// Android (universal splash image)
-App.addResourceFile('resources/android_universal.splash.png', 'android_universal.splash.png', 'android');
+// Use App.launchScreens per Meteor 2.6+ (storyboard on iOS, Android 12+ splash API)
+App.launchScreens({
+  // iOS universal storyboard image (@2x)
+  ios_universal: 'resources/Default@2x~universal~anyany.png',
+  // Android universal splash image
+  android_universal: 'resources/android_universal.splash.png',
+});
 
 // Optional: keep brand background while splash shows
 App.setPreference('SplashScreenBackgroundColor', '#27AAE1');
