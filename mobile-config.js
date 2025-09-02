@@ -48,6 +48,8 @@ App.icons({
 App.launchScreens({
   // iOS universal storyboard image (@2x)
   ios_universal: 'resources/Default@2x~universal~anyany.png',
+  // iOS universal @3x (fallback to @2x asset if a dedicated 3x is not available)
+  ios_universal_3x: 'resources/Default@2x~universal~anyany.png',
   // Android universal splash image
   android_universal: 'resources/android_universal.splash.png',
 });
