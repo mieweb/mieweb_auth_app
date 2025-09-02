@@ -1,0 +1,24 @@
+<svg viewBox="0 0 180 200" xmlns="http://www.w3.org/2000/svg">
+                        <!-- Reusing the same shield design -->
+                        <defs>
+                            <linearGradient id="splashShieldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#00ff88;stop-opacity:1"></stop>
+                                <stop offset="100%" style="stop-color:#00d4ff;stop-opacity:1"></stop>
+                            </linearGradient>
+                            <linearGradient id="splashBellGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1"></stop>
+                                <stop offset="100%" style="stop-color:#e0f7ff;stop-opacity:1"></stop>
+                            </linearGradient>
+                        </defs>
+                        
+                        <path d="M90 10 C130 10, 160 30, 160 60 L160 120 C160 160, 90 190, 90 190 C90 190, 20 160, 20 120 L20 60 C20 30, 50 10, 90 10 Z" fill="url(#splashShieldGradient)" opacity="0.95"></path>
+                        
+                        <path d="M90 25 C120 25, 145 40, 145 65 L145 115 C145 145, 90 170, 90 170 C90 170, 35 145, 35 115 L35 65 C35 40, 60 25, 90 25 Z" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="2"></path>
+                        
+                        <g transform="translate(90, 95)">
+                            <path d="M-25 -15 C-25 -30, -15 -35, 0 -35 C15 -35, 25 -30, 25 -15 L25 5 C25 10, 28 15, 30 20 L-30 20 C-28 15, -25 10, -25 5 Z" fill="url(#splashBellGradient)"></path>
+                            <circle cx="0" cy="-38" r="5" fill="url(#splashBellGradient)"></circle>
+                            <path d="M-8 22 L8 22 C8 22, 8 28, 0 28 C-8 28, -8 22, -8 22 Z" fill="url(#splashBellGradient)"></path>
+                            <path d="M-12 -5 L-5 2 L12 -15" fill="none" stroke="#1e3c72" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"></path>
+                        </g>
+                    </svg>
