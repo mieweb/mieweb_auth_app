@@ -1,5 +1,7 @@
 # Mieweb Auth App
 
+[![CodeQL](https://github.com/mieweb/mieweb_auth_app/actions/workflows/codeql.yml/badge.svg)](https://github.com/mieweb/mieweb_auth_app/actions/workflows/codeql.yml)
+
 This is a full-stack Meteor application using React for the frontend and Cordova for mobile deployment. It integrates **Firebase Cloud Messaging (FCM)** to enable push notifications, using the `@havesource/cordova-plugin-push` plugin for mobile platforms.
 
 ## Architecture Overview
@@ -323,6 +325,13 @@ The project includes automated CI/CD pipelines:
 4. Ensure workflows have appropriate permissions
 
 ## Security Best Practices
+
+### CodeQL Security Scanning
+This repository uses GitHub CodeQL for automated security vulnerability scanning:
+- **Automated Scanning**: CodeQL runs on every push to main, pull requests, and weekly via scheduled cron
+- **Language Coverage**: JavaScript/TypeScript analysis with security-extended query suite
+- **View Results**: Check the Security tab in the GitHub repository for detailed findings
+- **Custom Configuration**: See `.github/workflows/codeql.yml` for customization options
 
 ### Firebase Security
 - **Never commit Firebase Admin SDK JSON files to version control**
