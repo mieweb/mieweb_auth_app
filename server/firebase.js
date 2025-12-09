@@ -1,5 +1,4 @@
 import admin from 'firebase-admin';
-//import serviceAccount from '../server/private/mieweb-auth-dev-2a7559d6c697.json';
 import { Meteor } from 'meteor/meteor';
 import { DeviceDetails } from '../utils/api/deviceDetails.js';
 import { Email } from 'meteor/email';
@@ -7,7 +6,6 @@ import { Email } from 'meteor/email';
 import dotenv from 'dotenv';
 dotenv.config();
 
-//import serviceAccount from '../server/private/mieweb-auth-dev-2a7559d6c697.json';
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
 
 
