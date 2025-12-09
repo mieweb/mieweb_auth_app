@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Meteor } from 'meteor/meteor';
 
 export const WebNotificationPage = () => {
   const [username, setUsername] = useState('aabrol');
@@ -22,7 +23,7 @@ export const WebNotificationPage = () => {
     try {
       console.log('Sending notification request...');
 
-      const response = await fetch('/send-notification', {
+      const response = await fetch(Meteor.absoluteUrl('send-notification'), {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
