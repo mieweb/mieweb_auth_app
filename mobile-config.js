@@ -8,6 +8,8 @@ App.info({
   version: '0.0.2',
 });
 
+App.setPreference('android-targetSdkVersion', '35');
+
 App.configurePlugin('cordova-plugin-device', {
   version: '2.0.5',
 });
