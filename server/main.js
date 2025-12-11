@@ -427,6 +427,47 @@ WebApp.connectHandlers.use("/api/pending-responses", (req, res, next) => {
 
 // Meteor methods
 Meteor.methods({
+  async 'sendSupportTicket'(data) {
+    check(data, {
+      name: String,
+      email: String,
+      subject: String,
+      message: String
+    });
+
+    const { name, email, subject, message } = data;
+    const adminEmails = process.env.EMAIL_ADMIN;
+    const fromEmail = process.env.EMAIL_FROM;
+
+    if (!adminEmails || !fromEmail) {
+      throw new Meteor.Error('configuration-error', 'Email configuration is missing');
+    }
+
+    this.unblock();
+
+    try {
+      await Email.sendAsync({
+        to: adminEmails,
+        from: fromEmail,
+        replyTo: email,
+        subject: `[Support Request] ${subject}`,
+        html: `
+          <h3>New Support Request</h3>
+          <p><strong>Name:</strong> ${name}</p>
+          <p><strong>Email:</strong> ${email}</p>
+          <p><strong>Subject:</strong> ${subject}</p>
+          <hr />
+          <p><strong>Message:</strong></p>
+          <p>${message.replace(/\n/g, '<br>')}</p>
+        `
+      });
+      return true;
+    } catch (error) {
+      console.error('Error sending support email:', error);
+      throw new Meteor.Error('email-error', 'Failed to send support email');
+    }
+  },
+
   async 'users.checkRegistrationStatus'({ userId, email }) {
     check(userId, Match.Maybe(String));
     check(email, Match.Maybe(String));

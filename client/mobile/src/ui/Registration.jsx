@@ -30,7 +30,7 @@ export const RegistrationPage = ({ deviceDetails }) => {
 
   const inputFields = useMemo(() => [
     { name: 'email', icon: FiMail, type: 'email', placeholder: 'Enter your email' },
-    { name: 'username', icon: FiUser, type: 'text', placeholder: 'Enter your username' },
+    { name: 'username', icon: FiUser, type: 'text', placeholder: 'Enter your username', autoCapitalize: 'none' },
     { name: 'firstName', icon: FiUser, type: 'text', placeholder: 'First Name' },
     { name: 'lastName', icon: FiUser, type: 'text', placeholder: 'Last Name' },
     { 
@@ -306,6 +306,7 @@ export const RegistrationPage = ({ deviceDetails }) => {
                     inputMode={field.inputMode}
                     minLength={field.minLength}
                     maxLength={field.maxLength}
+                    autoCapitalize={field.autoCapitalize}
                   />
                 </div>
               </motion.div>

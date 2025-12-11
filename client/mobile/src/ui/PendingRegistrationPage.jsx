@@ -72,7 +72,7 @@ const PendingRegistrationPage = () => {
             </button>
             
             <a 
-              href="mailto:support@example.com" 
+              href="mailto:devopsalerts@mieweb.com" 
               className="text-gray-600 hover:text-gray-800 text-sm"
             >
               Contact Support
