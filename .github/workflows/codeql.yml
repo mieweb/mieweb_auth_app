@@ -1,0 +1,88 @@
+name: "CodeQL Security Scanning"
+
+# CodeQL is a static analysis tool that helps identify security vulnerabilities
+# and code quality issues in your codebase. This workflow runs CodeQL analysis
+# on the repository to detect potential security issues before they reach production.
+#
+# Customization Guide:
+# - To analyze additional languages, add them to the language matrix below
+# - Supported languages: c-cpp, csharp, go, java-kotlin, javascript-typescript, python, ruby, swift
+# - For compiled languages, replace 'autobuild' step with explicit build commands
+# - Adjust the schedule cron to match your preferred scanning frequency
+# - Query suite can be customized in the 'Initialize CodeQL' step
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    # Run weekly on Mondays at 3:00 AM UTC
+    - cron: '0 3 * * 1'
+
+# Principle of least privilege: only grant necessary permissions
+permissions:
+  security-events: write  # Required to upload CodeQL results
+  contents: read          # Required to checkout the repository
+  actions: read           # Required to read workflow artifacts
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        # Auto-detect languages in the repository
+        # This repository is primarily JavaScript/TypeScript (Meteor + React)
+        language: [ 'javascript-typescript' ]
+        # If you have additional languages, add them here:
+        # language: [ 'javascript-typescript', 'python' ]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # For JavaScript/TypeScript, we need Node.js dependencies
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: |
+        # Install npm dependencies for better analysis
+        npm ci --ignore-scripts || npm install --ignore-scripts
+
+    # Initialize CodeQL tools for scanning
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: ${{ matrix.language }}
+        # Query suite options: 'default', 'security-extended', 'security-and-quality'
+        # 'security-extended' provides more security-focused queries
+        queries: security-extended
+        # If you want to use custom queries:
+        # queries: +security-and-quality
+
+    # Autobuild attempts to build any compiled languages automatically
+    # For JavaScript/TypeScript, this step typically doesn't compile but may run build scripts
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@v3
+      
+    # Alternative: Manual build steps for more control
+    # Uncomment and customize if autobuild doesn't work for your project
+    # - name: Build
+    #   run: |
+    #     npm run build
+
+    # Perform CodeQL analysis
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:${{matrix.language}}"
+        # Upload results even if there are errors (for debugging)
+        upload: true
