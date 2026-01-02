@@ -66,10 +66,13 @@ SPLASH_SIZES = {
 }
 
 
-def create_icon(source_image, output_path, size):
+def create_icon(source_image, output_path, size, is_ios=False):
     """
     Create an icon from the source image at the specified size.
     Maintains aspect ratio and centers the image.
+    
+    For iOS icons, removes alpha channel and uses white background
+    as required by Apple's App Store guidelines.
     """
     img = Image.open(source_image)
     
@@ -80,15 +83,35 @@ def create_icon(source_image, output_path, size):
     # Resize maintaining aspect ratio
     img.thumbnail(size, Image.Resampling.LANCZOS)
     
-    # Create a new image with the exact size (with transparency)
-    new_img = Image.new('RGBA', size, (0, 0, 0, 0))
-    
-    # Calculate position to center the image
-    x = (size[0] - img.width) // 2
-    y = (size[1] - img.height) // 2
-    
-    # Paste the resized image onto the new image
-    new_img.paste(img, (x, y), img)
+    # iOS icons cannot have transparency - use white background
+    # Android icons can have transparency
+    if is_ios:
+        # Create a new image with white background (fully opaque)
+        new_img = Image.new('RGB', size, (255, 255, 255))
+        
+        # If source has transparency, composite it over white background
+        if img.mode == 'RGBA':
+            # Create white background
+            white_bg = Image.new('RGB', img.size, (255, 255, 255))
+            white_bg.paste(img, (0, 0), img)
+            img = white_bg
+        
+        # Calculate position to center the image
+        x = (size[0] - img.width) // 2
+        y = (size[1] - img.height) // 2
+        
+        # Paste the resized image onto the new image
+        new_img.paste(img, (x, y))
+    else:
+        # Android icons can have transparency
+        new_img = Image.new('RGBA', size, (0, 0, 0, 0))
+        
+        # Calculate position to center the image
+        x = (size[0] - img.width) // 2
+        y = (size[1] - img.height) // 2
+        
+        # Paste the resized image onto the new image
+        new_img.paste(img, (x, y), img)
     
     # Save with optimization
     new_img.save(output_path, 'PNG', optimize=True)
@@ -157,7 +180,9 @@ def generate_all_resources(source_image, output_dir='resources'):
     print("-" * 50)
     for name, size in ICON_SIZES.items():
         output_path = os.path.join(output_dir, f"{name}.icon.png")
-        create_icon(source_image, output_path, size)
+        # iOS icons must not have alpha channel per Apple guidelines
+        is_ios = not name.startswith('android_')
+        create_icon(source_image, output_path, size, is_ios)
     
     # Generate splash screens
     print("\nGenerating Splash Screens:")
