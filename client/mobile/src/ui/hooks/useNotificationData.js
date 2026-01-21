@@ -21,7 +21,32 @@ export const useNotificationData = (userId) => {
         "notificationHistory.getByUser",
         userId
       );
-      setAllNotifications(response || []);
+      
+      // Enrich notifications with device info
+      const enrichedNotifications = await Promise.all(
+        (response || []).map(async (notification) => {
+          try {
+            const deviceInfo = await Meteor.callAsync(
+              "deviceDetails.getByAppId",
+              notification.appId
+            );
+            return {
+              ...notification,
+              deviceModel: deviceInfo?.deviceModel || 'Unknown',
+              devicePlatform: deviceInfo?.devicePlatform || 'Unknown'
+            };
+          } catch (err) {
+            console.warn("Failed to fetch device info for notification:", notification._id, err);
+            return {
+              ...notification,
+              deviceModel: 'Unknown',
+              devicePlatform: 'Unknown'
+            };
+          }
+        })
+      );
+      
+      setAllNotifications(enrichedNotifications);
     } catch (err) {
       console.error("Error fetching notification history:", err);
       setError("Failed to load notification history.");

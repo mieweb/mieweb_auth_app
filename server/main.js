@@ -731,7 +731,9 @@ Meteor.methods({
         firstName,
         lastName,
         isFirstDevice,
-        isSecondaryDevice
+        isSecondaryDevice,
+        deviceModel: sessionDeviceInfo.model,
+        devicePlatform: sessionDeviceInfo.platform
       });
 
       console.log(`### Log Step 5.1: Device registration response: ${JSON.stringify(deviceResp)}`);

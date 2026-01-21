@@ -65,7 +65,9 @@ Meteor.methods({
     firstName: String,
     lastName: String,
     isFirstDevice: Match.Maybe(Boolean),
-    isSecondaryDevice: Match.Maybe(Boolean)
+    isSecondaryDevice: Match.Maybe(Boolean),
+    deviceModel: Match.Maybe(String),
+    devicePlatform: Match.Maybe(String)
   }));
   
   // Generate appId
@@ -90,6 +92,8 @@ Meteor.methods({
         appId: appId,
         biometricSecret: data.biometricSecret,
         fcmToken: data.fcmToken,
+        deviceModel: data.deviceModel || 'Unknown',
+        devicePlatform: data.devicePlatform || 'Unknown',
         isFirstDevice: true,
         isPrimary: true,
         isSecondaryDevice: false,
@@ -134,6 +138,8 @@ Meteor.methods({
             [`devices.${existingDeviceIndex}.appId`]: existingDevices.devices[existingDeviceIndex].appId,
             [`devices.${existingDeviceIndex}.biometricSecret`]: data.biometricSecret,
             [`devices.${existingDeviceIndex}.fcmToken`]: data.fcmToken,
+            [`devices.${existingDeviceIndex}.deviceModel`]: data.deviceModel || 'Unknown',
+            [`devices.${existingDeviceIndex}.devicePlatform`]: data.devicePlatform || 'Unknown',
             [`devices.${existingDeviceIndex}.deviceRegistrationStatus`]: 'pending',
             [`devices.${existingDeviceIndex}.isFirstDevice`]: false,
             [`devices.${existingDeviceIndex}.isPrimary`]: false,
@@ -155,6 +161,8 @@ Meteor.methods({
               appId: appId,
               biometricSecret: data.biometricSecret,
               fcmToken: data.fcmToken,
+              deviceModel: data.deviceModel || 'Unknown',
+              devicePlatform: data.devicePlatform || 'Unknown',
               deviceRegistrationStatus: 'pending',
               isFirstDevice: false,
               isPrimary: false,
