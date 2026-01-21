@@ -1,4 +1,5 @@
 import React from 'react';
+import { Session } from 'meteor/session';
 import { User, Mail, Edit } from 'lucide-react';
 import SuccessToaster from '../Toasters/SuccessToaster';
 
