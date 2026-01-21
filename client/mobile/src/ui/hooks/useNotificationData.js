@@ -22,29 +22,36 @@ export const useNotificationData = (userId) => {
         userId
       );
       
-      // Enrich notifications with device info
-      const enrichedNotifications = await Promise.all(
-        (response || []).map(async (notification) => {
+      // Collect unique appIds to batch device info fetches
+      const uniqueAppIds = [...new Set((response || []).map(n => n.appId))];
+      
+      // Batch fetch all device info
+      const deviceInfoMap = {};
+      await Promise.all(
+        uniqueAppIds.map(async (appId) => {
           try {
             const deviceInfo = await Meteor.callAsync(
               "deviceDetails.getByAppId",
-              notification.appId
+              appId
             );
-            return {
-              ...notification,
-              deviceModel: deviceInfo?.deviceModel || 'Unknown',
-              devicePlatform: deviceInfo?.devicePlatform || 'Unknown'
-            };
+            if (deviceInfo) {
+              deviceInfoMap[appId] = {
+                deviceModel: deviceInfo.deviceModel || 'Unknown',
+                devicePlatform: deviceInfo.devicePlatform || 'Unknown'
+              };
+            }
           } catch (err) {
-            console.warn("Failed to fetch device info for notification:", notification._id, err);
-            return {
-              ...notification,
-              deviceModel: 'Unknown',
-              devicePlatform: 'Unknown'
-            };
+            console.warn("Failed to fetch device info for appId:", appId, err);
           }
         })
       );
+      
+      // Enrich notifications with device info
+      const enrichedNotifications = (response || []).map((notification) => ({
+        ...notification,
+        deviceModel: deviceInfoMap[notification.appId]?.deviceModel || 'Unknown',
+        devicePlatform: deviceInfoMap[notification.appId]?.devicePlatform || 'Unknown'
+      }));
       
       setAllNotifications(enrichedNotifications);
     } catch (err) {
