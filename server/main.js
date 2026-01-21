@@ -178,9 +178,14 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
         throw new Error(`No devices found for user: ${username}`);
       }
       
+      // Find the primary device, or fallback to first approved device, or first device
+      const primaryDevice = userDoc.devices.find(d => d.isPrimary === true) 
+        || userDoc.devices.find(d => d.deviceRegistrationStatus === 'approved')
+        || userDoc.devices[0];
+      
       // Prepare notification data
       const notificationData = {
-        appId: userDoc.devices[0].appId,
+        appId: primaryDevice.appId,
         messageFrom: 'mie',
         notificationType: 'approval',
         content_available: '1',
@@ -226,7 +231,7 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
       
       // Save notification history
       await saveUserNotificationHistory({
-        appId: userDoc.devices[0].appId,
+        appId: primaryDevice.appId,
         title,
         body: messageBody,
         userId: userDoc.userId
