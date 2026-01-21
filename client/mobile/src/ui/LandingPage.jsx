@@ -49,6 +49,7 @@ export const LandingPage = () => {
     searchTerm,
     currentPage,
     totalPages,
+    todaysActivityCount,
     fetchNotificationHistory, // Get refetch function
     handleFilterChange,
     handleSearchChange,
@@ -89,7 +90,7 @@ export const LandingPage = () => {
   return (
     <div className={`min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 dark:from-gray-900 dark:to-gray-800`}>
       <DashboardHeader
-        title="MieAuth"
+        title="MIEWeb Auth"
         isDarkMode={isDarkMode}
         toggleDarkMode={toggleDarkMode}
         onRefresh={fetchNotificationHistory} // Use refetch from hook
@@ -112,6 +113,7 @@ export const LandingPage = () => {
               handleProfileUpdate={handleProfileUpdate}
               toggleEdit={toggleEdit}
               setSuccessMessage={setSuccessMessage} // Pass setter for toaster
+              todaysActivityCount={todaysActivityCount}
             />
           </div>
 

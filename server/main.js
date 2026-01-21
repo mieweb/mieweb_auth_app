@@ -31,13 +31,14 @@ const saveUserNotificationHistory = async (notification) => {
   }
 
   try {
+    // Build insert data, only including appId if provided
+    const insertData = { userId, title, body };
+    if (appId) {
+      insertData.appId = appId;
+    }
+    
     // Generate a unique notification ID
-    const notificationId = await Meteor.callAsync("notificationHistory.insert", {
-      userId,
-      appId,
-      title,
-      body
-    });
+    const notificationId = await Meteor.callAsync("notificationHistory.insert", insertData);
 
     console.log(`Notification history saved with ID: ${notificationId}`);
     return notificationId;
@@ -178,9 +179,14 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
         throw new Error(`No devices found for user: ${username}`);
       }
       
+      // Find the primary device, or fallback to first approved device, or first device
+      const primaryDevice = userDoc.devices.find(d => d.isPrimary === true) 
+        || userDoc.devices.find(d => d.deviceRegistrationStatus === 'approved')
+        || userDoc.devices[0];
+      
       // Prepare notification data
       const notificationData = {
-        appId: userDoc.devices[0].appId,
+        appId: primaryDevice.appId,
         messageFrom: 'mie',
         notificationType: 'approval',
         content_available: '1',
@@ -224,9 +230,8 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
       await Promise.all(notificationPromises);
       console.log("All notifications sent successfully");
       
-      // Save notification history
+      // Save notification history (without appId - will be set when device responds)
       await saveUserNotificationHistory({
-        appId: userDoc.devices[0].appId,
         title,
         body: messageBody,
         userId: userDoc.userId
@@ -516,10 +521,11 @@ Meteor.methods({
    * @param {String} action - User action
    * @returns {Object} Response status
    */
-  async "notifications.handleResponse"(userId, action, notificationIdForAction) {
+  async "notifications.handleResponse"(userId, action, notificationIdForAction, respondingDeviceUUID = null) {
     check(userId, String);
     check(action, String);
     check(notificationIdForAction, String);
+    if (respondingDeviceUUID) check(respondingDeviceUUID, String);
 
     // Fetch user to get the username
     const user = await Meteor.users.findOneAsync({ _id: userId });
@@ -559,10 +565,24 @@ Meteor.methods({
       return { success: true, message: `Using existing status: ${targetNotification.status}` };
     }
 
-    // Update status
+    // Update status and responding device's appId
+    const updateFields = { status: action, respondedAt: new Date() };
+    
+    // If we have the responding device's UUID, look up its appId and update
+    if (respondingDeviceUUID) {
+      const userDeviceDoc = await DeviceDetails.findOneAsync({ userId });
+      if (userDeviceDoc && userDeviceDoc.devices) {
+        const respondingDevice = userDeviceDoc.devices.find(d => d.deviceUUID === respondingDeviceUUID);
+        if (respondingDevice) {
+          updateFields.appId = respondingDevice.appId;
+          console.log(`Updating notification with responding device appId: ${respondingDevice.appId}`);
+        }
+      }
+    }
+    
     await NotificationHistory.updateAsync(
       { _id: targetNotification._id },
-      { $set: { status: action, respondedAt: new Date() } }
+      { $set: updateFields }
     );
 
     console.log(`Notification ${targetNotification.notificationId} updated with action: ${action}`);
@@ -731,7 +751,9 @@ Meteor.methods({
         firstName,
         lastName,
         isFirstDevice,
-        isSecondaryDevice
+        isSecondaryDevice,
+        deviceModel: sessionDeviceInfo.model,
+        devicePlatform: sessionDeviceInfo.platform
       });
 
       console.log(`### Log Step 5.1: Device registration response: ${JSON.stringify(deviceResp)}`);

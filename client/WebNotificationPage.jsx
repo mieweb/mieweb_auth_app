@@ -7,7 +7,7 @@ export const WebNotificationPage = () => {
   const [formData, setFormData] = useState({
     username: 'your_username',
     title: 'Test Push Notification',
-    body: 'This is a test notification from Mieweb Auth.'
+    body: 'This is a test notification from MIEWeb Auth.'
   });
   const [status, setStatus] = useState(null);
   const [userAction, setUserAction] = useState(null);
@@ -122,7 +122,7 @@ export const WebNotificationPage = () => {
             <div className="bg-white shadow rounded-lg p-6">
               <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
                 <Info className="w-5 h-5 mr-2 text-blue-600" />
-                MIEAuth Test Instructions
+                MIEWeb Auth Test Instructions
               </h2>
               <p className="text-sm text-gray-600 mb-4">
                 Test your Auth app, a professional two-factor authentication app using push notifications.
@@ -165,7 +165,7 @@ export const WebNotificationPage = () => {
                     <Bell className="w-6 h-6 text-blue-600" />
                   </div>
                   <div>
-                    <h1 className="text-xl font-bold text-gray-900">Test Mieweb Auth</h1>
+                    <h1 className="text-xl font-bold text-gray-900">Test MIEWeb Auth</h1>
                     <p className="mt-1 text-sm text-gray-500">
                       Send a test push notification to your registered device.
                     </p>

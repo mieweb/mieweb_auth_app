@@ -21,7 +21,39 @@ export const useNotificationData = (userId) => {
         "notificationHistory.getByUser",
         userId
       );
-      setAllNotifications(response || []);
+      
+      // Collect unique appIds to batch device info fetches
+      const uniqueAppIds = [...new Set((response || []).map(n => n.appId))];
+      
+      // Batch fetch all device info
+      const deviceInfoMap = {};
+      await Promise.all(
+        uniqueAppIds.map(async (appId) => {
+          try {
+            const deviceInfo = await Meteor.callAsync(
+              "deviceDetails.getByAppId",
+              appId
+            );
+            if (deviceInfo) {
+              deviceInfoMap[appId] = {
+                deviceModel: deviceInfo.deviceModel || 'Unknown',
+                devicePlatform: deviceInfo.devicePlatform || 'Unknown'
+              };
+            }
+          } catch (err) {
+            console.warn("Failed to fetch device info for appId:", appId, err);
+          }
+        })
+      );
+      
+      // Enrich notifications with device info
+      const enrichedNotifications = (response || []).map((notification) => ({
+        ...notification,
+        deviceModel: deviceInfoMap[notification.appId]?.deviceModel || 'Unknown',
+        devicePlatform: deviceInfoMap[notification.appId]?.devicePlatform || 'Unknown'
+      }));
+      
+      setAllNotifications(enrichedNotifications);
     } catch (err) {
       console.error("Error fetching notification history:", err);
       setError("Failed to load notification history.");
@@ -68,6 +100,13 @@ export const useNotificationData = (userId) => {
     return Math.ceil(filteredNotifications.length / PAGE_SIZE);
   }, [filteredNotifications.length]);
 
+  // Calculate today's activity count
+  const todaysActivityCount = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return allNotifications.filter(n => new Date(n.createdAt) >= today).length;
+  }, [allNotifications]);
+
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= totalPages) {
       setCurrentPage(newPage);
@@ -92,6 +131,7 @@ export const useNotificationData = (userId) => {
     searchTerm,
     currentPage,
     totalPages,
+    todaysActivityCount,
     fetchNotificationHistory, // Expose refetch function
     handleFilterChange,
     handleSearchChange,
