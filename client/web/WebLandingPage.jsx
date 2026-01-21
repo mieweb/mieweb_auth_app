@@ -26,7 +26,7 @@ export const WebLandingPage = () => {
                   <span className="block text-blue-600 xl:inline">at your fingertips</span>
                 </h1>
                 <p className="mt-3 text-sm text-gray-500 sm:mt-5 sm:text-base sm:max-w-xl sm:mx-auto md:mt-5 md:text-lg lg:mx-0">
-                  Experience the next generation of security with the Mieweb Auth mobile app. 
+                  Experience the next generation of security with the MIEWeb Auth mobile app. 
                   Biometric verification, push notifications, and seamless login management all in one place.
                 </p>
                 
@@ -109,7 +109,7 @@ export const WebLandingPage = () => {
         <div className="relative max-w-xl mx-auto px-4 sm:px-6 lg:px-8 lg:max-w-7xl">
           <div className="relative">
             <h2 className="text-center text-xl leading-8 font-extrabold tracking-tight text-gray-900 sm:text-2xl">
-              Why Choose Mieweb Auth?
+              Why Choose MIEWeb Auth?
             </h2>
             <p className="mt-4 max-w-3xl mx-auto text-center text-base text-gray-500">
               A complete authentication solution designed for modern mobile applications.
