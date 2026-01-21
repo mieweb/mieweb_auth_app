@@ -100,6 +100,13 @@ export const useNotificationData = (userId) => {
     return Math.ceil(filteredNotifications.length / PAGE_SIZE);
   }, [filteredNotifications.length]);
 
+  // Calculate today's activity count
+  const todaysActivityCount = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return allNotifications.filter(n => new Date(n.createdAt) >= today).length;
+  }, [allNotifications]);
+
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= totalPages) {
       setCurrentPage(newPage);
@@ -124,6 +131,7 @@ export const useNotificationData = (userId) => {
     searchTerm,
     currentPage,
     totalPages,
+    todaysActivityCount,
     fetchNotificationHistory, // Expose refetch function
     handleFilterChange,
     handleSearchChange,

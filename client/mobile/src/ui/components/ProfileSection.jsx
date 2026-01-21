@@ -12,7 +12,8 @@ export const ProfileSection = ({
   handleProfileChange,
   handleProfileUpdate,
   toggleEdit,
-  setSuccessMessage
+  setSuccessMessage,
+  todaysActivityCount = 0
 }) => {
   const capturedDeviceInfo = Session.get("capturedDeviceInfo") || {};
   const deviceInfo = {
@@ -117,7 +118,7 @@ export const ProfileSection = ({
             <div className="space-y-2">
               <div className="flex items-center justify-between dark:text-gray-300">
                 <span className="text-gray-600 dark:text-gray-300">Today's Activity</span>
-                <span>3</span>
+                <span>{todaysActivityCount}</span>
               </div>
             </div>
           </div>

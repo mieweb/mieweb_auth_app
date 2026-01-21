@@ -49,6 +49,7 @@ export const LandingPage = () => {
     searchTerm,
     currentPage,
     totalPages,
+    todaysActivityCount,
     fetchNotificationHistory, // Get refetch function
     handleFilterChange,
     handleSearchChange,
@@ -112,6 +113,7 @@ export const LandingPage = () => {
               handleProfileUpdate={handleProfileUpdate}
               toggleEdit={toggleEdit}
               setSuccessMessage={setSuccessMessage} // Pass setter for toaster
+              todaysActivityCount={todaysActivityCount}
             />
           </div>
 
