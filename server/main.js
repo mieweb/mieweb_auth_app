@@ -473,6 +473,92 @@ Meteor.methods({
     }
   },
 
+  async 'users.requestAccountDeletion'(data) {
+    check(data, {
+      email: String,
+      username: String,
+      reason: Match.Optional(String)
+    });
+
+    const { email, username, reason } = data;
+    const adminEmails = process.env.EMAIL_ADMIN;
+    const fromEmail = process.env.EMAIL_FROM;
+
+    if (!adminEmails || !fromEmail) {
+      throw new Meteor.Error('configuration-error', 'Email configuration is missing');
+    }
+
+    // Verify user exists
+    const user = await Meteor.users.findOneAsync({
+      $or: [
+        { 'emails.address': { $regex: new RegExp(`^${email}$`, 'i') } },
+        { username: { $regex: new RegExp(`^${username}$`, 'i') } }
+      ]
+    });
+
+    if (!user) {
+      throw new Meteor.Error('not-found', 'User not found with provided credentials');
+    }
+
+    this.unblock();
+
+    try {
+      // Send notification to admin
+      await Email.sendAsync({
+        to: adminEmails,
+        from: fromEmail,
+        subject: `[Account Deletion Request] ${username}`,
+        html: `
+          <h3>Account Deletion Request</h3>
+          <p>A user has requested account deletion with the following details:</p>
+          <ul>
+            <li><strong>Username:</strong> ${username}</li>
+            <li><strong>Email:</strong> ${email}</li>
+            <li><strong>User ID:</strong> ${user._id}</li>
+            <li><strong>Reason:</strong> ${reason || 'Not provided'}</li>
+          </ul>
+          <p><strong>Submitted:</strong> ${new Date().toLocaleString()}</p>
+          <hr />
+          <p>Please review and process this deletion request.</p>
+          <p><strong>Note:</strong> All user data including:</p>
+          <ul>
+            <li>User account and profile information</li>
+            <li>Device details and FCM tokens</li>
+            <li>Notification history</li>
+            <li>Approval tokens</li>
+          </ul>
+          <p>will be permanently deleted.</p>
+        `
+      });
+
+      // Send confirmation to user
+      await Email.sendAsync({
+        to: email,
+        from: fromEmail,
+        subject: 'Account Deletion Request Received',
+        html: `
+          <h3>Account Deletion Request Confirmation</h3>
+          <p>Hello ${username},</p>
+          <p>We have received your request to delete your account. Your request will be processed within 30 days.</p>
+          <p><strong>What happens next:</strong></p>
+          <ul>
+            <li>Our team will review your request</li>
+            <li>You will receive a confirmation email when the deletion is complete</li>
+            <li>All your data will be permanently deleted</li>
+          </ul>
+          <p>If you did not make this request, please contact us immediately at ${adminEmails}</p>
+          <br />
+          <p>Best regards,<br />The MIEWeb Auth Team</p>
+        `
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error sending deletion request email:', error);
+      throw new Meteor.Error('email-error', 'Failed to send deletion request');
+    }
+  },
+
   async 'users.checkRegistrationStatus'({ userId, email }) {
     check(userId, Match.Maybe(String));
     check(email, Match.Maybe(String));
