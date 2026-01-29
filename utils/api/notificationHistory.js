@@ -105,6 +105,25 @@ Meteor.methods({
     ).fetch();
   },
 
+  // Fetch a specific notification by notificationId
+  'notificationHistory.getByNotificationId': async function (notificationId) {
+    check(notificationId, String);
+    console.log(`Fetching notification with notificationId: ${notificationId}`);
+    
+    try {
+      const notification = await NotificationHistory.findOneAsync({ notificationId });
+      if (!notification) {
+        console.log(`No notification found with notificationId: ${notificationId}`);
+        return null;
+      }
+      console.log(`Found notification: ID: ${notification.notificationId}, Status: ${notification.status}`);
+      return notification;
+    } catch (error) {
+      console.error("Error fetching notification by notificationId:", error);
+      throw new Meteor.Error("database-error", "Failed to fetch notification");
+    }
+  },
+
   // Fetch notifications by their status
   'notificationHistory.getByStatus': function (status) {
     check(status, String);

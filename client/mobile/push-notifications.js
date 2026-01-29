@@ -141,13 +141,25 @@ const setupApproveHandler = (push) => {
     Meteor.startup(() => {
       const additionalData = notification.additionalData || {};
       const appId = additionalData.appId;
+      const notificationId = additionalData.notificationId;
 
       if (appId) {
+        // Persist notification context to localStorage for post-login retrieval
+        if (notificationId) {
+          localStorage.setItem('pendingNotification', JSON.stringify({
+            appId,
+            notificationId,
+            action: 'approve',
+            timestamp: new Date().getTime()
+          }));
+        }
+        
         validateSessionWithRetry(() => {
           console.log('Processing approve action');
           sendUserAction(appId, 'approve');
           Session.set('notificationReceivedId', {
             appId,
+            notificationId,
             status: "approved",
             timestamp: new Date().getTime()
           });
@@ -164,13 +176,25 @@ const setupRejectHandler = (push) => {
     Meteor.startup(() => {
       const additionalData = notification.additionalData || {};
       const appId = additionalData.appId;
+      const notificationId = additionalData.notificationId;
 
       if (appId) {
+        // Persist notification context to localStorage for post-login retrieval
+        if (notificationId) {
+          localStorage.setItem('pendingNotification', JSON.stringify({
+            appId,
+            notificationId,
+            action: 'reject',
+            timestamp: new Date().getTime()
+          }));
+        }
+        
         validateSessionWithRetry(() => {
           console.log('Processing reject action');
           sendUserAction(appId, 'reject');
           Session.set('notificationReceivedId', {
             appId,
+            notificationId,
             status: "rejected",
             timestamp: new Date().getTime()
           });

@@ -49,6 +49,46 @@ export const useNotificationHandler = (userId, username, fetchNotificationHistor
 
     const tracker = Tracker.autorun(async () => {
       const notificationData = Session.get("notificationReceivedId");
+      
+      // Check localStorage first for pending notification from action buttons
+      const pendingNotificationStr = localStorage.getItem('pendingNotification');
+      if (pendingNotificationStr) {
+        try {
+          const pendingNotification = JSON.parse(pendingNotificationStr);
+          const { appId, notificationId, action } = pendingNotification;
+          
+          console.log('Found pending notification from localStorage:', pendingNotification);
+          
+          // If notificationId is available, fetch the specific notification
+          if (notificationId) {
+            const specificNotification = await Meteor.callAsync(
+              "notificationHistory.getByNotificationId",
+              notificationId
+            );
+            
+            if (specificNotification && specificNotification.status === 'pending') {
+              console.log('Retrieved specific pending notification:', specificNotification);
+              setCurrentNotificationDetails(specificNotification);
+              setNotificationIdForAction(specificNotification.notificationId);
+              setIsActionsModalOpen(true);
+              
+              // Update session to reflect this notification
+              Session.set('notificationReceivedId', {
+                appId,
+                notificationId,
+                status: "pending",
+                timestamp: new Date().getTime()
+              });
+              
+              return; // Exit early, we've handled the notification
+            }
+          }
+        } catch (error) {
+          console.error("Error handling pending notification from localStorage:", error);
+        }
+      }
+      
+      // Fallback to session-based handling if no localStorage data
       if (!notificationData) return;
 
       // Handle cold start notification
@@ -56,6 +96,26 @@ export const useNotificationHandler = (userId, username, fetchNotificationHistor
         localStorage.setItem('pendingNotification', JSON.stringify(notificationData));
       }
 
+      // If we have a specific notificationId in session data, use it
+      if (notificationData.notificationId) {
+        try {
+          const specificNotification = await Meteor.callAsync(
+            "notificationHistory.getByNotificationId",
+            notificationData.notificationId
+          );
+          
+          if (specificNotification && specificNotification.status === 'pending') {
+            setCurrentNotificationDetails(specificNotification);
+            setNotificationIdForAction(specificNotification.notificationId);
+            setIsActionsModalOpen(true);
+            return;
+          }
+        } catch (error) {
+          console.error("Error fetching specific notification:", error);
+        }
+      }
+
+      // Fallback: fetch latest pending notification
       try {
         const latestPending = await getLatestPendingNotification();
         if (latestPending) {
