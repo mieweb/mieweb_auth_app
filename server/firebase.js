@@ -42,8 +42,6 @@ export const sendNotification = async (fcmToken, title, body, data = {}) => {
     const message = {
       token: fcmToken,
       data: {
-        title: String(title),
-        body: String(body),
         messageFrom: 'mie',
         notificationType: stringifiedData.notificationType || 'approval',
         content_available: '1',
@@ -71,9 +69,18 @@ export const sendNotification = async (fcmToken, title, body, data = {}) => {
         }
       }
     };
-    // For sync notifications, make them silent (no visible notification)
+    
+    // Only include title and body in data payload if they are not empty
+    // Empty title/body indicates a silent background notification (for Android)
+    if (title && body) {
+      message.data.title = String(title);
+      message.data.body = String(body);
+    }
+    
+    // For sync notifications, make them completely silent (no visible notification)
+    // These are used to synchronize notification state across devices in the background
     if (data.isSync === 'true') {
-      // Remove the alert to make it a silent background notification
+      // iOS: Remove alert, sound, and badge to make it silent
       if (message.apns && message.apns.payload && message.apns.payload.aps) {
         delete message.apns.payload.aps.alert;
         delete message.apns.payload.aps.sound;
@@ -82,8 +89,10 @@ export const sendNotification = async (fcmToken, title, body, data = {}) => {
         message.apns.headers = message.apns.headers || {};
         message.apns.headers['apns-priority'] = '10';
       }
+      // Android: Silent notifications are handled by empty title/body (excluded above)
     }
-    // For dismissal notifications, keep the alert but customize
+    // For dismissal notifications, keep the alert visible to inform the user
+    // These notifications tell the user that a notification was dismissed on another device
     else if (data.isDismissal === 'true') {
       if (message.apns && message.apns.payload && message.apns.payload.aps) {
         message.apns.payload.aps.sound = 'default';
