@@ -144,9 +144,14 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
         throw new Error("Invalid JSON in request body");
       }
       
-      console.log("Parsed request body:", requestBody);
+      // Log request body without sensitive data
+      const { apikey, ...safeBody } = requestBody;
+      console.log("Parsed request body:", safeBody);
+      if (apikey) {
+        console.log("API key provided: [REDACTED]");
+      }
       
-      const { username, title, body: messageBody, actions, apikey, client_id } = requestBody;
+      const { username, title, body: messageBody, actions, client_id } = requestBody;
       
       // Check if authentication is required
       const forceAuth = process.env.SEND_NOTIFICATION_FORCE_AUTH === 'true';

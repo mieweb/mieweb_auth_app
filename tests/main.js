@@ -137,6 +137,33 @@ describe("meteor-app", function () {
         }
       });
 
+      it("should reject API keys that are only whitespace", async function () {
+        try {
+          await Meteor.callAsync('apiKeys.upsert', 'test.example.com', '                    '); // 20 spaces
+          assert.fail("Should have thrown an error");
+        } catch (error) {
+          assert(error.error === 'invalid-api-key', "Should throw invalid-api-key error for whitespace-only key");
+        }
+      });
+
+      it("should reject empty client IDs", async function () {
+        try {
+          await Meteor.callAsync('apiKeys.upsert', '', 'test-api-key-minimum-16-chars');
+          assert.fail("Should have thrown an error");
+        } catch (error) {
+          assert(error.error === 'invalid-client-id', "Should throw invalid-client-id error");
+        }
+      });
+
+      it("should reject whitespace-only client IDs", async function () {
+        try {
+          await Meteor.callAsync('apiKeys.upsert', '   ', 'test-api-key-minimum-16-chars');
+          assert.fail("Should have thrown an error");
+        } catch (error) {
+          assert(error.error === 'invalid-client-id', "Should throw invalid-client-id error for whitespace-only client ID");
+        }
+      });
+
       it("should update lastUsed timestamp on successful verification", async function () {
         const clientId = "test.example.com";
         const apiKey = "test-api-key-minimum-16-chars";

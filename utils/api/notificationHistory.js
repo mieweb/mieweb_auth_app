@@ -54,7 +54,9 @@ Meteor.methods({
       insertData.clientId = data.clientId;
     }
 
-    return NotificationHistory.insertAsync(insertData);
+    // Insert and return the notificationId, not the MongoDB _id
+    NotificationHistory.insertAsync(insertData);
+    return notificationId;
   },
 
   // Update the status of a notification

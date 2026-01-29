@@ -356,7 +356,9 @@ curl -X POST "https://your-server.com/send-notification" \
 - **Hashed Storage**: API keys are hashed using SHA256 with client_id as salt before storage
 - **Client Tracking**: Each notification is associated with the authenticated client_id for audit purposes
 - **403 Response**: Invalid or missing credentials return HTTP 403 Forbidden
-- **Backward Compatible**: When `SEND_NOTIFICATION_FORCE_AUTH` is not set or `false`, authentication is optional
+- **Backward Compatible**: When `SEND_NOTIFICATION_FORCE_AUTH` is not set or `false`, authentication is disabled
+
+**Security Note**: In production environments, restrict access to the API key management methods (`apiKeys.upsert`, `apiKeys.delete`, `apiKeys.list`) to administrators only. Consider implementing role-based access control using packages like `alanning:roles`.
 
 ### Expected Response Examples
 

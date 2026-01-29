@@ -38,6 +38,9 @@ if (Meteor.isServer) {
 }
 
 // Define methods for ApiKeys
+// NOTE: These methods should be restricted to admin users in production.
+// Consider adding role-based access control using packages like alanning:roles
+// Example: if (!Roles.userIsInRole(this.userId, 'admin')) throw new Meteor.Error('unauthorized');
 Meteor.methods({
   /**
    * Create or update an API key for a client
@@ -49,11 +52,15 @@ Meteor.methods({
     check(clientId, String);
     check(apiKey, String);
     
-    if (!clientId || clientId.trim() === '') {
+    // Trim inputs
+    clientId = clientId.trim();
+    apiKey = apiKey.trim();
+    
+    if (!clientId || clientId === '') {
       throw new Meteor.Error('invalid-client-id', 'Client ID cannot be empty');
     }
     
-    if (!apiKey || apiKey.trim() === '' || apiKey.length < 16) {
+    if (!apiKey || apiKey === '' || apiKey.length < 16) {
       throw new Meteor.Error('invalid-api-key', 'API key must be at least 16 characters long');
     }
     

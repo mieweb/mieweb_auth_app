@@ -84,28 +84,12 @@ switch (command) {
 To create this API key, run the following command in the Meteor shell:
 
   Meteor.callAsync('apiKeys.upsert', '${createClientId}', '${createApiKey}')
-  
-Or use meteor mongo and run:
-
-  db.apiKeys.updateOne(
-    { clientId: '${createClientId}' },
-    {
-      $set: {
-        clientId: '${createClientId}',
-        hashedApiKey: '${hashApiKey(createApiKey, createClientId)}',
-        updatedAt: new Date()
-      },
-      $setOnInsert: {
-        createdAt: new Date(),
-        lastUsed: null
-      }
-    },
-    { upsert: true }
-  )
 
 Save this API key securely - you will need it to authenticate requests:
 Client ID: ${createClientId}
 API Key:   ${createApiKey}
+
+IMPORTANT: Store this API key securely. It cannot be recovered if lost.
     `);
     break;
     
@@ -149,10 +133,6 @@ To delete this API key, run the following command in the Meteor shell:
 To list all API keys, run the following command in the Meteor shell:
 
   Meteor.callAsync('apiKeys.list')
-  
-Or use meteor mongo and run:
-
-  db.apiKeys.find({}, { clientId: 1, createdAt: 1, updatedAt: 1, lastUsed: 1 })
     `);
     break;
     
@@ -169,10 +149,4 @@ Save it securely - it cannot be recovered if lost.
   default:
     printUsage();
     process.exit(command ? 1 : 0);
-}
-
-// Helper function to hash API key (matches server implementation)
-function hashApiKey(apiKey, clientId) {
-  const saltedKey = `${clientId}:${apiKey}`;
-  return crypto.createHash('sha256').update(saltedKey).digest('hex');
 }
