@@ -7,7 +7,7 @@ import {
 import { formatDateTime } from '../../../../../utils/utils.js'; // Adjust path
 
 
-export const NotificationList = ({ notifications, isLoading, error }) => {
+export const NotificationList = ({ notifications, isLoading, error, onNotificationClick }) => {
 
   if (isLoading) {
     return (
@@ -44,10 +44,23 @@ export const NotificationList = ({ notifications, isLoading, error }) => {
     <div>
       {notifications.map((notification) => {
         console.log("Notification status", notification.status)
+        const isPending = notification.status === 'pending';
+        
         return (
           <div
             key={notification._id}
-            className="bg-white/80 backdrop-blur-sm dark:bg-gray-800/80 rounded-2xl shadow-lg p-6 m-2"
+            className={`bg-white/80 backdrop-blur-sm dark:bg-gray-800/80 rounded-2xl shadow-lg p-6 m-2 ${
+              isPending ? 'cursor-pointer hover:bg-white dark:hover:bg-gray-800 hover:shadow-xl transition-all duration-200' : ''
+            }`}
+            onClick={() => isPending && onNotificationClick && onNotificationClick(notification)}
+            role={isPending ? 'button' : undefined}
+            tabIndex={isPending ? 0 : undefined}
+            onKeyPress={(e) => {
+              if (isPending && onNotificationClick && (e.key === 'Enter' || e.key === ' ')) {
+                e.preventDefault();
+                onNotificationClick(notification);
+              }
+            }}
           >
             <div className="flex justify-between items-start mb-4">
               <div>
@@ -64,6 +77,11 @@ export const NotificationList = ({ notifications, isLoading, error }) => {
                     {notification.status === 'pending' ? '—' : (notification.deviceModel || 'Unknown')}
                   </p>
                 </div>
+                {isPending && (
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-2 font-medium">
+                    Tap to approve or reject
+                  </p>
+                )}
               </div>
               <div
                 className={`px-3 py-1 rounded-full text-sm font-medium capitalize ${notification.status === "approve"

@@ -117,6 +117,25 @@ export const useNotificationHandler = (userId, username, fetchNotificationHistor
     fetchNotificationHistory();
   }, [fetchNotificationHistory]);
 
+  // Manually open modal for a specific notification
+  const openNotificationModal = useCallback((notification) => {
+    if (notification.status !== 'pending') {
+      console.log('Cannot open modal for non-pending notification');
+      return;
+    }
+    
+    console.log('Opening modal for notification:', notification.notificationId);
+    setCurrentNotificationDetails(notification);
+    setNotificationIdForAction(notification.notificationId);
+    setIsActionsModalOpen(true);
+    
+    // Also set session so other parts of the app are aware
+    Session.set('notificationReceivedId', {
+      appId: notification.appId,
+      status: "pending"
+    });
+  }, []);
+
   return {
     isActionsModalOpen,
     isResultModalOpen,
@@ -127,6 +146,7 @@ export const useNotificationHandler = (userId, username, fetchNotificationHistor
     handleApprove: () => sendUserAction('approve'),
     handleReject: () => sendUserAction('reject'),
     handleCloseResultModal: () => setIsResultModalOpen(false),
-    handleCloseActionModal
+    handleCloseActionModal,
+    openNotificationModal
   };
 };
