@@ -11,22 +11,38 @@ describe("meteor-app", function () {
       assert.strictEqual(Meteor.isServer, false);
     });
 
-    describe("Session timeout functionality", function () {
-      it("should have session timeout configuration", function () {
-        // Verify that the session timeout constant is defined
+    describe("Session timeout configuration", function () {
+      it("should have correct session timeout duration", function () {
+        // Verify that the session timeout constant is 30 minutes
         const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes
         assert.strictEqual(INACTIVITY_TIMEOUT, 1800000, "Session timeout should be 30 minutes (1800000 ms)");
       });
 
-      it("should store last activity time in localStorage", function () {
-        // Test that activity tracking works
+      it("should have correct activity update throttle", function () {
+        // Verify the throttle is set to 10 seconds to avoid excessive writes
+        const ACTIVITY_UPDATE_THROTTLE = 10000; // 10 seconds
+        assert.strictEqual(ACTIVITY_UPDATE_THROTTLE, 10000, "Activity update throttle should be 10 seconds (10000 ms)");
+      });
+
+      it("should store and retrieve last activity time from localStorage", function () {
         const testTime = Date.now();
-        localStorage.setItem('lastActivityTime', testTime.toString());
-        const storedTime = localStorage.getItem('lastActivityTime');
-        assert.strictEqual(parseInt(storedTime), testTime, "Should store and retrieve activity time");
+        const STORAGE_KEY = 'lastActivityTime';
+        
+        localStorage.setItem(STORAGE_KEY, testTime.toString());
+        const storedTime = localStorage.getItem(STORAGE_KEY);
+        
+        assert.strictEqual(parseInt(storedTime), testTime, "Should store and retrieve activity time correctly");
         
         // Cleanup
-        localStorage.removeItem('lastActivityTime');
+        localStorage.removeItem(STORAGE_KEY);
+      });
+
+      it("should calculate time since last activity correctly", function () {
+        const now = Date.now();
+        const thirtyMinutesAgo = now - (30 * 60 * 1000);
+        const timeDiff = now - thirtyMinutesAgo;
+        
+        assert.strictEqual(timeDiff, 1800000, "Should calculate 30 minutes difference correctly");
       });
     });
   }

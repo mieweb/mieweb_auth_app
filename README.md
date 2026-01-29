@@ -361,6 +361,7 @@ The application implements automatic session expiration for enhanced security:
 
 - **Inactivity Timeout**: Users are automatically logged out after **30 minutes of inactivity**
 - **Activity Tracking**: The app monitors user interactions (touch, mouse, keyboard events) to track activity
+- **Performance Optimized**: Activity tracking uses throttling to minimize localStorage writes (every 10 seconds)
 - **App Lifecycle**: Session validity is checked when the app resumes from background
 - **Automatic Logout**: On timeout, the user is logged out and redirected to the login page
 - **Data Cleanup**: All session data is cleared on logout for security
