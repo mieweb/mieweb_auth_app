@@ -512,40 +512,41 @@ Meteor.methods({
         .replace(/'/g, "&#039;");
     };
 
+    // Normalize email to lowercase for consistent comparison
+    const normalizedEmail = email.toLowerCase();
+
     // Verify user exists using exact match (no regex to prevent ReDoS)
+    // Both email AND username must match the same user account
     const user = await Meteor.users.findOneAsync({
-      $or: [
-        { 'emails.address': email.toLowerCase() },
-        { username: username }
-      ]
+      'emails.address': normalizedEmail,
+      username: username
     });
 
     if (!user) {
       // Generic error message to prevent user enumeration
-      throw new Meteor.Error('invalid-request', 'Unable to process your request. Please verify your credentials.');
+      throw new Meteor.Error('invalid-request', 'Unable to process your request. Please verify that both your email and username are correct.');
     }
 
     this.unblock();
 
     try {
-      // Escape all user inputs to prevent XSS
+      // Escape only user inputs that will be displayed in HTML (not ObjectId)
       const safeUsername = escapeHtml(username);
       const safeEmail = escapeHtml(email);
       const safeReason = escapeHtml(reason);
-      const safeUserId = escapeHtml(user._id);
 
-      // Send notification to admin
+      // Send notification to admin (username in subject is plain text, no escaping needed)
       await Email.sendAsync({
         to: adminEmails,
         from: fromEmail,
-        subject: `[Account Deletion Request] ${safeUsername}`,
+        subject: `[Account Deletion Request] ${username}`,
         html: `
           <h3>Account Deletion Request</h3>
           <p>A user has requested account deletion with the following details:</p>
           <ul>
             <li><strong>Username:</strong> ${safeUsername}</li>
             <li><strong>Email:</strong> ${safeEmail}</li>
-            <li><strong>User ID:</strong> ${safeUserId}</li>
+            <li><strong>User ID:</strong> ${user._id}</li>
             <li><strong>Reason:</strong> ${safeReason || 'Not provided'}</li>
           </ul>
           <p><strong>Submitted:</strong> ${new Date().toLocaleString()}</p>
@@ -564,7 +565,7 @@ Meteor.methods({
 
       // Send confirmation to user
       await Email.sendAsync({
-        to: email,
+        to: normalizedEmail,
         from: fromEmail,
         subject: 'Account Deletion Request Received',
         html: `

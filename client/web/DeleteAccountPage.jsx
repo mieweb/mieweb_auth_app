@@ -14,7 +14,9 @@ export const DeleteAccountPage = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value.trim() }));
+    // Only trim for email and username, allow spaces in reason
+    const processedValue = (name === 'email' || name === 'username') ? value.trim() : value;
+    setFormData(prev => ({ ...prev, [name]: processedValue }));
   };
 
   const validateForm = () => {
@@ -28,10 +30,18 @@ export const DeleteAccountPage = () => {
       return false;
     }
     
-    if (!formData.username || formData.username.length < 1) {
+    if (formData.email.length < 3 || formData.email.length > 254) {
       setStatus({
         type: 'error',
-        message: 'Please enter your username.'
+        message: 'Email must be between 3 and 254 characters.'
+      });
+      return false;
+    }
+    
+    if (!formData.username || formData.username.length < 1 || formData.username.length > 100) {
+      setStatus({
+        type: 'error',
+        message: 'Username must be between 1 and 100 characters.'
       });
       return false;
     }
