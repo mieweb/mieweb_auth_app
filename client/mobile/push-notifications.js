@@ -114,9 +114,7 @@ const setupNotificationHandler = (push) => {
       setTimeout(() => {
         if (additionalData.action && additionalData.appId) {
           console.log(`Cold start action: ${additionalData.action} for appId: ${additionalData.appId}`);
-          validateSessionWithRetry(() => {
-            sendUserAction(additionalData.appId, additionalData.action);
-          });
+          sendUserAction(additionalData.appId, additionalData.action);
         }
       }, 2000);
     }
