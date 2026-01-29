@@ -7,6 +7,7 @@ import { useDarkMode } from './hooks/useDarkMode';
 import { useUserProfile } from './hooks/useUserProfile';
 import { useNotificationData } from './hooks/useNotificationData';
 import { useNotificationHandler } from './hooks/useNotificationHandler';
+import { useSessionTimeout } from './hooks/useSessionTimeout';
 
 // Import Components
 import { DashboardHeader } from './components/DashboardHeader';
@@ -29,6 +30,10 @@ export const LandingPage = () => {
 
   // Use Custom Hooks
   const { isDarkMode, toggleDarkMode } = useDarkMode();
+  
+  // Session timeout management - automatically logs out after 30 minutes of inactivity
+  useSessionTimeout();
+  
   const {
     profile,
     isEditing,

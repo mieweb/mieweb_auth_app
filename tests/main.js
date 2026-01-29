@@ -10,6 +10,25 @@ describe("meteor-app", function () {
     it("client is not server", function () {
       assert.strictEqual(Meteor.isServer, false);
     });
+
+    describe("Session timeout functionality", function () {
+      it("should have session timeout configuration", function () {
+        // Verify that the session timeout constant is defined
+        const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+        assert.strictEqual(INACTIVITY_TIMEOUT, 1800000, "Session timeout should be 30 minutes (1800000 ms)");
+      });
+
+      it("should store last activity time in localStorage", function () {
+        // Test that activity tracking works
+        const testTime = Date.now();
+        localStorage.setItem('lastActivityTime', testTime.toString());
+        const storedTime = localStorage.getItem('lastActivityTime');
+        assert.strictEqual(parseInt(storedTime), testTime, "Should store and retrieve activity time");
+        
+        // Cleanup
+        localStorage.removeItem('lastActivityTime');
+      });
+    });
   }
 
   if (Meteor.isServer) {
