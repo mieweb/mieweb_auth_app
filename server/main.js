@@ -475,9 +475,22 @@ Meteor.methods({
 
   async 'users.requestAccountDeletion'(data) {
     check(data, {
-      email: String,
-      username: String,
-      reason: Match.Optional(String)
+      email: Match.Where((email) => {
+        check(email, String);
+        // Validate email format and length
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return email.length >= 3 && email.length <= 254 && emailRegex.test(email);
+      }),
+      username: Match.Where((username) => {
+        check(username, String);
+        // Validate username length
+        return username.length >= 1 && username.length <= 100;
+      }),
+      reason: Match.Optional(Match.Where((reason) => {
+        check(reason, String);
+        // Validate reason length
+        return reason.length <= 1000;
+      }))
     });
 
     const { email, username, reason } = data;
@@ -488,34 +501,52 @@ Meteor.methods({
       throw new Meteor.Error('configuration-error', 'Email configuration is missing');
     }
 
-    // Verify user exists
+    // Helper function to escape HTML to prevent XSS
+    const escapeHtml = (unsafe) => {
+      if (!unsafe) return '';
+      return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    };
+
+    // Verify user exists using exact match (no regex to prevent ReDoS)
     const user = await Meteor.users.findOneAsync({
       $or: [
-        { 'emails.address': { $regex: new RegExp(`^${email}$`, 'i') } },
-        { username: { $regex: new RegExp(`^${username}$`, 'i') } }
+        { 'emails.address': email.toLowerCase() },
+        { username: username }
       ]
     });
 
     if (!user) {
-      throw new Meteor.Error('not-found', 'User not found with provided credentials');
+      // Generic error message to prevent user enumeration
+      throw new Meteor.Error('invalid-request', 'Unable to process your request. Please verify your credentials.');
     }
 
     this.unblock();
 
     try {
+      // Escape all user inputs to prevent XSS
+      const safeUsername = escapeHtml(username);
+      const safeEmail = escapeHtml(email);
+      const safeReason = escapeHtml(reason);
+      const safeUserId = escapeHtml(user._id);
+
       // Send notification to admin
       await Email.sendAsync({
         to: adminEmails,
         from: fromEmail,
-        subject: `[Account Deletion Request] ${username}`,
+        subject: `[Account Deletion Request] ${safeUsername}`,
         html: `
           <h3>Account Deletion Request</h3>
           <p>A user has requested account deletion with the following details:</p>
           <ul>
-            <li><strong>Username:</strong> ${username}</li>
-            <li><strong>Email:</strong> ${email}</li>
-            <li><strong>User ID:</strong> ${user._id}</li>
-            <li><strong>Reason:</strong> ${reason || 'Not provided'}</li>
+            <li><strong>Username:</strong> ${safeUsername}</li>
+            <li><strong>Email:</strong> ${safeEmail}</li>
+            <li><strong>User ID:</strong> ${safeUserId}</li>
+            <li><strong>Reason:</strong> ${safeReason || 'Not provided'}</li>
           </ul>
           <p><strong>Submitted:</strong> ${new Date().toLocaleString()}</p>
           <hr />
@@ -538,7 +569,7 @@ Meteor.methods({
         subject: 'Account Deletion Request Received',
         html: `
           <h3>Account Deletion Request Confirmation</h3>
-          <p>Hello ${username},</p>
+          <p>Hello ${safeUsername},</p>
           <p>We have received your request to delete your account. Your request will be processed within 30 days.</p>
           <p><strong>What happens next:</strong></p>
           <ul>
@@ -546,7 +577,7 @@ Meteor.methods({
             <li>You will receive a confirmation email when the deletion is complete</li>
             <li>All your data will be permanently deleted</li>
           </ul>
-          <p>If you did not make this request, please contact us immediately at ${adminEmails}</p>
+          <p>If you did not make this request, please contact us immediately.</p>
           <br />
           <p>Best regards,<br />The MIEWeb Auth Team</p>
         `

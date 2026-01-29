@@ -61,6 +61,41 @@ Admins receive an email notification with all necessary details to process the d
 - Timestamp of request
 - List of data to be deleted
 
+### Manual Deletion Procedure
+
+To manually process an account deletion request, admins should:
+
+1. **Verify the Request**: Review the email notification and confirm the user's identity
+2. **Delete User Data**: Remove all user data from the following collections:
+   ```javascript
+   // In Meteor shell or server code:
+   const userId = "user-id-from-email";
+   
+   // Remove user's devices and FCM tokens
+   await DeviceDetails.removeAsync({ userId: userId });
+   
+   // Remove notification history
+   await NotificationHistory.removeAsync({ userId: userId });
+   
+   // Remove approval tokens
+   await ApprovalTokens.removeAsync({ userId: userId });
+   
+   // Remove pending responses
+   await PendingResponses.removeAsync({ username: "username-from-email" });
+   
+   // Finally, remove the user account
+   await Meteor.users.removeAsync({ _id: userId });
+   ```
+3. **Send Confirmation**: Email the user to confirm their account has been deleted
+4. **Document**: Keep a record of the deletion for compliance purposes
+
+### Security Considerations
+
+- All user input is sanitized to prevent XSS attacks
+- Email and username validation prevents malformed requests
+- Generic error messages prevent user enumeration
+- No rate limiting is implemented in this version - consider adding if abuse is detected
+
 ## Notes
 
 - This is a **request** system - actual deletion must be performed manually by admins

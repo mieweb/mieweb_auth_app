@@ -14,12 +14,47 @@ export const DeleteAccountPage = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => ({ ...prev, [name]: value.trim() }));
+  };
+
+  const validateForm = () => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    
+    if (!formData.email || !emailRegex.test(formData.email)) {
+      setStatus({
+        type: 'error',
+        message: 'Please enter a valid email address.'
+      });
+      return false;
+    }
+    
+    if (!formData.username || formData.username.length < 1) {
+      setStatus({
+        type: 'error',
+        message: 'Please enter your username.'
+      });
+      return false;
+    }
+    
+    if (formData.reason && formData.reason.length > 1000) {
+      setStatus({
+        type: 'error',
+        message: 'Reason must be less than 1000 characters.'
+      });
+      return false;
+    }
+    
+    return true;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setStatus({ type: '', message: '' });
+    
+    if (!validateForm()) {
+      return;
+    }
+    
     setIsSubmitting(true);
 
     try {
