@@ -49,7 +49,8 @@ const saveUserNotificationHistory = async (notification) => {
 };
 
 /**
- * Helper function to send sync notifications to all user devices
+ * Helper function to send silent sync notifications to all user devices
+ * This syncs notification state across devices without showing a visible notification
  * @private
  */
 const sendSyncNotificationToDevices = async (userId, notificationId, action) => {
@@ -71,15 +72,14 @@ const sendSyncNotificationToDevices = async (userId, notificationId, action) => 
       notId: 'sync',
       isDismissal: 'false',
       isSync: 'true',
-      syncData: JSON.stringify(syncData),
-      sound: 'default'
+      syncData: JSON.stringify(syncData)
     };
 
     const sendPromises = fcmTokens.map(token =>
       sendNotification(
         token,
-        'Notification Update',
-        `Notification ${action}ed`,
+        '', // Empty title for silent notification
+        '', // Empty body for silent notification
         notificationData
       )
     );
