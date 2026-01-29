@@ -119,21 +119,33 @@ export const useNotificationHandler = (userId, username, fetchNotificationHistor
 
   // Manually open modal for a specific notification
   const openNotificationModal = useCallback((notification) => {
-    if (notification.status !== 'pending') {
-      console.log('Cannot open modal for non-pending notification');
+    // Guard checks
+    if (!notification) {
+      console.warn('Cannot open modal: notification is null or undefined');
       return;
     }
     
-    console.log('Opening modal for notification:', notification.notificationId);
+    if (notification.status !== 'pending') {
+      return;
+    }
+    
+    // Set notification details in state
     setCurrentNotificationDetails(notification);
     setNotificationIdForAction(notification.notificationId);
     setIsActionsModalOpen(true);
     
-    // Also set session so other parts of the app are aware
-    Session.set('notificationReceivedId', {
-      appId: notification.appId,
-      status: "pending"
-    });
+    // Persist to localStorage for app resume consistency
+    if (notification.appId && notification.notificationId && notification.createdAt) {
+      localStorage.setItem('pendingNotification', JSON.stringify({
+        appId: notification.appId,
+        notificationId: notification.notificationId,
+        createdAt: notification.createdAt
+      }));
+    }
+    
+    // Note: We intentionally do NOT set Session.set('notificationReceivedId') here
+    // to avoid triggering the Tracker.autorun which would fetch the latest notification
+    // and potentially replace the manually selected one
   }, []);
 
   return {

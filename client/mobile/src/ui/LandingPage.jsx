@@ -137,6 +137,7 @@ export const LandingPage = () => {
               isLoading={isLoadingHistory}
               error={historyError}
               onNotificationClick={openNotificationModal}
+              isActionsModalOpen={isActionsModalOpen}
             />
             {totalPages > 1 && (
               <Pagination

@@ -7,7 +7,7 @@ import {
 import { formatDateTime } from '../../../../../utils/utils.js'; // Adjust path
 
 
-export const NotificationList = ({ notifications, isLoading, error, onNotificationClick }) => {
+export const NotificationList = ({ notifications, isLoading, error, onNotificationClick, isActionsModalOpen }) => {
 
   if (isLoading) {
     return (
@@ -43,20 +43,21 @@ export const NotificationList = ({ notifications, isLoading, error, onNotificati
   return (
     <div>
       {notifications.map((notification) => {
-        console.log("Notification status", notification.status)
         const isPending = notification.status === 'pending';
+        const isClickable = isPending && !isActionsModalOpen;
         
         return (
           <div
             key={notification._id}
             className={`bg-white/80 backdrop-blur-sm dark:bg-gray-800/80 rounded-2xl shadow-lg p-6 m-2 ${
-              isPending ? 'cursor-pointer hover:bg-white dark:hover:bg-gray-800 hover:shadow-xl transition-all duration-200' : ''
+              isClickable ? 'cursor-pointer hover:bg-white dark:hover:bg-gray-800 hover:shadow-xl transition-all duration-200' : ''
             }`}
-            onClick={() => isPending && onNotificationClick && onNotificationClick(notification)}
-            role={isPending ? 'button' : undefined}
-            tabIndex={isPending ? 0 : undefined}
-            onKeyPress={(e) => {
-              if (isPending && onNotificationClick && (e.key === 'Enter' || e.key === ' ')) {
+            onClick={() => isClickable && onNotificationClick && onNotificationClick(notification)}
+            role={isClickable ? 'button' : undefined}
+            tabIndex={isClickable ? 0 : undefined}
+            aria-label={isClickable ? 'Open approval dialog for this notification' : undefined}
+            onKeyDown={(e) => {
+              if (isClickable && onNotificationClick && (e.key === 'Enter' || e.key === ' ')) {
                 e.preventDefault();
                 onNotificationClick(notification);
               }
