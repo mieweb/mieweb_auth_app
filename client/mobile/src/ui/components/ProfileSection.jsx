@@ -122,6 +122,20 @@ export const ProfileSection = ({
               </div>
             </div>
           </div>
+
+          <div className="border-t dark:border-gray-700 pt-4">
+            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+              Account Management
+            </h3>
+            <div className="space-y-2">
+              <a 
+                href="/delete-account"
+                className="block text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors"
+              >
+                Request Account Deletion →
+              </a>
+            </div>
+          </div>
         </div>
       </div>
     </div>
