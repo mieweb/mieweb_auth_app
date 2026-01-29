@@ -23,7 +23,7 @@ export const useNotificationData = (userId) => {
       );
       
       // Collect unique appIds to batch device info fetches
-      const uniqueAppIds = [...new Set((response || []).map(n => n.appId))];
+      const uniqueAppIds = [...new Set((response || []).map(n => n.appId).filter(Boolean))];
       
       // Batch fetch all device info
       const deviceInfoMap = {};
