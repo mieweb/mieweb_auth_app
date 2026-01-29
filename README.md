@@ -285,7 +285,31 @@ When authentication is enabled, all requests to `/send-notification` must includ
 
 #### Managing API Keys
 
-API keys can be managed through Meteor methods in the server console or through custom admin interfaces:
+Use the provided CLI tool for easy API key management:
+
+**Generate a new secure API key:**
+```bash
+node manage-api-keys.js generate
+```
+
+**Create or update an API key:**
+```bash
+node manage-api-keys.js create client.example.com your-secure-api-key
+# Or auto-generate a secure key:
+node manage-api-keys.js create client.example.com
+```
+
+**Delete an API key:**
+```bash
+node manage-api-keys.js delete client.example.com
+```
+
+**List all API keys:**
+```bash
+node manage-api-keys.js list
+```
+
+Alternatively, API keys can be managed directly through Meteor methods:
 
 **Create or Update an API Key:**
 ```javascript
