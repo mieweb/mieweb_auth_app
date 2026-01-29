@@ -106,77 +106,62 @@ const setupNotificationHandler = (push) => {
   push.on('notification', (notification) => {
     console.log('Raw notification:', JSON.stringify(notification));
     
+    const additionalData = notification.additionalData || {};
     
-    Meteor.startup(() => {
-      const additionalData = notification.additionalData || {};
-      
-      // Cold start handling
-      if (additionalData.coldstart) {
-        setTimeout(() => {
-          if (additionalData.action && additionalData.appId) {
-            validateSessionWithRetry(() => {
-              sendUserAction(additionalData.appId, additionalData.action);
-            });
-          }
-        }, 2000);
-      }
+    // Cold start handling - when app was not running and user taps notification
+    if (additionalData.coldstart) {
+      console.log('Cold start detected, scheduling action processing');
+      setTimeout(() => {
+        if (additionalData.action && additionalData.appId) {
+          console.log(`Cold start action: ${additionalData.action} for appId: ${additionalData.appId}`);
+          validateSessionWithRetry(() => {
+            sendUserAction(additionalData.appId, additionalData.action);
+          });
+        }
+      }, 2000);
+    }
 
-      // Standard notification handling
-      if (additionalData.appId) {
-        Session.set('notificationReceivedId', {
-          appId: additionalData.appId,
-          status: "pending",
-          rawData: JSON.stringify(additionalData),
-          timestamp: new Date().getTime()
-        });
-      }
-    });
+    // Standard notification handling - save to session for UI display
+    if (additionalData.appId) {
+      Session.set('notificationReceivedId', {
+        appId: additionalData.appId,
+        status: "pending",
+        rawData: JSON.stringify(additionalData),
+        timestamp: new Date().getTime()
+      });
+    }
   });
 };
 
 const setupApproveHandler = (push) => {
   push.on('approve', (notification) => {
-    console.log('Approve action triggered');
+    console.log('Approve action triggered from notification');
     
-    Meteor.startup(() => {
-      const additionalData = notification.additionalData || {};
-      const appId = additionalData.appId;
+    const additionalData = notification.additionalData || {};
+    const appId = additionalData.appId;
 
-      if (appId) {
-        validateSessionWithRetry(() => {
-          console.log('Processing approve action');
-          sendUserAction(appId, 'approve');
-          Session.set('notificationReceivedId', {
-            appId,
-            status: "approved",
-            timestamp: new Date().getTime()
-          });
-        });
-      }
-    });
+    if (appId) {
+      console.log(`Processing approve action for appId: ${appId}`);
+      sendUserAction(appId, 'approve');
+    } else {
+      console.warn('No appId found in notification data for approve action');
+    }
   });
 };
 
 const setupRejectHandler = (push) => {
   push.on('reject', (notification) => {
-    console.log('Reject action triggered');
+    console.log('Reject action triggered from notification');
     
-    Meteor.startup(() => {
-      const additionalData = notification.additionalData || {};
-      const appId = additionalData.appId;
+    const additionalData = notification.additionalData || {};
+    const appId = additionalData.appId;
 
-      if (appId) {
-        validateSessionWithRetry(() => {
-          console.log('Processing reject action');
-          sendUserAction(appId, 'reject');
-          Session.set('notificationReceivedId', {
-            appId,
-            status: "rejected",
-            timestamp: new Date().getTime()
-          });
-        });
-      }
-    });
+    if (appId) {
+      console.log(`Processing reject action for appId: ${appId}`);
+      sendUserAction(appId, 'reject');
+    } else {
+      console.warn('No appId found in notification data for reject action');
+    }
   });
 };
 
