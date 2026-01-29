@@ -267,6 +267,73 @@ Run the notification script:
 ./send-notification.sh
 ```
 
+### API Authentication for Push Notifications
+
+The `/send-notification` endpoint supports optional authentication via API keys to secure production deployments.
+
+#### Enabling Authentication
+
+Set the environment variable to require authentication:
+
+```bash
+export SEND_NOTIFICATION_FORCE_AUTH=true
+```
+
+When authentication is enabled, all requests to `/send-notification` must include:
+- `apikey` - The API key for authentication
+- `client_id` - The client identifier (e.g., `ldap.example.com`)
+
+#### Managing API Keys
+
+API keys can be managed through Meteor methods in the server console or through custom admin interfaces:
+
+**Create or Update an API Key:**
+```javascript
+Meteor.callAsync('apiKeys.upsert', 'client.example.com', 'your-secure-api-key-min-16-chars')
+```
+
+**Verify an API Key:**
+```javascript
+Meteor.callAsync('apiKeys.verify', 'client.example.com', 'your-api-key')
+```
+
+**Delete an API Key:**
+```javascript
+Meteor.callAsync('apiKeys.delete', 'client.example.com')
+```
+
+**List All API Keys:**
+```javascript
+Meteor.callAsync('apiKeys.list')
+```
+
+#### Authenticated Request Example
+
+When authentication is enabled, POST requests must include the authentication parameters:
+
+```bash
+curl -X POST "https://your-server.com/send-notification" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "apikey": "your-secure-api-key-min-16-chars",
+    "client_id": "client.example.com",
+    "username": "testuser",
+    "title": "Security Alert",
+    "body": "Please review and respond",
+    "actions": [
+      {"icon": "approve", "title": "Approve", "callback": "approve"},
+      {"icon": "reject", "title": "Reject", "callback": "reject"}
+    ]
+  }'
+```
+
+#### Security Features
+
+- **Hashed Storage**: API keys are hashed using SHA256 with client_id as salt before storage
+- **Client Tracking**: Each notification is associated with the authenticated client_id for audit purposes
+- **403 Response**: Invalid or missing credentials return HTTP 403 Forbidden
+- **Backward Compatible**: When `SEND_NOTIFICATION_FORCE_AUTH` is not set or `false`, authentication is optional
+
 ### Expected Response Examples
 
 ```json

@@ -4,6 +4,10 @@ PUSHGATEWAY="https://aabrol-mieauth.dev.bluehive.com"
 RELYINGPARTY="aa"
 #USERID=
 
+# Optional: Uncomment the following lines if authentication is required
+# API_KEY="your-secure-api-key-min-16-chars"
+# CLIENT_ID="your-client.example.com"
+
 curl -X POST "$PUSHGATEWAY/send-notification" \
 -H "Content-Type: application/json" \
 -d '{
@@ -27,3 +31,8 @@ curl -X POST "$PUSHGATEWAY/send-notification" \
     }
   ]
 }'
+
+# With authentication (when SEND_NOTIFICATION_FORCE_AUTH=true):
+# Add these fields to the JSON above:
+#   "apikey": "'"${API_KEY}"'",
+#   "client_id": "'"${CLIENT_ID}"'",
