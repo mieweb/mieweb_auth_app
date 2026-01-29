@@ -9,6 +9,7 @@ import { DeviceDetails } from "../utils/api/deviceDetails.js";
 import { NotificationHistory } from "../utils/api/notificationHistory.js"
 import { ApprovalTokens } from "../utils/api/approvalTokens";
 import { PendingResponses } from "../utils/api/pendingResponses.js";
+import { ApiKeys } from "../utils/api/apiKeys.js";
 import { isValidToken } from "../utils/utils";
 import { successTemplate, errorTemplate, rejectionTemplate, previouslyUsedTemplate } from './templates/email';
 import dotenv from 'dotenv';
@@ -23,7 +24,7 @@ dotenv.config();
  * @returns {String} Notification ID
  */
 const saveUserNotificationHistory = async (notification) => {
-  const { appId, title, body, userId } = notification;
+  const { appId, title, body, userId, clientId } = notification;
 
   if (!userId) {
     console.error("No userId provided for notification history");
@@ -31,16 +32,19 @@ const saveUserNotificationHistory = async (notification) => {
   }
 
   try {
-    // Build insert data, only including appId if provided
+    // Build insert data, only including appId and clientId if provided
     const insertData = { userId, title, body };
     if (appId) {
       insertData.appId = appId;
+    }
+    if (clientId) {
+      insertData.clientId = clientId;
     }
     
     // Generate a unique notification ID
     const notificationId = await Meteor.callAsync("notificationHistory.insert", insertData);
 
-    console.log(`Notification history saved with ID: ${notificationId}`);
+    console.log(`Notification history saved with ID: ${notificationId}${clientId ? ` from client: ${clientId}` : ''}`);
     return notificationId;
   } catch (error) {
     console.error("Error saving notification history:", error);
@@ -142,7 +146,52 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
       
       console.log("Parsed request body:", requestBody);
       
-      const { username, title, body: messageBody, actions } = requestBody;
+      const { username, title, body: messageBody, actions, apikey, client_id } = requestBody;
+      
+      // Check if authentication is required
+      const forceAuth = process.env.SEND_NOTIFICATION_FORCE_AUTH === 'true';
+      console.log(`Authentication required: ${forceAuth}`);
+      
+      let authenticatedClientId = null;
+      
+      if (forceAuth) {
+        // Authentication is required
+        if (!apikey) {
+          console.error("Authentication required but no API key provided");
+          res.writeHead(403, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({
+            success: false,
+            error: "Authentication required. Please provide an API key."
+          }));
+          return;
+        }
+        
+        if (!client_id) {
+          console.error("Authentication required but no client_id provided");
+          res.writeHead(403, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({
+            success: false,
+            error: "Authentication required. Please provide a client_id."
+          }));
+          return;
+        }
+        
+        // Verify the API key
+        const isValid = await Meteor.callAsync('apiKeys.verify', client_id, apikey);
+        
+        if (!isValid) {
+          console.error(`Invalid API key for client: ${client_id}`);
+          res.writeHead(403, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({
+            success: false,
+            error: "Invalid API key or client_id"
+          }));
+          return;
+        }
+        
+        authenticatedClientId = client_id;
+        console.log(`Client authenticated successfully: ${client_id}`);
+      }
       
       // Validate required fields
       if (!username) throw new Error("Username is required");
@@ -231,11 +280,18 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
       console.log("All notifications sent successfully");
       
       // Save notification history (without appId - will be set when device responds)
-      await saveUserNotificationHistory({
+      const notificationHistoryData = {
         title,
         body: messageBody,
         userId: userDoc.userId
-      });
+      };
+      
+      // Include clientId if authenticated
+      if (authenticatedClientId) {
+        notificationHistoryData.clientId = authenticatedClientId;
+      }
+      
+      await saveUserNotificationHistory(notificationHistoryData);
       
       // Create a unique request ID for this notification
       const requestId = Random.id();

@@ -11,6 +11,7 @@ if (Meteor.isServer) {
     NotificationHistory.createIndex({ appId: 1 });
     NotificationHistory.createIndex({ notificationId: 1 });
     NotificationHistory.createIndex({ status: 1 });
+    NotificationHistory.createIndex({ clientId: 1 });
   });
 }
 
@@ -25,6 +26,10 @@ Meteor.methods({
     // appId is optional
     if (data.appId !== undefined) {
       check(data.appId, String);
+    }
+    // clientId is optional
+    if (data.clientId !== undefined) {
+      check(data.clientId, String);
     }
 
     // Dynamically generate a unique notificationId
@@ -42,6 +47,11 @@ Meteor.methods({
     // Only include appId if provided
     if (data.appId) {
       insertData.appId = data.appId;
+    }
+    
+    // Only include clientId if provided
+    if (data.clientId) {
+      insertData.clientId = data.clientId;
     }
 
     return NotificationHistory.insertAsync(insertData);
