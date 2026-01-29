@@ -1,7 +1,40 @@
 import { Meteor } from "meteor/meteor";
 import { Session } from 'meteor/session';
 
-// Session validation with retry logic
+/**
+ * For cold start scenarios (app closed, notification tapped):
+ * - Store notification data in localStorage
+ * - Navigate to /approval page instead of validating session
+ * - Approval page will handle biometric auth and response
+ * 
+ * This allows quick response without full app login, reducing timeouts
+ */
+const handleColdStartNotification = (notification) => {
+  const additionalData = notification.additionalData || {};
+  
+  if (!additionalData.appId) {
+    console.warn('Cold start notification missing appId');
+    return;
+  }
+
+  // Store notification for approval page
+  const notificationData = {
+    appId: additionalData.appId,
+    status: 'pending',
+    coldstart: true,
+    timestamp: new Date().getTime()
+  };
+
+  localStorage.setItem('pendingNotification', JSON.stringify(notificationData));
+  Session.set('notificationReceivedId', notificationData);
+  
+  // Navigate to approval page after brief delay to ensure app is ready
+  setTimeout(() => {
+    window.location.href = '/approval';
+  }, 1000);
+};
+
+// Session validation with retry logic (used for non-cold-start scenarios)
 const validateSessionWithRetry = (callback, retries = 3, interval = 1000) => {
   let attempts = 0;
   const checkSession = () => {
@@ -12,10 +45,6 @@ const validateSessionWithRetry = (callback, retries = 3, interval = 1000) => {
       setTimeout(checkSession, interval);
     } else {
       console.warn("Session validation failed after retries");
-      Session.set('notificationReceivedId', {
-        appId: notification.additionalData.appId,
-        status: "pending"
-      });
     }
   };
   checkSession();
@@ -106,22 +135,17 @@ const setupNotificationHandler = (push) => {
   push.on('notification', (notification) => {
     console.log('Raw notification:', JSON.stringify(notification));
     
+    const additionalData = notification.additionalData || {};
     
-    Meteor.startup(() => {
-      const additionalData = notification.additionalData || {};
-      
-      // Cold start handling
-      if (additionalData.coldstart) {
-        setTimeout(() => {
-          if (additionalData.action && additionalData.appId) {
-            validateSessionWithRetry(() => {
-              sendUserAction(additionalData.appId, additionalData.action);
-            });
-          }
-        }, 2000);
-      }
+    // Cold start handling - redirect to approval page immediately
+    if (additionalData.coldstart) {
+      console.log('Cold start detected - redirecting to approval page');
+      handleColdStartNotification(notification);
+      return;
+    }
 
-      // Standard notification handling
+    // Standard notification handling (app in foreground/background)
+    Meteor.startup(() => {
       if (additionalData.appId) {
         Session.set('notificationReceivedId', {
           appId: additionalData.appId,

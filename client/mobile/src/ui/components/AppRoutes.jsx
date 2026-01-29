@@ -4,6 +4,7 @@ import { LoginPage } from '../Login';
 import { RegistrationPage } from '../Registration';
 import { WelcomePage } from '../Welcome';
 import { LandingPage } from '../LandingPage';
+import { ApprovalPage } from '../ApprovalPage';
 import { BiometricRegistrationModal } from '../Modal/BiometricRegistrationModal';
 import PendingRegistrationPage from '../PendingRegistrationPage';
 import { WebNotificationPage } from '../../../../WebNotificationPage';
@@ -57,6 +58,10 @@ export const AppRoutes = ({ isRegistered, deviceUuid }) => {
         <Route
           path="/pending-registration"
           element={<PendingRegistrationPage />}
+        />
+        <Route
+          path="/approval"
+          element={<ApprovalPage />}
         />
         <Route
           path="/send-notification"

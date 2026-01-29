@@ -607,6 +607,85 @@ Meteor.methods({
   },
 
   /**
+   * Handle notification response using device UUID (for cold-start scenarios without session)
+   * This method allows responding to notifications without requiring full app login
+   * @param {String} deviceUUID - Device UUID
+   * @param {String} action - User action (approve/reject)
+   * @param {String} notificationIdForAction - Notification ID
+   * @returns {Object} Response status
+   */
+  async "notifications.handleResponseByDevice"(deviceUUID, action, notificationIdForAction) {
+    check(deviceUUID, String);
+    check(action, String);
+    check(notificationIdForAction, String);
+
+    console.log(`Processing ${action} from device ${deviceUUID} for notification ${notificationIdForAction}`);
+
+    // Find the user associated with this device
+    const deviceDoc = await DeviceDetails.findOneAsync({ 
+      'devices.deviceUUID': deviceUUID 
+    });
+
+    if (!deviceDoc) {
+      console.error(`Device not found: ${deviceUUID}`);
+      throw new Meteor.Error('device-not-found', 'Device not registered');
+    }
+
+    const device = deviceDoc.devices.find(d => d.deviceUUID === deviceUUID);
+    
+    if (!device) {
+      console.error(`Device ${deviceUUID} not found in devices array`);
+      throw new Meteor.Error('device-not-found', 'Device not found');
+    }
+
+    // Verify device is approved
+    if (device.status !== 'approved') {
+      console.error(`Device ${deviceUUID} is not approved. Status: ${device.status}`);
+      throw new Meteor.Error('device-not-approved', 'Device is not approved');
+    }
+
+    const userId = deviceDoc.userId;
+
+    // Use the existing handleResponse method
+    return await Meteor.callAsync(
+      'notifications.handleResponse',
+      userId,
+      action,
+      notificationIdForAction,
+      deviceUUID
+    );
+  },
+
+  /**
+   * Get last notification by device UUID (for cold-start scenarios)
+   * @param {String} deviceUUID - Device UUID
+   * @returns {Object} Notification details or null
+   */
+  async "notificationHistory.getLastIdByDevice"(deviceUUID) {
+    check(deviceUUID, String);
+
+    // Find the user associated with this device
+    const deviceDoc = await DeviceDetails.findOneAsync({ 
+      'devices.deviceUUID': deviceUUID 
+    });
+
+    if (!deviceDoc) {
+      console.error(`Device not found: ${deviceUUID}`);
+      return null;
+    }
+
+    const userId = deviceDoc.userId;
+
+    // Get the last pending notification for this user
+    const notification = await NotificationHistory.findOneAsync(
+      { userId, status: 'pending' },
+      { sort: { createdAt: -1 } }
+    );
+
+    return notification;
+  },
+
+  /**
    * Login with biometric credentials
    * @param {String} secret - Biometric secret
    * @returns {Object} User data
