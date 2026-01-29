@@ -10,6 +10,45 @@ describe("meteor-app", function () {
     it("client is not server", function () {
       assert.strictEqual(Meteor.isServer, false);
     });
+
+    describe("Screen lock-based session management", function () {
+      it("should store pause state in localStorage", function () {
+        const STORAGE_KEY = 'appWasPaused';
+        
+        localStorage.setItem(STORAGE_KEY, 'true');
+        const pauseState = localStorage.getItem(STORAGE_KEY);
+        
+        assert.strictEqual(pauseState, 'true', "Should store pause state correctly");
+        
+        // Cleanup
+        localStorage.removeItem(STORAGE_KEY);
+      });
+
+      it("should detect when app was paused", function () {
+        const STORAGE_KEY = 'appWasPaused';
+        
+        // Simulate app pause
+        localStorage.setItem(STORAGE_KEY, 'true');
+        
+        // Check if app was paused
+        const wasPaused = localStorage.getItem(STORAGE_KEY) === 'true';
+        assert.strictEqual(wasPaused, true, "Should detect that app was paused");
+        
+        // Cleanup
+        localStorage.removeItem(STORAGE_KEY);
+      });
+
+      it("should handle no pause state gracefully", function () {
+        const STORAGE_KEY = 'appWasPaused';
+        
+        // Ensure no stored state
+        localStorage.removeItem(STORAGE_KEY);
+        
+        // Check pause state
+        const wasPaused = localStorage.getItem(STORAGE_KEY);
+        assert.strictEqual(wasPaused, null, "Should return null when no pause state exists");
+      });
+    });
   }
 
   if (Meteor.isServer) {

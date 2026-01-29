@@ -353,6 +353,21 @@ The project includes automated CI/CD pipelines:
 3. Add the required secrets with their respective values
 4. Ensure workflows have appropriate permissions
 
+## Authentication & Session Management
+
+### Screen Lock-Based Session Security
+
+The application implements automatic logout based on device screen lock for enhanced security:
+
+- **Device Lock Integration**: Users are automatically logged out when they lock their phone and return to the app
+- **Leverages Phone Security**: Uses the device's built-in security (screen lock/Face ID/fingerprint) instead of arbitrary timeouts
+- **Better UX**: No unexpected logouts while actively using the app
+- **App Lifecycle**: Detects when app goes to background (pause) and logs out on resume
+- **Automatic Logout**: When returning to the app after screen lock, user is logged out and redirected to login
+- **Data Cleanup**: All session data is cleared on logout for security
+
+This feature ensures that if someone unlocks your phone, they still need to authenticate with the app, providing an additional layer of security beyond the device lock.
+
 ## Security Best Practices
 
 ### Firebase Security
@@ -366,6 +381,8 @@ The project includes automated CI/CD pipelines:
 - Implement proper authentication and authorization
 - Use HTTPS for all production communications
 - Regularly audit and update dependencies
+- **Session Management**: Automatic logout when app resumes after device screen lock
+- **Device Lock Integration**: Leverages phone's built-in security for session management
 
 ### Development Security
 - Keep development and production environments separated

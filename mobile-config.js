@@ -4,8 +4,8 @@ App.info({
   description: 'MIEAuth - Secure Two-Factor Authentication Made Simple',
   author: 'Anshul Abrol',
   email: 'abrol.anshul10@gmail.com',
-  website: 'https://mieauth-prod.opensource.mieweb.org',
-  version: '1.0.1',
+  website: 'https://mieauth-prod.os.mieweb.org',
+  version: '1.0.2',
 });
 
 App.setPreference('android-targetSdkVersion', '35');
