@@ -353,6 +353,29 @@ The project includes automated CI/CD pipelines:
 3. Add the required secrets with their respective values
 4. Ensure workflows have appropriate permissions
 
+## Authentication & Session Management
+
+### Session Timeout
+
+The application implements automatic session expiration for enhanced security:
+
+- **Inactivity Timeout**: Users are automatically logged out after **30 minutes of inactivity**
+- **Activity Tracking**: The app monitors user interactions (touch, mouse, keyboard events) to track activity
+- **App Lifecycle**: Session validity is checked when the app resumes from background
+- **Automatic Logout**: On timeout, the user is logged out and redirected to the login page
+- **Data Cleanup**: All session data is cleared on logout for security
+
+This feature helps prevent unauthorized access if a device is left unattended with the app open.
+
+### Configuring Session Timeout
+
+The session timeout duration can be adjusted in `/client/mobile/src/ui/hooks/useSessionTimeout.js`:
+
+```javascript
+// Default: 30 minutes (1800000 ms)
+const INACTIVITY_TIMEOUT = 30 * 60 * 1000;
+```
+
 ## Security Best Practices
 
 ### Firebase Security
@@ -366,6 +389,8 @@ The project includes automated CI/CD pipelines:
 - Implement proper authentication and authorization
 - Use HTTPS for all production communications
 - Regularly audit and update dependencies
+- **Session Management**: Automatic logout after 30 minutes of user inactivity
+- **App Lifecycle Security**: Session validation when app resumes from background
 
 ### Development Security
 - Keep development and production environments separated
