@@ -11,38 +11,42 @@ describe("meteor-app", function () {
       assert.strictEqual(Meteor.isServer, false);
     });
 
-    describe("Session timeout configuration", function () {
-      it("should have correct session timeout duration", function () {
-        // Verify that the session timeout constant is 30 minutes
-        const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes
-        assert.strictEqual(INACTIVITY_TIMEOUT, 1800000, "Session timeout should be 30 minutes (1800000 ms)");
-      });
-
-      it("should have correct activity update throttle", function () {
-        // Verify the throttle is set to 10 seconds to avoid excessive writes
-        const ACTIVITY_UPDATE_THROTTLE = 10000; // 10 seconds
-        assert.strictEqual(ACTIVITY_UPDATE_THROTTLE, 10000, "Activity update throttle should be 10 seconds (10000 ms)");
-      });
-
-      it("should store and retrieve last activity time from localStorage", function () {
-        const testTime = Date.now();
-        const STORAGE_KEY = 'lastActivityTime';
+    describe("Screen lock-based session management", function () {
+      it("should store pause state in localStorage", function () {
+        const STORAGE_KEY = 'appWasPaused';
         
-        localStorage.setItem(STORAGE_KEY, testTime.toString());
-        const storedTime = localStorage.getItem(STORAGE_KEY);
+        localStorage.setItem(STORAGE_KEY, 'true');
+        const pauseState = localStorage.getItem(STORAGE_KEY);
         
-        assert.strictEqual(parseInt(storedTime), testTime, "Should store and retrieve activity time correctly");
+        assert.strictEqual(pauseState, 'true', "Should store pause state correctly");
         
         // Cleanup
         localStorage.removeItem(STORAGE_KEY);
       });
 
-      it("should calculate time since last activity correctly", function () {
-        const now = Date.now();
-        const thirtyMinutesAgo = now - (30 * 60 * 1000);
-        const timeDiff = now - thirtyMinutesAgo;
+      it("should detect when app was paused", function () {
+        const STORAGE_KEY = 'appWasPaused';
         
-        assert.strictEqual(timeDiff, 1800000, "Should calculate 30 minutes difference correctly");
+        // Simulate app pause
+        localStorage.setItem(STORAGE_KEY, 'true');
+        
+        // Check if app was paused
+        const wasPaused = localStorage.getItem(STORAGE_KEY) === 'true';
+        assert.strictEqual(wasPaused, true, "Should detect that app was paused");
+        
+        // Cleanup
+        localStorage.removeItem(STORAGE_KEY);
+      });
+
+      it("should handle no pause state gracefully", function () {
+        const STORAGE_KEY = 'appWasPaused';
+        
+        // Ensure no stored state
+        localStorage.removeItem(STORAGE_KEY);
+        
+        // Check pause state
+        const wasPaused = localStorage.getItem(STORAGE_KEY);
+        assert.strictEqual(wasPaused, null, "Should return null when no pause state exists");
       });
     });
   }

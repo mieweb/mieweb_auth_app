@@ -355,27 +355,18 @@ The project includes automated CI/CD pipelines:
 
 ## Authentication & Session Management
 
-### Session Timeout
+### Screen Lock-Based Session Security
 
-The application implements automatic session expiration for enhanced security:
+The application implements automatic logout based on device screen lock for enhanced security:
 
-- **Inactivity Timeout**: Users are automatically logged out after **30 minutes of inactivity**
-- **Activity Tracking**: The app monitors user interactions (touch, mouse, keyboard events) to track activity
-- **Performance Optimized**: Activity tracking uses throttling to minimize localStorage writes (every 10 seconds)
-- **App Lifecycle**: Session validity is checked when the app resumes from background
-- **Automatic Logout**: On timeout, the user is logged out and redirected to the login page
+- **Device Lock Integration**: Users are automatically logged out when they lock their phone and return to the app
+- **Leverages Phone Security**: Uses the device's built-in security (screen lock/Face ID/fingerprint) instead of arbitrary timeouts
+- **Better UX**: No unexpected logouts while actively using the app
+- **App Lifecycle**: Detects when app goes to background (pause) and logs out on resume
+- **Automatic Logout**: When returning to the app after screen lock, user is logged out and redirected to login
 - **Data Cleanup**: All session data is cleared on logout for security
 
-This feature helps prevent unauthorized access if a device is left unattended with the app open.
-
-### Configuring Session Timeout
-
-The session timeout duration can be adjusted in `/client/mobile/src/ui/hooks/useSessionTimeout.js`:
-
-```javascript
-// Default: 30 minutes (1800000 ms)
-const INACTIVITY_TIMEOUT = 30 * 60 * 1000;
-```
+This feature ensures that if someone unlocks your phone, they still need to authenticate with the app, providing an additional layer of security beyond the device lock.
 
 ## Security Best Practices
 
@@ -390,8 +381,8 @@ const INACTIVITY_TIMEOUT = 30 * 60 * 1000;
 - Implement proper authentication and authorization
 - Use HTTPS for all production communications
 - Regularly audit and update dependencies
-- **Session Management**: Automatic logout after 30 minutes of user inactivity
-- **App Lifecycle Security**: Session validation when app resumes from background
+- **Session Management**: Automatic logout when app resumes after device screen lock
+- **Device Lock Integration**: Leverages phone's built-in security for session management
 
 ### Development Security
 - Keep development and production environments separated

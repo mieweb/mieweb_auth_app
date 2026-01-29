@@ -31,7 +31,7 @@ export const LandingPage = () => {
   // Use Custom Hooks
   const { isDarkMode, toggleDarkMode } = useDarkMode();
   
-  // Session timeout management - automatically logs out after 30 minutes of inactivity
+  // Session management - automatically logs out when returning to app after screen lock
   useSessionTimeout();
   
   const {
