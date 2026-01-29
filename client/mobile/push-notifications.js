@@ -123,12 +123,19 @@ const setupNotificationHandler = (push) => {
 
       // Standard notification handling
       if (additionalData.appId) {
-        Session.set('notificationReceivedId', {
+        const notificationData = {
           appId: additionalData.appId,
           status: "pending",
           rawData: JSON.stringify(additionalData),
           timestamp: new Date().getTime()
-        });
+        };
+        
+        // Include notificationId if available
+        if (additionalData.notificationId) {
+          notificationData.notificationId = additionalData.notificationId;
+        }
+        
+        Session.set('notificationReceivedId', notificationData);
       }
     });
   });
@@ -154,15 +161,17 @@ const setupApproveHandler = (push) => {
           }));
         }
         
+        // Set pending status first, will be updated by sendUserAction callback
+        Session.set('notificationReceivedId', {
+          appId,
+          notificationId,
+          status: "pending",
+          timestamp: new Date().getTime()
+        });
+        
         validateSessionWithRetry(() => {
           console.log('Processing approve action');
           sendUserAction(appId, 'approve');
-          Session.set('notificationReceivedId', {
-            appId,
-            notificationId,
-            status: "approved",
-            timestamp: new Date().getTime()
-          });
         });
       }
     });
@@ -189,15 +198,17 @@ const setupRejectHandler = (push) => {
           }));
         }
         
+        // Set pending status first, will be updated by sendUserAction callback
+        Session.set('notificationReceivedId', {
+          appId,
+          notificationId,
+          status: "pending",
+          timestamp: new Date().getTime()
+        });
+        
         validateSessionWithRetry(() => {
           console.log('Processing reject action');
           sendUserAction(appId, 'reject');
-          Session.set('notificationReceivedId', {
-            appId,
-            notificationId,
-            status: "rejected",
-            timestamp: new Date().getTime()
-          });
         });
       }
     });

@@ -110,15 +110,30 @@ Meteor.methods({
     check(notificationId, String);
     console.log(`Fetching notification with notificationId: ${notificationId}`);
     
+    // Ensure user is authenticated
+    if (!this.userId) {
+      throw new Meteor.Error('unauthorized', 'Must be logged in to fetch notifications');
+    }
+    
     try {
       const notification = await NotificationHistory.findOneAsync({ notificationId });
       if (!notification) {
         console.log(`No notification found with notificationId: ${notificationId}`);
         return null;
       }
+      
+      // Verify the notification belongs to the requesting user
+      if (notification.userId !== this.userId) {
+        console.log(`Unauthorized access attempt: User ${this.userId} tried to access notification ${notificationId} belonging to ${notification.userId}`);
+        throw new Meteor.Error('unauthorized', 'You do not have permission to access this notification');
+      }
+      
       console.log(`Found notification: ID: ${notification.notificationId}, Status: ${notification.status}`);
       return notification;
     } catch (error) {
+      if (error.error === 'unauthorized') {
+        throw error; // Re-throw authorization errors
+      }
       console.error("Error fetching notification by notificationId:", error);
       throw new Meteor.Error("database-error", "Failed to fetch notification");
     }

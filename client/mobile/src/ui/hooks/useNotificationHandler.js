@@ -80,11 +80,19 @@ export const useNotificationHandler = (userId, username, fetchNotificationHistor
                 timestamp: new Date().getTime()
               });
               
+              // Clear localStorage after successfully handling
+              localStorage.removeItem('pendingNotification');
               return; // Exit early, we've handled the notification
+            } else {
+              // Notification not found or not pending, clean up localStorage
+              console.log('Notification not found or already handled, cleaning up localStorage');
+              localStorage.removeItem('pendingNotification');
             }
           }
         } catch (error) {
           console.error("Error handling pending notification from localStorage:", error);
+          // Clean up localStorage on error to prevent infinite retry
+          localStorage.removeItem('pendingNotification');
         }
       }
       
@@ -108,6 +116,8 @@ export const useNotificationHandler = (userId, username, fetchNotificationHistor
             setCurrentNotificationDetails(specificNotification);
             setNotificationIdForAction(specificNotification.notificationId);
             setIsActionsModalOpen(true);
+            // Clear localStorage after successfully handling
+            localStorage.removeItem('pendingNotification');
             return;
           }
         } catch (error) {
