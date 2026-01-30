@@ -345,19 +345,19 @@ describe("meteor-app", function () {
         it("should return false for incorrect API keys", function () {
           const apiKey = "correct-api-key";
           const wrongKey = "wrong-api-key";
-          const { hashedKey, salt } = hashApiKey(apiKey);
+          const result = hashApiKey(apiKey);
           
-          const isValid = verifyApiKey(wrongKey, hashedKey, salt);
+          const isValid = verifyApiKey(wrongKey, result.hashedKey, result.salt);
           
           assert.strictEqual(isValid, false, "Should reject incorrect API key");
         });
 
         it("should return false for incorrect salt", function () {
           const apiKey = "test-api-key";
-          const { hashedKey, salt } = hashApiKey(apiKey);
+          const result = hashApiKey(apiKey);
           const wrongSalt = crypto.randomBytes(32).toString('hex');
           
-          const isValid = verifyApiKey(apiKey, hashedKey, wrongSalt);
+          const isValid = verifyApiKey(apiKey, result.hashedKey, wrongSalt);
           
           assert.strictEqual(isValid, false, "Should reject with incorrect salt");
         });

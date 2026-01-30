@@ -117,7 +117,7 @@ Meteor.methods({
 
     // Generate a secure random API key
     const apiKey = crypto.randomBytes(32).toString('hex');
-    const { hashedKey, salt } = hashApiKey(apiKey);
+    const { hashedKey, salt } = await hashApiKeyAsync(apiKey);
 
     // Store the hashed key
     await ApiKeys.insertAsync({
@@ -271,7 +271,7 @@ Meteor.methods({
 
     // Generate a new API key
     const apiKey = crypto.randomBytes(32).toString('hex');
-    const { hashedKey, salt } = hashApiKey(apiKey);
+    const { hashedKey, salt } = await hashApiKeyAsync(apiKey);
 
     // Update the key
     await ApiKeys.updateAsync(

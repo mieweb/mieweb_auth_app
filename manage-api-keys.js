@@ -19,7 +19,15 @@ const crypto = require('crypto');
 // MongoDB connection URL (default Meteor local)
 const MONGO_URL = process.env.MONGO_URL || 'mongodb://localhost:3001/meteor';
 
-// Centralized PBKDF2 parameters - must match utils/api/apiKeys.js
+/**
+ * PBKDF2 parameters - MUST match utils/api/apiKeys.js
+ * 
+ * Note: We cannot import from utils/api/apiKeys.js because:
+ * 1. That file uses Meteor imports which don't work in standalone Node.js
+ * 2. This CLI tool runs outside the Meteor context
+ * 
+ * If you change these values, update both files!
+ */
 const PBKDF2_ITERATIONS = 100000;
 const PBKDF2_KEY_LENGTH = 64;
 const PBKDF2_DIGEST = 'sha512';
