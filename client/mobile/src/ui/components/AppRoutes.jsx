@@ -7,37 +7,35 @@ import { LandingPage } from '../LandingPage';
 import { BiometricRegistrationModal } from '../Modal/BiometricRegistrationModal';
 import PendingRegistrationPage from '../PendingRegistrationPage';
 import { WebNotificationPage } from '../../../../WebNotificationPage';
+import { WebLandingPage } from '../../../../web/WebLandingPage';
+import { PrivacyPolicyPage } from '../../../../web/PrivacyPolicyPage';
+import { SupportPage } from '../../../../web/SupportPage';
+import { DeleteAccountPage } from '../../../../web/DeleteAccountPage';
 import { Meteor } from 'meteor/meteor';
-
-// separate component for the redirect logic
-const BrowserRedirect = () => {
-  const navigate = useNavigate();
-  
-  useEffect(() => {
-    if (!Meteor.isCordova) {
-      console.log("Web browser detected — redirecting to /send-notification");
-      navigate('/send-notification');
-    }
-  }, [navigate]);
-
-  return null;
-};
 
 export const AppRoutes = ({ isRegistered, deviceUuid }) => {
   console.log(' ### Log Step 3 : inside AppRoutes.jsx, App routes called with:', JSON.stringify({ isRegistered, deviceUuid }));
   
   return (
     <Router>
-      <BrowserRedirect />
       <Routes>
         <Route
           path="/"
-          element={isRegistered ? (
-            <Navigate to="/login" replace />
-          ) : (
-            <Navigate to="/register" replace />
-          )}
+          element={
+            Meteor.isCordova ? (
+              isRegistered ? (
+                <Navigate to="/login" replace />
+              ) : (
+                <Navigate to="/register" replace />
+              )
+            ) : (
+              <WebLandingPage />
+            )
+          }
         />
+        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+        <Route path="/support" element={<SupportPage />} />
+        <Route path="/delete-account" element={<DeleteAccountPage />} />
         <Route
           path="/login"
           element={<LoginPage deviceDetails={deviceUuid} />}
@@ -63,7 +61,7 @@ export const AppRoutes = ({ isRegistered, deviceUuid }) => {
           element={<PendingRegistrationPage />}
         />
         <Route
-          path="/send-notification"
+          path="/test-notification"
           element={<WebNotificationPage />}
         />
       </Routes>

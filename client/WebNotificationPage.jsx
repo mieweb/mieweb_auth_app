@@ -1,15 +1,31 @@
 import React, { useState } from 'react';
+import { Meteor } from 'meteor/meteor';
+import { Layout } from './web/components/Layout';
+import { Send, Bell, CheckCircle, AlertCircle, Clock, User, Smartphone, Info, AlertTriangle } from 'lucide-react';
 
 export const WebNotificationPage = () => {
-  const [username, setUsername] = useState('aabrol');
+  const [formData, setFormData] = useState({
+    username: '',
+    title: '',
+    body: '',
+    apikey: '',
+    client_id: ''
+  });
   const [status, setStatus] = useState(null);
   const [userAction, setUserAction] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [waitingForAction, setWaitingForAction] = useState(false);
-  const [showDownloadInfo, setShowDownloadInfo] = useState(false);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
 
   const handleSendNotification = async () => {
-    if (!username.trim()) {
+    if (!formData.username.trim()) {
       setStatus({ type: 'error', message: 'Username is required' });
       return;
     }
@@ -22,58 +38,59 @@ export const WebNotificationPage = () => {
     try {
       console.log('Sending notification request...');
 
-      const response = await fetch('/send-notification', {
+      const payload = {
+        username: formData.username.trim(),
+        title: formData.title,
+        body: formData.body,
+        timeout: "",
+        restriction: "",
+        deviceType: "primary",
+        metaData: "server name, ip, source, etc",
+        actions: [
+          { icon: "approve", title: "Approve", callback: "approve" },
+          { icon: "reject", title: "Reject", callback: "reject" }
+        ]
+      };
+
+      // Include API key and client ID if provided
+      if (formData.apikey && formData.apikey.trim()) {
+        payload.apikey = formData.apikey.trim();
+      }
+      if (formData.client_id && formData.client_id.trim()) {
+        payload.client_id = formData.client_id.trim();
+      }
+
+      const response = await fetch(Meteor.absoluteUrl('send-notification'), {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        body: JSON.stringify({
-          username: username.trim(),
-          title: "MIE Sudo Security Alert",
-          body: "Please review and respond to your pending MIE request in the app",
-          timeout: "",
-          restriction: "",
-          deviceType: "primary",
-          metaData: "server name, ip, source, etc",
-          actions: [
-            { icon: "approve", title: "Approve", callback: "approve" },
-            { icon: "reject", title: "Reject", callback: "reject" }
-          ]
-        })
+        body: JSON.stringify(payload)
       });
-
-      console.log('Response status:', response.status);
-      console.log('Response headers:', response.headers);
 
       // Parse response as JSON regardless of status
       let result;
       try {
         result = await response.json();
       } catch (parseError) {
-        // If JSON parsing fails, get text response
         const errorText = await response.text();
         throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
       }
 
       if (!response.ok) {
-        // Handle server error with proper JSON error response
         const errorMessage = result.error || result.message || `HTTP ${response.status}: ${response.statusText}`;
-        console.error('Server error response:', result);
         throw new Error(errorMessage);
       }
 
       console.log('Notification response:', result);
       
-      // First show notification sent
       setStatus({ type: 'success', message: result.message || 'Notification sent successfully!' });
       setIsLoading(false);
       
-      // If the response includes user action, show it after a brief delay
       if (result.action) {
         setWaitingForAction(true);
         
-        // Map action to user-friendly message and type
         let actionMessage = '';
         let actionType = 'info';
         
@@ -95,163 +112,329 @@ export const WebNotificationPage = () => {
             actionType = 'info';
         }
         
-        // Show waiting state briefly, then show the user action
         setTimeout(() => {
-          setUserAction({ 
-            type: actionType, 
-            message: actionMessage
-          });
           setWaitingForAction(false);
-        }, 1500); // Show waiting for 1.5 seconds before revealing action
+          setUserAction({ type: actionType, message: actionMessage });
+        }, 2000);
       }
     } catch (error) {
       console.error('Error sending notification:', error);
-      setStatus({ 
-        type: 'error', 
-        message: `Failed to send notification: ${error.message}` 
-      });
-    } finally {
-      if (!waitingForAction) {
-        setIsLoading(false);
-      }
-    }
-  };
-
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !isLoading) {
-      handleSendNotification();
+      setStatus({ type: 'error', message: error.message || 'Failed to send notification' });
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-      <div className="bg-white shadow-lg rounded-xl max-w-md w-full p-8 space-y-6">
-        <h2 className="text-2xl font-bold text-center text-gray-800">
-          Send Notification
-        </h2>
-
-        {/* Download APK Section */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-blue-800">📱 Download Mobile App</h3>
-            <button
-              onClick={() => setShowDownloadInfo(!showDownloadInfo)}
-              className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-            >
-              {showDownloadInfo ? 'Hide' : 'Show Instructions'}
-            </button>
-          </div>
+    <Layout>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {showDownloadInfo && (
-            <div className="space-y-3 text-sm text-blue-700">
-              <p>To receive notifications on your mobile device, download the latest APK:</p>
+          {/* Left Column: Instructions & Info */}
+          <div className="lg:col-span-1 space-y-6">
+            <div className="bg-white shadow rounded-lg p-6">
+              <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
+                <Info className="w-5 h-5 mr-2 text-blue-600" />
+                MIEWeb Auth Test Instructions
+              </h2>
+              <p className="text-sm text-gray-600 mb-4">
+                Test your Auth app, a professional two-factor authentication app using push notifications.
+              </p>
               
-              <div className="bg-white rounded-lg p-3 border border-blue-300">
-                <div className="space-y-2">
-                  <p className="font-medium">📥 Download Steps:</p>
-                  <ol className="list-decimal list-inside space-y-1 text-xs">
-                    <li>Click the download link below</li>
-                    <li>Sign in to GitHub if prompted</li>
-                    <li>Download the APK file</li>
-                    <li>Enable "Install from Unknown Sources" on your Android device</li>
-                    <li>Install the APK and set up your username</li>
-                  </ol>
-                </div>
-              </div>
+              <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-2">What to Test</h3>
+              <ul className="text-sm text-gray-600 space-y-2 mb-6 list-disc pl-4">
+                <li>Push notification delivery and reliability</li>
+                <li>Login approval/denial flow</li>
+                <li>Device registration process</li>
+                <li>Biometric authentication (Face ID/Touch ID)</li>
+                <li>Dark mode interface</li>
+                <li>Notification history tracking</li>
+              </ul>
 
-              <a
-                href="https://github.com/mieweb/mieweb_auth_app/actions"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-              >
-                🚀 Download Latest APK from GitHub Actions
-              </a>
-              
-              <p className="text-xs text-blue-600">
-                💡 <strong>Note:</strong>
-                The APK will be in the latest successful workflow run under "Artifacts".
+              <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-2">Known Issues</h3>
+              <ul className="text-sm text-gray-600 space-y-2 mb-6 list-disc pl-4">
+                <li>Occasional notification delay in background mode</li>
+                <li>UI refinements in progress</li>
+              </ul>
+            </div>
+
+            <div className="bg-white shadow rounded-lg p-6">
+              <h3 className="text-sm font-semibold text-gray-900 mb-2">Feedback</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Your feedback is crucial! Please report bugs or suggestions to <a href="mailto:devopsalerts@mieweb.com" className="text-blue-600 hover:underline">devopsalerts@mieweb.com</a>
+              </p>
+              <p className="text-sm text-gray-500 italic">
+                Thank you for helping us build a more secure authentication experience!
               </p>
             </div>
-          )}
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-gray-600 mb-1">
-            Username
-          </label>
-          <input
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            onKeyPress={handleKeyPress}
-            className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
-            placeholder="Enter username"
-            required
-            autoFocus
-          />
-        </div>
-
-        <div className="text-sm text-gray-500 space-y-1 bg-gray-50 p-4 rounded-lg">
-          <div><strong className="text-gray-700">Title:</strong> MIE Sudo Security Alert</div>
-          <div><strong className="text-gray-700">Body:</strong> Please review and respond to your pending MIE request in the app</div>
-          <div><strong className="text-gray-700">Device Type:</strong> primary</div>
-          <div><strong className="text-gray-700">MetaData:</strong> server name, ip, source, etc</div>
-          <div><strong className="text-gray-700">Actions:</strong> Approve / Reject</div>
-        </div>
-
-        <button
-          onClick={handleSendNotification}
-          disabled={isLoading}
-          className="w-full py-3 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center"
-        >
-          {isLoading ? (
-            <>
-              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-              Sending...
-            </>
-          ) : (
-            'Send Notification'
-          )}
-        </button>
-
-        {status && (
-          <div
-            className={`text-center text-sm p-3 rounded-lg transition-all duration-200 ${
-              status.type === 'success' 
-                ? 'text-green-700 bg-green-50 border border-green-200' 
-                : 'text-red-700 bg-red-50 border border-red-200'
-            }`}
-          >
-            {status.message}
           </div>
-        )}
 
-        {waitingForAction && (
-          <div className="text-center text-sm p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-700">
-            <div className="flex items-center justify-center">
-              <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent mr-2"></div>
-              Waiting for user response...
+          {/* Right Column: Testing Interface */}
+          <div className="lg:col-span-2">
+            <div className="bg-white shadow overflow-hidden sm:rounded-lg">
+              <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
+                <div className="flex items-center space-x-3">
+                  <div className="bg-blue-100 p-2 rounded-full">
+                    <Bell className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <h1 className="text-xl font-bold text-gray-900">Test MIEWeb Auth</h1>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Send a test push notification to your registered device.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="p-6 space-y-8">
+                {/* Prerequisite Note & Download Links */}
+                <div className="bg-blue-50 rounded-md p-4 border border-blue-100">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div className="flex-1">
+                      <p className="text-sm text-blue-800">
+                        <strong>Prerequisite:</strong> You need to install the app and register your device to receive notifications.
+                      </p>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      {/* App Store - Small */}
+                      <a href="https://apps.apple.com/us/app/mie-auth-open-source/id6756409072" className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-black hover:bg-gray-800 shadow-sm transition-colors">
+                        <svg className="w-4 h-4 mr-1.5" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.11-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+                        </svg>
+                        App Store
+                      </a>
+                      {/* Play Store - Small */}
+                      <a href="https://play.google.com/store/apps/details?id=com.mieweb.mieauth" className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-black hover:bg-gray-800 shadow-sm transition-colors">
+                        <svg className="w-4 h-4 mr-1.5" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M3,20.5V3.5C3,2.91 3.34,2.39 3.84,2.15L13.69,12L3.84,21.85C3.34,21.6 3,21.09 3,20.5M16.81,15.12L6.05,21.34L14.54,12.85L16.81,15.12M20.16,10.81C20.5,11.08 20.75,11.5 20.75,12C20.75,12.5 20.5,12.92 20.16,13.19L17.89,14.5L15.39,12L17.89,9.5L20.16,10.81M6.05,2.66L16.81,8.88L14.54,11.15L6.05,2.66Z" />
+                        </svg>
+                        Google Play
+                      </a>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status Messages */}
+                {status && (
+                  <div className={`rounded-md p-4 ${status.type === 'success' ? 'bg-green-50' : 'bg-red-50'}`}>
+                    <div className="flex">
+                      <div className="flex-shrink-0">
+                        {status.type === 'success' ? (
+                          <CheckCircle className="h-5 w-5 text-green-400" />
+                        ) : (
+                          <AlertCircle className="h-5 w-5 text-red-400" />
+                        )}
+                      </div>
+                      <div className="ml-3">
+                        <h3 className={`text-sm font-medium ${status.type === 'success' ? 'text-green-800' : 'text-red-800'}`}>
+                          {status.type === 'success' ? 'Success' : 'Error'}
+                        </h3>
+                        <div className={`mt-2 text-sm ${status.type === 'success' ? 'text-green-700' : 'text-red-700'}`}>
+                          <p>{status.message}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* User Action Result */}
+                {waitingForAction && (
+                  <div className="rounded-md bg-blue-50 p-4 animate-pulse">
+                    <div className="flex">
+                      <div className="flex-shrink-0">
+                        <Clock className="h-5 w-5 text-blue-400" />
+                      </div>
+                      <div className="ml-3">
+                        <h3 className="text-sm font-medium text-blue-800">Waiting for response...</h3>
+                        <div className="mt-2 text-sm text-blue-700">
+                          <p>Please check your device and approve/reject the request.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {userAction && (
+                  <div className={`rounded-md p-4 ${
+                    userAction.type === 'success' ? 'bg-green-50' : 
+                    userAction.type === 'error' ? 'bg-red-50' : 'bg-yellow-50'
+                  }`}>
+                    <div className="flex">
+                      <div className="flex-shrink-0">
+                        {userAction.type === 'success' ? (
+                          <CheckCircle className="h-5 w-5 text-green-400" />
+                        ) : userAction.type === 'error' ? (
+                          <AlertCircle className="h-5 w-5 text-red-400" />
+                        ) : (
+                          <Clock className="h-5 w-5 text-yellow-400" />
+                        )}
+                      </div>
+                      <div className="ml-3">
+                        <h3 className={`text-sm font-medium ${
+                          userAction.type === 'success' ? 'text-green-800' : 
+                          userAction.type === 'error' ? 'text-red-800' : 'text-yellow-800'
+                        }`}>
+                          Response Received
+                        </h3>
+                        <div className={`mt-2 text-sm ${
+                          userAction.type === 'success' ? 'text-green-700' : 
+                          userAction.type === 'error' ? 'text-red-700' : 'text-yellow-700'
+                        }`}>
+                          <p>{userAction.message}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Form */}
+                <div className="space-y-6">
+                  <div>
+                    <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+                      Target Username
+                    </label>
+                    <div className="mt-1 relative rounded-md shadow-sm">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <User className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <input
+                        type="text"
+                        name="username"
+                        id="username"
+                        className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-3 border"
+                        placeholder="e.g., your_username"
+                        value={formData.username}
+                        onChange={handleChange}
+                      />
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Enter the username of the registered device you want to test.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                    <div>
+                      <label htmlFor="title" className="block text-sm font-medium text-gray-700">
+                        Notification Title
+                      </label>
+                      <div className="mt-1">
+                        <input
+                          type="text"
+                          name="title"
+                          id="title"
+                          className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                          placeholder="e.g., Test Push Notification"
+                          value={formData.title}
+                          onChange={handleChange}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label htmlFor="body" className="block text-sm font-medium text-gray-700">
+                        Notification Body
+                      </label>
+                      <div className="mt-1">
+                        <input
+                          type="text"
+                          name="body"
+                          id="body"
+                          className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                          placeholder="e.g., This is a test notification from MIEWeb Auth."
+                          value={formData.body}
+                          onChange={handleChange}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* API Authentication Fields */}
+                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                    <div className="flex items-start mb-3">
+                      <Info className="w-5 h-5 text-blue-500 mr-2 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="text-sm font-medium text-blue-900">API Authentication</h4>
+                        <p className="text-xs text-blue-700 mt-1">
+                          If API Authentication is enabled, you must provide an API key.
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <label htmlFor="apikey" className="block text-sm font-medium text-gray-700">
+                          API Key
+                        </label>
+                        <div className="mt-1">
+                          <input
+                            type="password"
+                            name="apikey"
+                            id="apikey"
+                            className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                            placeholder="Enter your API key"
+                            value={formData.apikey}
+                            onChange={handleChange}
+                          />
+                        </div>                      
+                      </div>
+
+                      <div>
+                        <label htmlFor="client_id" className="block text-sm font-medium text-gray-700">
+                          Client ID <span className="text-gray-400">(Optional)</span>
+                        </label>
+                        <div className="mt-1">
+                          <input
+                            type="text"
+                            name="client_id"
+                            id="client_id"
+                            className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                            placeholder="e.g., ldap.example.com"
+                            value={formData.client_id}
+                            onChange={handleChange}
+                          />
+                        </div>                        
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <h4 className="text-sm font-medium text-gray-900 mb-2 flex items-center">
+                      <Smartphone className="w-4 h-4 mr-2 text-gray-500" />
+                      Preview
+                    </h4>
+                    <div className="bg-white p-3 rounded border border-gray-200 shadow-sm">
+                      <p className="font-semibold text-gray-900">{formData.title || 'Notification Title'}</p>
+                      <p className="text-sm text-gray-600">{formData.body || 'Notification body text...'}</p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleSendNotification}
+                    disabled={isLoading || waitingForAction}
+                    className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors ${
+                      (isLoading || waitingForAction) ? 'opacity-75 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    {isLoading ? (
+                      <>
+                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-5 h-5 mr-2" />
+                        Send Notification
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        )}
-
-        {userAction && (
-          <div
-            className={`text-center text-sm p-3 rounded-lg transition-all duration-200 ${
-              userAction.type === 'success' 
-                ? 'text-green-700 bg-green-50 border border-green-200' 
-                : userAction.type === 'error'
-                ? 'text-red-700 bg-red-50 border border-red-200'
-                : userAction.type === 'warning'
-                ? 'text-orange-700 bg-orange-50 border border-orange-200'
-                : 'text-blue-700 bg-blue-50 border border-blue-200'
-            }`}
-          >
-            {userAction.message}
-          </div>
-        )}
+        </div>
       </div>
-    </div>
+    </Layout>
   );
 };

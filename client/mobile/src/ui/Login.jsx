@@ -6,7 +6,8 @@ import { Session } from 'meteor/session';
 import { Fingerprint as FingerprintIcon } from 'lucide-react';
 
 export const LoginPage = ({ deviceDetails }) => {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => localStorage.getItem('lastLoggedInEmail') || '');
+  const [isReturningUser, setIsReturningUser] = useState(() => !!localStorage.getItem('lastLoggedInEmail'));
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -36,20 +37,20 @@ export const LoginPage = ({ deviceDetails }) => {
   // Function to check registration status
   const checkRegistrationStatus = async (userId, emailAddress) => {
     setCheckingStatus(true);
-    
+
     try {
       console.log('### Log: Checking registration status for user');
       const result = await Meteor.callAsync('users.checkRegistrationStatus', {
         userId,
         email: emailAddress
       });
-      
+
       console.log('### Log: Registration status result:', result);
-      
+
       if (!result || !result.status) {
         throw new Error('Failed to retrieve registration status');
       }
-      
+
       console.log(result)
       if (result.status !== 'approved') {
         console.log('### Log: User registration is pending approval');
@@ -57,7 +58,7 @@ export const LoginPage = ({ deviceDetails }) => {
         navigate('/pending-registration');
         return false;
       }
-      
+
       console.log('### Log: User registration is approved');
       return true;
     } catch (err) {
@@ -71,7 +72,7 @@ export const LoginPage = ({ deviceDetails }) => {
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    
+
     // Validate device details
     if (!deviceDetails) {
       setError('Device information not available. Please refresh the page.');
@@ -107,17 +108,18 @@ export const LoginPage = ({ deviceDetails }) => {
         setIsLoggingIn(false);
         return;
       }
-      
+
       // Now check registration status
       const isApproved = await checkRegistrationStatus(userId, email);
-      
+
       if (isApproved) {
         // Set user profile in session and proceed to dashboard
         Session.set('userProfile', {
           email: email,
           _id: userId
         });
-        
+
+        localStorage.setItem('lastLoggedInEmail', email);
         navigate('/dashboard');
       } else {
         // If not approved, logout the user since we don't want them to remain logged in
@@ -130,10 +132,10 @@ export const LoginPage = ({ deviceDetails }) => {
       setIsLoggingIn(false);
     }
   };
-  
+
   const handleBiometricLogin = async () => {
     console.log("handle with biometric")
-    const biometricUserId = localStorage.getItem('biometricUserId'); 
+    const biometricUserId = localStorage.getItem('biometricUserId');
     console.log("biometric id", biometricUserId)
     if (!biometricUserId) {
       console.log("no biometric")
@@ -143,10 +145,10 @@ export const LoginPage = ({ deviceDetails }) => {
     }
 
     console.log("yes biopmrtri")
-    
+
     setIsLoggingIn(true);
     setError('');
-    
+
     try {
       console.log("inside try")
       if (Fingerprint) {
@@ -162,16 +164,16 @@ export const LoginPage = ({ deviceDetails }) => {
               try {
                 // Use the retrieved secret to login
                 const result = await Meteor.callAsync('users.loginWithBiometric', biometricUserId);
-                
+
                 if (!result || !result._id) {
                   throw new Error('Biometric authentication failed');
                 }
-                
+
                 // Check registration status
                 const isApproved = await checkRegistrationStatus(result._id, result.email);
 
                 console.log("is approved", isApproved)
-                
+
                 if (isApproved) {
                   // Set user profile in session
                   Session.set('userProfile', {
@@ -179,7 +181,7 @@ export const LoginPage = ({ deviceDetails }) => {
                     username: result.username,
                     _id: result._id,
                   });
-                  
+
                   navigate('/dashboard');
                 }
                 resolve();
@@ -207,8 +209,12 @@ export const LoginPage = ({ deviceDetails }) => {
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gray-50">
       <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-lg">
         <div className="text-center">
-          <h2 className="text-3xl font-bold text-gray-900">Welcome Back</h2>
-          <p className="mt-2 text-gray-600">Sign in to your account</p>
+          <h2 className="text-3xl font-bold text-gray-900">
+            {isReturningUser ? 'Welcome Back!' : 'Welcome Back'}
+          </h2>
+          <p className="mt-2 text-gray-600">
+            {isReturningUser ? email : 'Sign in to your account'}
+          </p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-6">
@@ -237,6 +243,19 @@ export const LoginPage = ({ deviceDetails }) => {
                 disabled={isLoggingIn || checkingStatus}
               />
             </div>
+            {isReturningUser && (
+              <button
+                type="button"
+                onClick={() => {
+                  localStorage.removeItem('lastLoggedInEmail');
+                  setEmail('');
+                  setIsReturningUser(false);
+                }}
+                className="text-sm text-blue-600 hover:underline mt-1"
+              >
+                Not you? Use a different account
+              </button>
+            )}
           </div>
 
           <div>
@@ -262,7 +281,7 @@ export const LoginPage = ({ deviceDetails }) => {
               />
             </div>
           </div>
-          
+
           {isBiometricAvailable && (
             <div className="flex justify-center">
               <button
@@ -294,19 +313,6 @@ export const LoginPage = ({ deviceDetails }) => {
               'Sign In'
             )}
           </button>
-          
-          <div className="text-center mt-4">
-            <p className="text-sm text-gray-600">
-              Don't have an account?{' '}
-              <button
-                type="button"
-                onClick={() => navigate('/register')}
-                className="text-blue-600 hover:text-blue-800 font-medium"
-              >
-                Register now
-              </button>
-            </p>
-          </div>
         </form>
       </div>
     </div>
