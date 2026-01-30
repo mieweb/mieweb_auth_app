@@ -26,7 +26,7 @@ export const Layout = ({ children }) => {
             {/* Desktop Navigation */}
             <nav className="hidden md:flex space-x-8">
               <Link to="/" className={isActive('/')}>Home</Link>
-              <Link to="/send-notification" className={isActive('/send-notification')}>Test it now</Link>
+              <Link to="/test-notification" className={isActive('/test-notification')}>Test it now</Link>
               <Link to="/privacy-policy" className={isActive('/privacy-policy')}>Privacy Policy</Link>
               <Link to="/support" className={isActive('/support')}>Support</Link>
             </nav>
@@ -55,7 +55,7 @@ export const Layout = ({ children }) => {
                 Home
               </Link>
               <Link 
-                to="/send-notification" 
+                to="/test-notification" 
                 className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
                 onClick={() => setIsMobileMenuOpen(false)}
               >

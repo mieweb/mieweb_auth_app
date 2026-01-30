@@ -7,6 +7,7 @@ import { useDarkMode } from './hooks/useDarkMode';
 import { useUserProfile } from './hooks/useUserProfile';
 import { useNotificationData } from './hooks/useNotificationData';
 import { useNotificationHandler } from './hooks/useNotificationHandler';
+import { useSessionTimeout } from './hooks/useSessionTimeout';
 
 // Import Components
 import { DashboardHeader } from './components/DashboardHeader';
@@ -29,6 +30,10 @@ export const LandingPage = () => {
 
   // Use Custom Hooks
   const { isDarkMode, toggleDarkMode } = useDarkMode();
+  
+  // Session management - automatically logs out when returning to app after screen lock
+  useSessionTimeout();
+  
   const {
     profile,
     isEditing,
@@ -66,7 +71,8 @@ export const LandingPage = () => {
     handleApprove,
     handleReject,
     handleCloseResultModal,
-    handleCloseActionModal
+    handleCloseActionModal,
+    openNotificationModal
   } = useNotificationHandler(userId, username, fetchNotificationHistory); // Pass refetch
 
   const handleTimeout = async () => {
@@ -135,6 +141,8 @@ export const LandingPage = () => {
               notifications={notifications}
               isLoading={isLoadingHistory}
               error={historyError}
+              onNotificationClick={openNotificationModal}
+              isActionsModalOpen={isActionsModalOpen}
             />
             {totalPages > 1 && (
               <Pagination

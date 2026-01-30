@@ -7,7 +7,7 @@ import {
 import { formatDateTime } from '../../../../../utils/utils.js'; // Adjust path
 
 
-export const NotificationList = ({ notifications, isLoading, error }) => {
+export const NotificationList = ({ notifications, isLoading, error, onNotificationClick, isActionsModalOpen }) => {
 
   if (isLoading) {
     return (
@@ -43,11 +43,25 @@ export const NotificationList = ({ notifications, isLoading, error }) => {
   return (
     <div>
       {notifications.map((notification) => {
-        console.log("Notification status", notification.status)
+        const isPending = notification.status === 'pending';
+        const isClickable = isPending && !isActionsModalOpen;
+        
         return (
           <div
             key={notification._id}
-            className="bg-white/80 backdrop-blur-sm dark:bg-gray-800/80 rounded-2xl shadow-lg p-6 m-2"
+            className={`bg-white/80 backdrop-blur-sm dark:bg-gray-800/80 rounded-2xl shadow-lg p-6 m-2 ${
+              isClickable ? 'cursor-pointer hover:bg-white dark:hover:bg-gray-800 hover:shadow-xl transition-all duration-200' : ''
+            }`}
+            onClick={() => isClickable && onNotificationClick && onNotificationClick(notification)}
+            role={isClickable ? 'button' : undefined}
+            tabIndex={isClickable ? 0 : undefined}
+            aria-label={isClickable ? 'Open approval dialog for this notification' : undefined}
+            onKeyDown={(e) => {
+              if (isClickable && onNotificationClick && (e.key === 'Enter' || e.key === ' ')) {
+                e.preventDefault();
+                onNotificationClick(notification);
+              }
+            }}
           >
             <div className="flex justify-between items-start mb-4">
               <div>
@@ -64,6 +78,11 @@ export const NotificationList = ({ notifications, isLoading, error }) => {
                     {notification.status === 'pending' ? '—' : (notification.deviceModel || 'Unknown')}
                   </p>
                 </div>
+                {isClickable && (
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-2 font-medium">
+                    Tap to approve or reject
+                  </p>
+                )}
               </div>
               <div
                 className={`px-3 py-1 rounded-full text-sm font-medium capitalize ${notification.status === "approve"

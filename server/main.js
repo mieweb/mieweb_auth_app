@@ -9,6 +9,7 @@ import { DeviceDetails } from "../utils/api/deviceDetails.js";
 import { NotificationHistory } from "../utils/api/notificationHistory.js"
 import { ApprovalTokens } from "../utils/api/approvalTokens";
 import { PendingResponses } from "../utils/api/pendingResponses.js";
+import "../utils/api/apiKeys.js"; // Import for side effects (Meteor methods registration)
 import { isValidToken } from "../utils/utils";
 import { successTemplate, errorTemplate, rejectionTemplate, previouslyUsedTemplate } from './templates/email';
 import dotenv from 'dotenv';
@@ -23,7 +24,7 @@ dotenv.config();
  * @returns {String} Notification ID
  */
 const saveUserNotificationHistory = async (notification) => {
-  const { appId, title, body, userId } = notification;
+  const { appId, title, body, userId, clientId } = notification;
 
   if (!userId) {
     console.error("No userId provided for notification history");
@@ -35,6 +36,9 @@ const saveUserNotificationHistory = async (notification) => {
     const insertData = { userId, title, body };
     if (appId) {
       insertData.appId = appId;
+    }
+    if (clientId) {
+      insertData.clientId = clientId;
     }
     
     // Generate a unique notification ID
@@ -49,7 +53,8 @@ const saveUserNotificationHistory = async (notification) => {
 };
 
 /**
- * Helper function to send sync notifications to all user devices
+ * Helper function to send silent sync notifications to all user devices
+ * This syncs notification state across devices without showing a visible notification
  * @private
  */
 const sendSyncNotificationToDevices = async (userId, notificationId, action) => {
@@ -71,15 +76,14 @@ const sendSyncNotificationToDevices = async (userId, notificationId, action) => 
       notId: 'sync',
       isDismissal: 'false',
       isSync: 'true',
-      syncData: JSON.stringify(syncData),
-      sound: 'default'
+      syncData: JSON.stringify(syncData)
     };
 
     const sendPromises = fcmTokens.map(token =>
       sendNotification(
         token,
-        'Notification Update',
-        `Notification ${action}ed`,
+        '', // Empty title for silent notification
+        '', // Empty body for silent notification
         notificationData
       )
     );
@@ -140,9 +144,47 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
         throw new Error("Invalid JSON in request body");
       }
       
-      console.log("Parsed request body:", requestBody);
+      // Log request body with sensitive fields redacted
+      const sanitizedBody = { ...requestBody };
+      if (sanitizedBody.apikey) {
+        sanitizedBody.apikey = '[REDACTED]';
+      }
+      console.log("Parsed request body:", sanitizedBody);
       
-      const { username, title, body: messageBody, actions } = requestBody;
+      const { username, title, body: messageBody, actions, apikey, client_id } = requestBody;
+      
+      // Check if authentication is required
+      const forceAuth = process.env.SEND_NOTIFICATION_FORCE_AUTH === 'true';
+      let clientId = 'unspecified';
+      
+      if (forceAuth || apikey) {
+        // Verify API key if force auth is enabled or if apikey is provided
+        if (!apikey) {
+          console.error("API key required but not provided");
+          res.writeHead(403, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({
+            success: false,
+            error: "API key authentication required"
+          }));
+          return;
+        }
+        
+        // Verify the API key
+        const verificationResult = await Meteor.callAsync('apiKeys.verify', apikey, client_id);
+        
+        if (!verificationResult.isValid) {
+          console.error("Invalid API key provided");
+          res.writeHead(403, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({
+            success: false,
+            error: "Invalid API key"
+          }));
+          return;
+        }
+        
+        clientId = verificationResult.clientId;
+        console.log(`Request authenticated for client: ${clientId}`);
+      }
       
       // Validate required fields
       if (!username) throw new Error("Username is required");
@@ -219,7 +261,7 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
           ) {
             await DeviceDetails.updateAsync(
               { username },
-              { $pull: { 'devices.fcmToken': fcmToken } }
+              { $pull: { devices: { fcmToken: fcmToken } } }
             );
             console.log(`Removed invalid token for user ${username}`);
           }
@@ -230,11 +272,12 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
       await Promise.all(notificationPromises);
       console.log("All notifications sent successfully");
       
-      // Save notification history (without appId - will be set when device responds)
+      // Save notification history with clientId
       await saveUserNotificationHistory({
         title,
         body: messageBody,
-        userId: userDoc.userId
+        userId: userDoc.userId,
+        clientId
       });
       
       // Create a unique request ID for this notification
@@ -470,6 +513,139 @@ Meteor.methods({
     } catch (error) {
       console.error('Error sending support email:', error);
       throw new Meteor.Error('email-error', 'Failed to send support email');
+    }
+  },
+
+  async 'users.requestAccountDeletion'(data) {
+    check(data, {
+      email: Match.Where((email) => {
+        check(email, String);
+        // Validate email format and length
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return email.length >= 3 && email.length <= 254 && emailRegex.test(email);
+      }),
+      username: Match.Where((username) => {
+        check(username, String);
+        // Validate username length
+        return username.length >= 1 && username.length <= 100;
+      }),
+      reason: Match.Optional(Match.Where((reason) => {
+        check(reason, String);
+        // Validate reason length
+        return reason.length <= 1000;
+      }))
+    });
+
+    const { email, username, reason } = data;
+    const adminEmails = process.env.EMAIL_ADMIN;
+    const fromEmail = process.env.EMAIL_FROM;
+
+    if (!adminEmails || !fromEmail) {
+      throw new Meteor.Error('configuration-error', 'Email configuration is missing');
+    }
+
+    // Helper function to escape HTML to prevent XSS
+    const escapeHtml = (unsafe) => {
+      if (!unsafe) return '';
+      return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    };
+
+    // Normalize email to lowercase for consistent comparison
+    const normalizedEmail = email.toLowerCase();
+
+    // Allow other method calls from this client to run during async operations
+    this.unblock();
+
+    // Verify user exists using case-insensitive username match (consistent with users.register)
+    // Both email AND username must match the same user account
+    // Using MongoDB collation for case-insensitive matching (safe from ReDoS unlike regex)
+    const user = await Meteor.users.findOneAsync(
+      {
+        'emails.address': normalizedEmail,
+        username: username
+      },
+      {
+        collation: { locale: 'en', strength: 2 } // Case-insensitive comparison
+      }
+    );
+
+    if (!user) {
+      // Generic error message to prevent user enumeration
+      throw new Meteor.Error('invalid-request', 'Unable to process your request. Please verify that both your email and username are correct.');
+    }
+
+    try {
+      // Escape only user inputs that will be displayed in HTML (not ObjectId)
+      const safeUsername = escapeHtml(username);
+      const safeEmail = escapeHtml(email);
+      const safeReason = escapeHtml(reason);
+
+      // Sanitize username for email subject to prevent header injection
+      const subjectUsername = String(username).replace(/[\r\n]/g, '').trim();
+
+      // Send notification to admin
+      await Email.sendAsync({
+        to: adminEmails,
+        from: fromEmail,
+        subject: `[Account Deletion Request] ${subjectUsername}`,
+        html: `
+          <h3>Account Deletion Request</h3>
+          <p>A user has requested account deletion with the following details:</p>
+          <ul>
+            <li><strong>Username:</strong> ${safeUsername}</li>
+            <li><strong>Email:</strong> ${safeEmail}</li>
+            <li><strong>User ID:</strong> ${user._id}</li>
+            <li><strong>Reason:</strong> ${safeReason || 'Not provided'}</li>
+          </ul>
+          <p><strong>Submitted:</strong> ${new Date().toLocaleString()}</p>
+          <hr />
+          <p>Please review and process this deletion request.</p>
+          <p><strong>Note:</strong> All user data including:</p>
+          <ul>
+            <li>User account and profile information</li>
+            <li>Device details and FCM tokens</li>
+            <li>Notification history</li>
+            <li>Approval tokens</li>
+          </ul>
+          <p>will be permanently deleted.</p>
+        `
+      });
+
+      // Send confirmation to user
+      await Email.sendAsync({
+        to: normalizedEmail,
+        from: fromEmail,
+        subject: 'Account Deletion Request Received',
+        html: `
+          <h3>Account Deletion Request Confirmation</h3>
+          <p>Hello ${safeUsername},</p>
+          <p>We have received your request to delete your account. Your request will be processed within 30 days.</p>
+          <p><strong>What happens next:</strong></p>
+          <ul>
+            <li>Our team will review your request</li>
+            <li>You will receive a confirmation email when the deletion is complete</li>
+            <li>All your data will be permanently deleted</li>
+          </ul>
+          <p>If you did not make this request, please contact us immediately.</p>
+          <br />
+          <p>Best regards,<br />The MIEWeb Auth Team</p>
+        `
+      });
+
+      return { success: true };
+    } catch (error) {
+      // Only log full error details in development to avoid exposing sensitive info
+      if (Meteor.isDevelopment) {
+        console.error('Error sending deletion request email:', error);
+      } else {
+        console.error('Error sending deletion request email');
+      }
+      throw new Meteor.Error('email-error', 'Failed to send deletion request');
     }
   },
 

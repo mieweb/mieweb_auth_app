@@ -10,6 +10,7 @@ import { WebNotificationPage } from '../../../../WebNotificationPage';
 import { WebLandingPage } from '../../../../web/WebLandingPage';
 import { PrivacyPolicyPage } from '../../../../web/PrivacyPolicyPage';
 import { SupportPage } from '../../../../web/SupportPage';
+import { DeleteAccountPage } from '../../../../web/DeleteAccountPage';
 import { Meteor } from 'meteor/meteor';
 
 export const AppRoutes = ({ isRegistered, deviceUuid }) => {
@@ -34,6 +35,7 @@ export const AppRoutes = ({ isRegistered, deviceUuid }) => {
         />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="/support" element={<SupportPage />} />
+        <Route path="/delete-account" element={<DeleteAccountPage />} />
         <Route
           path="/login"
           element={<LoginPage deviceDetails={deviceUuid} />}
@@ -59,7 +61,7 @@ export const AppRoutes = ({ isRegistered, deviceUuid }) => {
           element={<PendingRegistrationPage />}
         />
         <Route
-          path="/send-notification"
+          path="/test-notification"
           element={<WebNotificationPage />}
         />
       </Routes>

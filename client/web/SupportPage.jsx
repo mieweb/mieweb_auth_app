@@ -51,6 +51,19 @@ export const SupportPage = () => {
                 <div className="text-sm font-medium text-blue-600 shrink-0">View</div>
               </a>
             </div>
+
+            <div className="mt-8 pt-6 border-t border-gray-200">
+              <h3 className="text-sm font-medium text-gray-900 mb-4">Account Management</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Need to delete your account? You can request account deletion and we'll process your request within 30 days.
+              </p>
+              <a
+                href="/delete-account"
+                className="text-sm text-red-600 hover:text-red-800 font-medium"
+              >
+                Request Account Deletion →
+              </a>
+            </div>
           </div>
         </div>
       </div>

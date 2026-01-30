@@ -53,6 +53,22 @@ export const PrivacyPolicyPage = () => {
               </div>
             </section>
 
+            <section>
+              <h2 className="text-lg font-medium text-gray-900 mb-3">Account Deletion</h2>
+              <div className="space-y-3 text-gray-600">
+                <p>
+                  You have the right to request deletion of your account and associated data at any time.
+                </p>
+                <p>
+                  To request account deletion, please visit our{' '}
+                  <a href="/delete-account" className="text-blue-600 hover:text-blue-800 underline">
+                    account deletion page
+                  </a>
+                  . Your request will be processed within 30 days, and you will receive confirmation when complete.
+                </p>
+              </div>
+            </section>
+
           </div>
         </div>
       </div>
