@@ -22,8 +22,8 @@ export const useNotificationData = (userId) => {
         userId
       );
       
-      // Collect unique appIds to batch device info fetches
-      const uniqueAppIds = [...new Set((response || []).map(n => n.appId))];
+      // Collect unique appIds to batch device info fetches (filter out null/undefined)
+      const uniqueAppIds = [...new Set((response || []).map(n => n.appId).filter(id => id != null))];
       
       // Batch fetch all device info
       const deviceInfoMap = {};
