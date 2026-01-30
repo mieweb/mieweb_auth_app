@@ -71,7 +71,8 @@ export const LandingPage = () => {
     handleApprove,
     handleReject,
     handleCloseResultModal,
-    handleCloseActionModal
+    handleCloseActionModal,
+    openNotificationModal
   } = useNotificationHandler(userId, username, fetchNotificationHistory); // Pass refetch
 
   const handleTimeout = async () => {
@@ -140,6 +141,8 @@ export const LandingPage = () => {
               notifications={notifications}
               isLoading={isLoadingHistory}
               error={historyError}
+              onNotificationClick={openNotificationModal}
+              isActionsModalOpen={isActionsModalOpen}
             />
             {totalPages > 1 && (
               <Pagination
