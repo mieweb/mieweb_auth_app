@@ -78,7 +78,7 @@ export const NotificationList = ({ notifications, isLoading, error, onNotificati
                     {notification.status === 'pending' ? '—' : (notification.deviceModel || 'Unknown')}
                   </p>
                 </div>
-                {isPending && (
+                {isClickable && (
                   <p className="text-xs text-blue-600 dark:text-blue-400 mt-2 font-medium">
                     Tap to approve or reject
                   </p>
