@@ -1,50 +1,6 @@
 import { Meteor } from "meteor/meteor";
 import { Session } from 'meteor/session';
 
-// Session validation with retry logic
-const validateSessionWithRetry = (callback, retries = 3, interval = 1000) => {
-  let attempts = 0;
-  const checkSession = () => {
-    if (Session.get("userProfile")) {
-      callback();
-    } else if (attempts < retries) {
-      attempts++;
-      setTimeout(checkSession, interval);
-    } else {
-      console.warn("Session validation failed after retries");
-      Session.set('notificationReceivedId', {
-        appId: notification.additionalData.appId,
-        status: "pending"
-      });
-    }
-  };
-  checkSession();
-};
-
-const sendUserAction = (appId, action) => {
-  console.log(`Initiating ${action} action for: ${appId}`);
-  
-  validateSessionWithRetry(() => {
-    Meteor.call('notifications.handleResponse', appId, action, (error, result) => {
-      if (error) {
-        console.error('Action failed:', error);
-        Session.set('notificationReceivedId', { 
-          appId, 
-          status: "error",
-          error: error.message
-        });
-      } else {
-        console.log('Action processed successfully');
-        Session.set('notificationReceivedId', {
-          appId,
-          status: action === 'approve' ? "approved" : "rejected",
-          timestamp: new Date().getTime()
-        });
-      }
-    });
-  });
-};
-
 const createNotificationChannel = () => {
   PushNotification.createChannel(
     () => console.log('Android notification channel ready'),
@@ -70,10 +26,6 @@ const configurePushNotifications = () => {
       clearNotifications: false,
       icon: "ic_launcher",
       iconColor: "#4CAF50",
-      actions: [
-        { id: 'approve', title: 'Approve' },
-        { id: 'reject', title: 'Reject' }
-      ],
       priority: "high",
       sound: true,
       vibrate: true,
@@ -104,112 +56,29 @@ const setupRegistrationHandler = (push) => {
 
 const setupNotificationHandler = (push) => {
   push.on('notification', (notification) => {
-    console.log('Raw notification:', JSON.stringify(notification));
-    
+    console.log('Notification tapped');
     
     Meteor.startup(() => {
       const additionalData = notification.additionalData || {};
       
-      // Cold start handling
-      if (additionalData.coldstart) {
-        setTimeout(() => {
-          if (additionalData.action && additionalData.appId) {
-            validateSessionWithRetry(() => {
-              sendUserAction(additionalData.appId, additionalData.action);
-            });
-          }
-        }, 2000);
-      }
-
-      // Standard notification handling
-      if (additionalData.appId) {
-        const notificationData = {
-          appId: additionalData.appId,
-          status: "pending",
-          rawData: JSON.stringify(additionalData),
-          timestamp: new Date().getTime()
-        };
-        
-        // Include notificationId if available
-        if (additionalData.notificationId) {
-          notificationData.notificationId = additionalData.notificationId;
-        }
-        
-        Session.set('notificationReceivedId', notificationData);
-      }
-    });
-  });
-};
-
-const setupApproveHandler = (push) => {
-  push.on('approve', (notification) => {
-    console.log('Approve action triggered');
-    
-    Meteor.startup(() => {
-      const additionalData = notification.additionalData || {};
-      const appId = additionalData.appId;
-      const notificationId = additionalData.notificationId;
-
-      if (appId) {
-        // Persist notification context to localStorage for post-login retrieval
-        if (notificationId) {
+      if (additionalData.appId && additionalData.notificationId) {
+        // Persist to localStorage for post-login modal display
+        if (!Session.get("userProfile")) {
           localStorage.setItem('pendingNotification', JSON.stringify({
-            appId,
-            notificationId,
-            action: 'approve',
+            appId: additionalData.appId,
+            notificationId: additionalData.notificationId,
             timestamp: new Date().getTime()
           }));
-        }
-        
-        // Set pending status first, will be updated by sendUserAction callback
-        Session.set('notificationReceivedId', {
-          appId,
-          notificationId,
-          status: "pending",
-          timestamp: new Date().getTime()
-        });
-        
-        validateSessionWithRetry(() => {
-          console.log('Processing approve action');
-          sendUserAction(appId, 'approve');
-        });
-      }
-    });
-  });
-};
-
-const setupRejectHandler = (push) => {
-  push.on('reject', (notification) => {
-    console.log('Reject action triggered');
-    
-    Meteor.startup(() => {
-      const additionalData = notification.additionalData || {};
-      const appId = additionalData.appId;
-      const notificationId = additionalData.notificationId;
-
-      if (appId) {
-        // Persist notification context to localStorage for post-login retrieval
-        if (notificationId) {
-          localStorage.setItem('pendingNotification', JSON.stringify({
-            appId,
-            notificationId,
-            action: 'reject',
+          console.log('Notification saved for post-login modal');
+        } else {
+          // User is logged in - set session to show modal immediately
+          Session.set('notificationReceivedId', {
+            appId: additionalData.appId,
+            notificationId: additionalData.notificationId,
+            status: "pending",
             timestamp: new Date().getTime()
-          }));
+          });
         }
-        
-        // Set pending status first, will be updated by sendUserAction callback
-        Session.set('notificationReceivedId', {
-          appId,
-          notificationId,
-          status: "pending",
-          timestamp: new Date().getTime()
-        });
-        
-        validateSessionWithRetry(() => {
-          console.log('Processing reject action');
-          sendUserAction(appId, 'reject');
-        });
       }
     });
   });
@@ -239,8 +108,6 @@ export const initializePushNotifications = () => {
     // Register handlers
     setupRegistrationHandler(push);
     setupNotificationHandler(push);
-    setupApproveHandler(push);
-    setupRejectHandler(push);
     setupErrorHandler(push);
 
     // Ensure default channel exists every 30 seconds

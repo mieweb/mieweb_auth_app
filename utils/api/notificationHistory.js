@@ -44,7 +44,10 @@ Meteor.methods({
       insertData.appId = data.appId;
     }
 
-    return NotificationHistory.insertAsync(insertData);
+    NotificationHistory.insertAsync(insertData);
+    
+    // Return the notificationId instead of the insert result
+    return notificationId;
   },
 
   // Update the status of a notification

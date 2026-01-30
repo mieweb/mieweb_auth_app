@@ -1,7 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Meteor } from 'meteor/meteor';
 import { Session } from 'meteor/session';
 import { Tracker } from 'meteor/tracker';
+
+const NOTIFICATION_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 
 export const useNotificationHandler = (userId, username, fetchNotificationHistory) => {
   const [isActionsModalOpen, setIsActionsModalOpen] = useState(false);
@@ -11,6 +13,24 @@ export const useNotificationHandler = (userId, username, fetchNotificationHistor
   const [currentNotificationDetails, setCurrentNotificationDetails] = useState(null);
   const [isProcessingAction, setIsProcessingAction] = useState(false);
   const [actionError, setActionError] = useState(null);
+  
+  // Ref to track currently displayed notification (for duplicate prevention)
+  const displayedNotificationIdRef = useRef(null);
+
+  // Clean up on logout (userId becomes null)
+  useEffect(() => {
+    if (!userId) {
+      setIsActionsModalOpen(false);
+      setIsResultModalOpen(false);
+      setCurrentAction(null);
+      setNotificationIdForAction(null);
+      setCurrentNotificationDetails(null);
+      setIsProcessingAction(false);
+      setActionError(null);
+      Session.set('notificationReceivedId', null);
+      // Note: Don't clear localStorage here - user might log back in
+    }
+  }, [userId]);
 
   const getLatestPendingNotification = useCallback(async () => {
     if (!userId) return null;
@@ -28,20 +48,51 @@ export const useNotificationHandler = (userId, username, fetchNotificationHistor
 
   // Background notification persistence
   useEffect(() => {
-    const handleAppResume = () => {
-      const pendingNotification = localStorage.getItem('pendingNotification');
-      if (pendingNotification) {
-        const { appId, notificationId, createdAt } = JSON.parse(pendingNotification);
-        Session.set('notificationReceivedId', { appId, status: "pending" });
-        setCurrentNotificationDetails({ notificationId, createdAt });
-        setNotificationIdForAction(notificationId);
-        setIsActionsModalOpen(true);
+    const handleAppResume = async () => {
+      const pendingNotificationStr = localStorage.getItem('pendingNotification');
+      if (!pendingNotificationStr || !userId) return;
+      
+      try {
+        const { notificationId, timestamp } = JSON.parse(pendingNotificationStr);
+        
+        // Check if notification expired
+        const now = new Date().getTime();
+        if (timestamp && (now - timestamp > NOTIFICATION_EXPIRY_MS)) {
+          localStorage.removeItem('pendingNotification');
+          return;
+        }
+        
+        // Fetch latest notification details from server
+        if (notificationId) {
+          const notification = await Meteor.callAsync(
+            "notificationHistory.getByNotificationId",
+            notificationId
+          );
+          
+          if (notification && notification.status === 'pending') {
+            // Prevent duplicate modal if already displaying same notification
+            if (displayedNotificationIdRef.current === notification.notificationId) {
+              localStorage.removeItem('pendingNotification');
+              return;
+            }
+            
+            setCurrentNotificationDetails(notification);
+            setNotificationIdForAction(notification.notificationId);
+            setIsActionsModalOpen(true);
+            displayedNotificationIdRef.current = notification.notificationId;
+          } else {
+            localStorage.removeItem('pendingNotification');
+          }
+        }
+      } catch (error) {
+        console.error('Error on app resume:', error);
+        localStorage.removeItem('pendingNotification');
       }
     };
 
     document.addEventListener('resume', handleAppResume);
     return () => document.removeEventListener('resume', handleAppResume);
-  }, []);
+  }, [userId, displayedNotificationIdRef]);
 
   // Session tracker with cold start handling
   useEffect(() => {
@@ -50,16 +101,22 @@ export const useNotificationHandler = (userId, username, fetchNotificationHistor
     const tracker = Tracker.autorun(async () => {
       const notificationData = Session.get("notificationReceivedId");
       
-      // Check localStorage first for pending notification from action buttons
+      // Check localStorage first for pending notification
       const pendingNotificationStr = localStorage.getItem('pendingNotification');
+      
       if (pendingNotificationStr) {
         try {
           const pendingNotification = JSON.parse(pendingNotificationStr);
-          const { appId, notificationId, action } = pendingNotification;
+          const { appId, notificationId, timestamp } = pendingNotification;
           
-          console.log('Found pending notification from localStorage:', pendingNotification);
+          // Check if notification is too old (expired after 10 minutes)
+          const now = new Date().getTime();
+          if (timestamp && (now - timestamp > NOTIFICATION_EXPIRY_MS)) {
+            console.log('Notification expired, cleaning up');
+            localStorage.removeItem('pendingNotification');
+            return;
+          }
           
-          // If notificationId is available, fetch the specific notification
           if (notificationId) {
             const specificNotification = await Meteor.callAsync(
               "notificationHistory.getByNotificationId",
@@ -67,12 +124,17 @@ export const useNotificationHandler = (userId, username, fetchNotificationHistor
             );
             
             if (specificNotification && specificNotification.status === 'pending') {
-              console.log('Retrieved specific pending notification:', specificNotification);
+              // Prevent duplicate modal if already displaying same notification
+              if (displayedNotificationIdRef.current === specificNotification.notificationId) {
+                localStorage.removeItem('pendingNotification');
+                return;
+              }
+              
               setCurrentNotificationDetails(specificNotification);
               setNotificationIdForAction(specificNotification.notificationId);
               setIsActionsModalOpen(true);
+              displayedNotificationIdRef.current = specificNotification.notificationId;
               
-              // Update session to reflect this notification
               Session.set('notificationReceivedId', {
                 appId,
                 notificationId,
@@ -80,29 +142,22 @@ export const useNotificationHandler = (userId, username, fetchNotificationHistor
                 timestamp: new Date().getTime()
               });
               
-              // Clear localStorage after successfully handling
               localStorage.removeItem('pendingNotification');
-              return; // Exit early, we've handled the notification
+              return;
             } else {
-              // Notification not found or not pending, clean up localStorage
-              console.log('Notification not found or already handled, cleaning up localStorage');
+              // Notification already handled or not found
+              console.log('Notification no longer pending or not found');
               localStorage.removeItem('pendingNotification');
             }
           }
         } catch (error) {
-          console.error("Error handling pending notification from localStorage:", error);
-          // Clean up localStorage on error to prevent infinite retry
+          console.error("Error handling pending notification:", error);
           localStorage.removeItem('pendingNotification');
         }
       }
       
       // Fallback to session-based handling if no localStorage data
       if (!notificationData) return;
-
-      // Handle cold start notification
-      if (notificationData.coldstart) {
-        localStorage.setItem('pendingNotification', JSON.stringify(notificationData));
-      }
 
       // If we have a specific notificationId in session data, use it
       if (notificationData.notificationId) {
@@ -162,6 +217,8 @@ export const useNotificationHandler = (userId, username, fetchNotificationHistor
       );
       
       setIsActionsModalOpen(false);
+      
+      // Show success modal only for approve
       if (action === 'approve') {
         setIsResultModalOpen(true);
         setTimeout(() => setIsResultModalOpen(false), 3000);
@@ -174,7 +231,7 @@ export const useNotificationHandler = (userId, username, fetchNotificationHistor
     } finally {
       setIsProcessingAction(false);
     }
-  }, [notificationIdForAction, username, fetchNotificationHistory]);
+  }, [notificationIdForAction, userId, fetchNotificationHistory]);
 
   // Modal state cleanup
   const handleCloseActionModal = useCallback(() => {
@@ -184,6 +241,7 @@ export const useNotificationHandler = (userId, username, fetchNotificationHistor
     setNotificationIdForAction(null);
     setCurrentNotificationDetails(null);
     setActionError(null);
+    displayedNotificationIdRef.current = null;
     fetchNotificationHistory();
   }, [fetchNotificationHistory]);
 

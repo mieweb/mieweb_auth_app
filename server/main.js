@@ -184,9 +184,24 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
         || userDoc.devices.find(d => d.deviceRegistrationStatus === 'approved')
         || userDoc.devices[0];
       
+      // Save notification history BEFORE sending (to get notificationId)
+      const notificationId = await saveUserNotificationHistory({
+        title,
+        body: messageBody,
+        userId: userDoc.userId,
+        appId: primaryDevice.appId
+      });
+      
+      if (!notificationId) {
+        throw new Error("Failed to create notification history");
+      }
+      
+      console.log(`Created notification history with ID: ${notificationId}`);
+      
       // Prepare notification data
       const notificationData = {
         appId: primaryDevice.appId,
+        notificationId: notificationId,
         messageFrom: 'mie',
         notificationType: 'approval',
         content_available: '1',
@@ -195,7 +210,6 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
         notId: '10',
         isDismissal: 'false',
         isSync: 'false',
-        actions: JSON.stringify(actions),
         click_action: 'FLUTTER_NOTIFICATION_CLICK',
         sound: 'default',
         platform: 'both',
@@ -229,13 +243,6 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
       
       await Promise.all(notificationPromises);
       console.log("All notifications sent successfully");
-      
-      // Save notification history (without appId - will be set when device responds)
-      await saveUserNotificationHistory({
-        title,
-        body: messageBody,
-        userId: userDoc.userId
-      });
       
       // Create a unique request ID for this notification
       const requestId = Random.id();
