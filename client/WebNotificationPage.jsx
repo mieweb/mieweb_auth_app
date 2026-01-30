@@ -5,9 +5,9 @@ import { Send, Bell, CheckCircle, AlertCircle, Clock, User, Smartphone, Info, Al
 
 export const WebNotificationPage = () => {
   const [formData, setFormData] = useState({
-    username: 'your_username',
-    title: 'Test Push Notification',
-    body: 'This is a test notification from MIEWeb Auth.',
+    username: '',
+    title: '',
+    body: '',
     apikey: '',
     client_id: ''
   });
@@ -301,7 +301,7 @@ export const WebNotificationPage = () => {
                         name="username"
                         id="username"
                         className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-3 border"
-                        placeholder="Enter username"
+                        placeholder="e.g., your_username"
                         value={formData.username}
                         onChange={handleChange}
                       />
@@ -322,6 +322,7 @@ export const WebNotificationPage = () => {
                           name="title"
                           id="title"
                           className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                          placeholder="e.g., Test Push Notification"
                           value={formData.title}
                           onChange={handleChange}
                         />
@@ -338,6 +339,7 @@ export const WebNotificationPage = () => {
                           name="body"
                           id="body"
                           className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                          placeholder="e.g., This is a test notification from MIEWeb Auth."
                           value={formData.body}
                           onChange={handleChange}
                         />
@@ -350,9 +352,9 @@ export const WebNotificationPage = () => {
                     <div className="flex items-start mb-3">
                       <Info className="w-5 h-5 text-blue-500 mr-2 flex-shrink-0 mt-0.5" />
                       <div>
-                        <h4 className="text-sm font-medium text-blue-900">API Authentication (Optional)</h4>
+                        <h4 className="text-sm font-medium text-blue-900">API Authentication</h4>
                         <p className="text-xs text-blue-700 mt-1">
-                          If SEND_NOTIFICATION_FORCE_AUTH is enabled, you must provide an API key.
+                          If API Authentication is enabled, you must provide an API key.
                         </p>
                       </div>
                     </div>
@@ -372,10 +374,7 @@ export const WebNotificationPage = () => {
                             value={formData.apikey}
                             onChange={handleChange}
                           />
-                        </div>
-                        <p className="mt-1 text-xs text-gray-500">
-                          Generate an API key using: node manage-api-keys.js generate &lt;client_id&gt;
-                        </p>
+                        </div>                      
                       </div>
 
                       <div>
@@ -392,10 +391,7 @@ export const WebNotificationPage = () => {
                             value={formData.client_id}
                             onChange={handleChange}
                           />
-                        </div>
-                        <p className="mt-1 text-xs text-gray-500">
-                          Providing client ID speeds up API key verification.
-                        </p>
+                        </div>                        
                       </div>
                     </div>
                   </div>
