@@ -44,7 +44,7 @@ Meteor.methods({
       insertData.appId = data.appId;
     }
 
-    NotificationHistory.insertAsync(insertData);
+    await NotificationHistory.insertAsync(insertData);
     
     // Return the notificationId instead of the insert result
     return notificationId;

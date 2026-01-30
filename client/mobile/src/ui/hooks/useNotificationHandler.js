@@ -5,7 +5,7 @@ import { Tracker } from 'meteor/tracker';
 
 const NOTIFICATION_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 
-export const useNotificationHandler = (userId, username, fetchNotificationHistory) => {
+export const useNotificationHandler = (userId, fetchNotificationHistory) => {
   const [isActionsModalOpen, setIsActionsModalOpen] = useState(false);
   const [isResultModalOpen, setIsResultModalOpen] = useState(false);
   const [currentAction, setCurrentAction] = useState(null);
@@ -92,7 +92,7 @@ export const useNotificationHandler = (userId, username, fetchNotificationHistor
 
     document.addEventListener('resume', handleAppResume);
     return () => document.removeEventListener('resume', handleAppResume);
-  }, [userId, displayedNotificationIdRef]);
+  }, [userId]);
 
   // Session tracker with cold start handling
   useEffect(() => {
