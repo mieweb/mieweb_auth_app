@@ -20,13 +20,13 @@ export const Layout = ({ children }) => {
             {/* Logo */}
             <div className="flex items-center space-x-3 cursor-pointer" onClick={() => window.location.href = '/'}>
               <img src="/logo.png" alt="Mieweb Auth Logo" className="w-14 h-14 rounded-lg" />
-              <span className="text-lg font-bold text-gray-900">Mieweb Auth</span>
+              <span className="text-lg font-bold text-gray-900">MIEWeb Auth</span>
             </div>
 
             {/* Desktop Navigation */}
             <nav className="hidden md:flex space-x-8">
               <Link to="/" className={isActive('/')}>Home</Link>
-              <Link to="/send-notification" className={isActive('/send-notification')}>Test it now</Link>
+              <Link to="/test-notification" className={isActive('/test-notification')}>Test it now</Link>
               <Link to="/privacy-policy" className={isActive('/privacy-policy')}>Privacy Policy</Link>
               <Link to="/support" className={isActive('/support')}>Support</Link>
             </nav>
@@ -55,7 +55,7 @@ export const Layout = ({ children }) => {
                 Home
               </Link>
               <Link 
-                to="/send-notification" 
+                to="/test-notification" 
                 className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
@@ -92,7 +92,7 @@ export const Layout = ({ children }) => {
             <div>
               <div className="flex items-center space-x-2 mb-4">
                 <img src="/logo.png" alt="Mieweb Auth Logo" className="w-12 h-12 rounded-md" />
-                <span className="text-xl font-bold">Mieweb Auth</span>
+                <span className="text-xl font-bold">MIEWeb Auth</span>
               </div>
               <p className="text-gray-400 text-sm">
                 Secure, seamless, and privacy-focused authentication for your applications.
@@ -118,7 +118,7 @@ export const Layout = ({ children }) => {
           </div>
           <div className="mt-8 border-t border-gray-800 pt-8 md:flex md:items-center md:justify-between">
             <p className="text-base text-gray-400">
-              &copy; {new Date().getFullYear()} Mieweb Auth. All rights reserved.
+              &copy; {new Date().getFullYear()} MIEWeb Auth. All rights reserved.
             </p>
           </div>
         </div>

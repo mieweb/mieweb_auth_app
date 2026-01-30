@@ -61,7 +61,7 @@ export const NotificationList = ({ notifications, isLoading, error }) => {
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-300 flex items-center">
                     <Smartphone className="h-4 w-4 mr-2" />
-                    Iphone 16
+                    {notification.status === 'pending' ? '—' : (notification.deviceModel || 'Unknown')}
                   </p>
                 </div>
               </div>

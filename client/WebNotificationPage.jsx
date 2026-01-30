@@ -5,9 +5,11 @@ import { Send, Bell, CheckCircle, AlertCircle, Clock, User, Smartphone, Info, Al
 
 export const WebNotificationPage = () => {
   const [formData, setFormData] = useState({
-    username: 'your_username',
-    title: 'Test Push Notification',
-    body: 'This is a test notification from Mieweb Auth.'
+    username: '',
+    title: '',
+    body: '',
+    apikey: '',
+    client_id: ''
   });
   const [status, setStatus] = useState(null);
   const [userAction, setUserAction] = useState(null);
@@ -36,25 +38,35 @@ export const WebNotificationPage = () => {
     try {
       console.log('Sending notification request...');
 
+      const payload = {
+        username: formData.username.trim(),
+        title: formData.title,
+        body: formData.body,
+        timeout: "",
+        restriction: "",
+        deviceType: "primary",
+        metaData: "server name, ip, source, etc",
+        actions: [
+          { icon: "approve", title: "Approve", callback: "approve" },
+          { icon: "reject", title: "Reject", callback: "reject" }
+        ]
+      };
+
+      // Include API key and client ID if provided
+      if (formData.apikey && formData.apikey.trim()) {
+        payload.apikey = formData.apikey.trim();
+      }
+      if (formData.client_id && formData.client_id.trim()) {
+        payload.client_id = formData.client_id.trim();
+      }
+
       const response = await fetch(Meteor.absoluteUrl('send-notification'), {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        body: JSON.stringify({
-          username: formData.username.trim(),
-          title: formData.title,
-          body: formData.body,
-          timeout: "",
-          restriction: "",
-          deviceType: "primary",
-          metaData: "server name, ip, source, etc",
-          actions: [
-            { icon: "approve", title: "Approve", callback: "approve" },
-            { icon: "reject", title: "Reject", callback: "reject" }
-          ]
-        })
+        body: JSON.stringify(payload)
       });
 
       // Parse response as JSON regardless of status
@@ -122,7 +134,7 @@ export const WebNotificationPage = () => {
             <div className="bg-white shadow rounded-lg p-6">
               <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
                 <Info className="w-5 h-5 mr-2 text-blue-600" />
-                MIEAuth Test Instructions
+                MIEWeb Auth Test Instructions
               </h2>
               <p className="text-sm text-gray-600 mb-4">
                 Test your Auth app, a professional two-factor authentication app using push notifications.
@@ -165,7 +177,7 @@ export const WebNotificationPage = () => {
                     <Bell className="w-6 h-6 text-blue-600" />
                   </div>
                   <div>
-                    <h1 className="text-xl font-bold text-gray-900">Test Mieweb Auth</h1>
+                    <h1 className="text-xl font-bold text-gray-900">Test MIEWeb Auth</h1>
                     <p className="mt-1 text-sm text-gray-500">
                       Send a test push notification to your registered device.
                     </p>
@@ -289,7 +301,7 @@ export const WebNotificationPage = () => {
                         name="username"
                         id="username"
                         className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-3 border"
-                        placeholder="Enter username"
+                        placeholder="e.g., your_username"
                         value={formData.username}
                         onChange={handleChange}
                       />
@@ -310,6 +322,7 @@ export const WebNotificationPage = () => {
                           name="title"
                           id="title"
                           className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                          placeholder="e.g., Test Push Notification"
                           value={formData.title}
                           onChange={handleChange}
                         />
@@ -326,9 +339,59 @@ export const WebNotificationPage = () => {
                           name="body"
                           id="body"
                           className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                          placeholder="e.g., This is a test notification from MIEWeb Auth."
                           value={formData.body}
                           onChange={handleChange}
                         />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* API Authentication Fields */}
+                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                    <div className="flex items-start mb-3">
+                      <Info className="w-5 h-5 text-blue-500 mr-2 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="text-sm font-medium text-blue-900">API Authentication</h4>
+                        <p className="text-xs text-blue-700 mt-1">
+                          If API Authentication is enabled, you must provide an API key.
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <label htmlFor="apikey" className="block text-sm font-medium text-gray-700">
+                          API Key
+                        </label>
+                        <div className="mt-1">
+                          <input
+                            type="password"
+                            name="apikey"
+                            id="apikey"
+                            className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                            placeholder="Enter your API key"
+                            value={formData.apikey}
+                            onChange={handleChange}
+                          />
+                        </div>                      
+                      </div>
+
+                      <div>
+                        <label htmlFor="client_id" className="block text-sm font-medium text-gray-700">
+                          Client ID <span className="text-gray-400">(Optional)</span>
+                        </label>
+                        <div className="mt-1">
+                          <input
+                            type="text"
+                            name="client_id"
+                            id="client_id"
+                            className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                            placeholder="e.g., ldap.example.com"
+                            value={formData.client_id}
+                            onChange={handleChange}
+                          />
+                        </div>                        
                       </div>
                     </div>
                   </div>
