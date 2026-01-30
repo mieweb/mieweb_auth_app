@@ -516,6 +516,139 @@ Meteor.methods({
     }
   },
 
+  async 'users.requestAccountDeletion'(data) {
+    check(data, {
+      email: Match.Where((email) => {
+        check(email, String);
+        // Validate email format and length
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return email.length >= 3 && email.length <= 254 && emailRegex.test(email);
+      }),
+      username: Match.Where((username) => {
+        check(username, String);
+        // Validate username length
+        return username.length >= 1 && username.length <= 100;
+      }),
+      reason: Match.Optional(Match.Where((reason) => {
+        check(reason, String);
+        // Validate reason length
+        return reason.length <= 1000;
+      }))
+    });
+
+    const { email, username, reason } = data;
+    const adminEmails = process.env.EMAIL_ADMIN;
+    const fromEmail = process.env.EMAIL_FROM;
+
+    if (!adminEmails || !fromEmail) {
+      throw new Meteor.Error('configuration-error', 'Email configuration is missing');
+    }
+
+    // Helper function to escape HTML to prevent XSS
+    const escapeHtml = (unsafe) => {
+      if (!unsafe) return '';
+      return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    };
+
+    // Normalize email to lowercase for consistent comparison
+    const normalizedEmail = email.toLowerCase();
+
+    // Allow other method calls from this client to run during async operations
+    this.unblock();
+
+    // Verify user exists using case-insensitive username match (consistent with users.register)
+    // Both email AND username must match the same user account
+    // Using MongoDB collation for case-insensitive matching (safe from ReDoS unlike regex)
+    const user = await Meteor.users.findOneAsync(
+      {
+        'emails.address': normalizedEmail,
+        username: username
+      },
+      {
+        collation: { locale: 'en', strength: 2 } // Case-insensitive comparison
+      }
+    );
+
+    if (!user) {
+      // Generic error message to prevent user enumeration
+      throw new Meteor.Error('invalid-request', 'Unable to process your request. Please verify that both your email and username are correct.');
+    }
+
+    try {
+      // Escape only user inputs that will be displayed in HTML (not ObjectId)
+      const safeUsername = escapeHtml(username);
+      const safeEmail = escapeHtml(email);
+      const safeReason = escapeHtml(reason);
+
+      // Sanitize username for email subject to prevent header injection
+      const subjectUsername = String(username).replace(/[\r\n]/g, '').trim();
+
+      // Send notification to admin
+      await Email.sendAsync({
+        to: adminEmails,
+        from: fromEmail,
+        subject: `[Account Deletion Request] ${subjectUsername}`,
+        html: `
+          <h3>Account Deletion Request</h3>
+          <p>A user has requested account deletion with the following details:</p>
+          <ul>
+            <li><strong>Username:</strong> ${safeUsername}</li>
+            <li><strong>Email:</strong> ${safeEmail}</li>
+            <li><strong>User ID:</strong> ${user._id}</li>
+            <li><strong>Reason:</strong> ${safeReason || 'Not provided'}</li>
+          </ul>
+          <p><strong>Submitted:</strong> ${new Date().toLocaleString()}</p>
+          <hr />
+          <p>Please review and process this deletion request.</p>
+          <p><strong>Note:</strong> All user data including:</p>
+          <ul>
+            <li>User account and profile information</li>
+            <li>Device details and FCM tokens</li>
+            <li>Notification history</li>
+            <li>Approval tokens</li>
+          </ul>
+          <p>will be permanently deleted.</p>
+        `
+      });
+
+      // Send confirmation to user
+      await Email.sendAsync({
+        to: normalizedEmail,
+        from: fromEmail,
+        subject: 'Account Deletion Request Received',
+        html: `
+          <h3>Account Deletion Request Confirmation</h3>
+          <p>Hello ${safeUsername},</p>
+          <p>We have received your request to delete your account. Your request will be processed within 30 days.</p>
+          <p><strong>What happens next:</strong></p>
+          <ul>
+            <li>Our team will review your request</li>
+            <li>You will receive a confirmation email when the deletion is complete</li>
+            <li>All your data will be permanently deleted</li>
+          </ul>
+          <p>If you did not make this request, please contact us immediately.</p>
+          <br />
+          <p>Best regards,<br />The MIEWeb Auth Team</p>
+        `
+      });
+
+      return { success: true };
+    } catch (error) {
+      // Only log full error details in development to avoid exposing sensitive info
+      if (Meteor.isDevelopment) {
+        console.error('Error sending deletion request email:', error);
+      } else {
+        console.error('Error sending deletion request email');
+      }
+      throw new Meteor.Error('email-error', 'Failed to send deletion request');
+    }
+  },
+
   async 'users.checkRegistrationStatus'({ userId, email }) {
     check(userId, Match.Maybe(String));
     check(email, Match.Maybe(String));
