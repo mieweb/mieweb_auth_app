@@ -9,6 +9,7 @@ import { DeviceDetails } from "../utils/api/deviceDetails.js";
 import { NotificationHistory } from "../utils/api/notificationHistory.js"
 import { ApprovalTokens } from "../utils/api/approvalTokens";
 import { PendingResponses } from "../utils/api/pendingResponses.js";
+import { ApiKeys } from "../utils/api/apiKeys.js";
 import { isValidToken } from "../utils/utils";
 import { successTemplate, errorTemplate, rejectionTemplate, previouslyUsedTemplate } from './templates/email';
 import dotenv from 'dotenv';
@@ -23,7 +24,7 @@ dotenv.config();
  * @returns {String} Notification ID
  */
 const saveUserNotificationHistory = async (notification) => {
-  const { appId, title, body, userId } = notification;
+  const { appId, title, body, userId, clientId } = notification;
 
   if (!userId) {
     console.error("No userId provided for notification history");
@@ -35,6 +36,9 @@ const saveUserNotificationHistory = async (notification) => {
     const insertData = { userId, title, body };
     if (appId) {
       insertData.appId = appId;
+    }
+    if (clientId) {
+      insertData.clientId = clientId;
     }
     
     // Generate a unique notification ID
@@ -142,7 +146,40 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
       
       console.log("Parsed request body:", requestBody);
       
-      const { username, title, body: messageBody, actions } = requestBody;
+      const { username, title, body: messageBody, actions, apikey, client_id } = requestBody;
+      
+      // Check if authentication is required
+      const forceAuth = process.env.SEND_NOTIFICATION_FORCE_AUTH === 'true';
+      let clientId = 'unspecified';
+      
+      if (forceAuth || apikey) {
+        // Verify API key if force auth is enabled or if apikey is provided
+        if (!apikey) {
+          console.error("API key required but not provided");
+          res.writeHead(403, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({
+            success: false,
+            error: "API key authentication required"
+          }));
+          return;
+        }
+        
+        // Verify the API key
+        const verificationResult = await Meteor.callAsync('apiKeys.verify', apikey, client_id);
+        
+        if (!verificationResult.isValid) {
+          console.error("Invalid API key provided");
+          res.writeHead(403, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({
+            success: false,
+            error: "Invalid API key"
+          }));
+          return;
+        }
+        
+        clientId = verificationResult.clientId;
+        console.log(`Request authenticated for client: ${clientId}`);
+      }
       
       // Validate required fields
       if (!username) throw new Error("Username is required");
@@ -230,11 +267,12 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
       await Promise.all(notificationPromises);
       console.log("All notifications sent successfully");
       
-      // Save notification history (without appId - will be set when device responds)
+      // Save notification history with clientId
       await saveUserNotificationHistory({
         title,
         body: messageBody,
-        userId: userDoc.userId
+        userId: userDoc.userId,
+        clientId
       });
       
       // Create a unique request ID for this notification

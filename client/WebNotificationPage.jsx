@@ -7,7 +7,9 @@ export const WebNotificationPage = () => {
   const [formData, setFormData] = useState({
     username: 'your_username',
     title: 'Test Push Notification',
-    body: 'This is a test notification from MIEWeb Auth.'
+    body: 'This is a test notification from MIEWeb Auth.',
+    apikey: '',
+    client_id: ''
   });
   const [status, setStatus] = useState(null);
   const [userAction, setUserAction] = useState(null);
@@ -36,25 +38,35 @@ export const WebNotificationPage = () => {
     try {
       console.log('Sending notification request...');
 
+      const payload = {
+        username: formData.username.trim(),
+        title: formData.title,
+        body: formData.body,
+        timeout: "",
+        restriction: "",
+        deviceType: "primary",
+        metaData: "server name, ip, source, etc",
+        actions: [
+          { icon: "approve", title: "Approve", callback: "approve" },
+          { icon: "reject", title: "Reject", callback: "reject" }
+        ]
+      };
+
+      // Include API key and client ID if provided
+      if (formData.apikey && formData.apikey.trim()) {
+        payload.apikey = formData.apikey.trim();
+      }
+      if (formData.client_id && formData.client_id.trim()) {
+        payload.client_id = formData.client_id.trim();
+      }
+
       const response = await fetch(Meteor.absoluteUrl('send-notification'), {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        body: JSON.stringify({
-          username: formData.username.trim(),
-          title: formData.title,
-          body: formData.body,
-          timeout: "",
-          restriction: "",
-          deviceType: "primary",
-          metaData: "server name, ip, source, etc",
-          actions: [
-            { icon: "approve", title: "Approve", callback: "approve" },
-            { icon: "reject", title: "Reject", callback: "reject" }
-          ]
-        })
+        body: JSON.stringify(payload)
       });
 
       // Parse response as JSON regardless of status
@@ -329,6 +341,61 @@ export const WebNotificationPage = () => {
                           value={formData.body}
                           onChange={handleChange}
                         />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* API Authentication Fields */}
+                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                    <div className="flex items-start mb-3">
+                      <Info className="w-5 h-5 text-blue-500 mr-2 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="text-sm font-medium text-blue-900">API Authentication (Optional)</h4>
+                        <p className="text-xs text-blue-700 mt-1">
+                          If SEND_NOTIFICATION_FORCE_AUTH is enabled, you must provide an API key.
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <label htmlFor="apikey" className="block text-sm font-medium text-gray-700">
+                          API Key
+                        </label>
+                        <div className="mt-1">
+                          <input
+                            type="password"
+                            name="apikey"
+                            id="apikey"
+                            className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                            placeholder="Enter your API key"
+                            value={formData.apikey}
+                            onChange={handleChange}
+                          />
+                        </div>
+                        <p className="mt-1 text-xs text-gray-500">
+                          Generate an API key using: node manage-api-keys.js generate &lt;client_id&gt;
+                        </p>
+                      </div>
+
+                      <div>
+                        <label htmlFor="client_id" className="block text-sm font-medium text-gray-700">
+                          Client ID <span className="text-gray-400">(Optional)</span>
+                        </label>
+                        <div className="mt-1">
+                          <input
+                            type="text"
+                            name="client_id"
+                            id="client_id"
+                            className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                            placeholder="e.g., ldap.example.com"
+                            value={formData.client_id}
+                            onChange={handleChange}
+                          />
+                        </div>
+                        <p className="mt-1 text-xs text-gray-500">
+                          Providing client ID speeds up API key verification.
+                        </p>
                       </div>
                     </div>
                   </div>

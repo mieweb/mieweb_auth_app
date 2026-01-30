@@ -59,7 +59,7 @@ export const AppRoutes = ({ isRegistered, deviceUuid }) => {
           element={<PendingRegistrationPage />}
         />
         <Route
-          path="/send-notification"
+          path="/test-notification"
           element={<WebNotificationPage />}
         />
       </Routes>

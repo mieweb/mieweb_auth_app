@@ -275,5 +275,324 @@ describe("meteor-app", function () {
         assert.strictEqual(await ApprovalTokens.find().countAsync(), 0);
       });
     });
+
+    describe("API Key Authentication", function () {
+      const { ApiKeys, hashApiKey, verifyApiKey } = require("../utils/api/apiKeys");
+      const crypto = require('crypto');
+
+      beforeEach(async function () {
+        // Clean up API keys before each test
+        await ApiKeys.removeAsync({});
+      });
+
+      afterEach(async function () {
+        // Clean up after each test
+        await ApiKeys.removeAsync({});
+      });
+
+      describe("hashApiKey function", function () {
+        it("should produce consistent hashes with the same salt", function () {
+          const apiKey = "test-api-key-123";
+          const salt = crypto.randomBytes(32).toString('hex');
+          
+          const result1 = hashApiKey(apiKey, salt);
+          const result2 = hashApiKey(apiKey, salt);
+          
+          assert.strictEqual(result1.hashedKey, result2.hashedKey, "Same key and salt should produce same hash");
+          assert.strictEqual(result1.salt, result2.salt, "Salt should be returned unchanged");
+        });
+
+        it("should produce different hashes with different salts", function () {
+          const apiKey = "test-api-key-123";
+          const salt1 = crypto.randomBytes(32).toString('hex');
+          const salt2 = crypto.randomBytes(32).toString('hex');
+          
+          const result1 = hashApiKey(apiKey, salt1);
+          const result2 = hashApiKey(apiKey, salt2);
+          
+          assert.notStrictEqual(result1.hashedKey, result2.hashedKey, "Different salts should produce different hashes");
+        });
+
+        it("should generate a salt if none provided", function () {
+          const apiKey = "test-api-key-123";
+          
+          const result = hashApiKey(apiKey);
+          
+          assert.ok(result.salt, "Should generate a salt");
+          assert.strictEqual(result.salt.length, 64, "Salt should be 64 hex characters (32 bytes)");
+          assert.ok(result.hashedKey, "Should generate a hash");
+        });
+
+        it("should produce a 128-character hex hash (64 bytes)", function () {
+          const apiKey = "test-api-key-123";
+          
+          const result = hashApiKey(apiKey);
+          
+          assert.strictEqual(result.hashedKey.length, 128, "Hash should be 128 hex characters");
+        });
+      });
+
+      describe("verifyApiKey function", function () {
+        it("should return true for valid key/hash pairs", function () {
+          const apiKey = "test-api-key-for-verification";
+          const { hashedKey, salt } = hashApiKey(apiKey);
+          
+          const isValid = verifyApiKey(apiKey, hashedKey, salt);
+          
+          assert.strictEqual(isValid, true, "Should verify correct API key");
+        });
+
+        it("should return false for incorrect API keys", function () {
+          const apiKey = "correct-api-key";
+          const wrongKey = "wrong-api-key";
+          const { hashedKey, salt } = hashApiKey(apiKey);
+          
+          const isValid = verifyApiKey(wrongKey, hashedKey, salt);
+          
+          assert.strictEqual(isValid, false, "Should reject incorrect API key");
+        });
+
+        it("should return false for incorrect salt", function () {
+          const apiKey = "test-api-key";
+          const { hashedKey, salt } = hashApiKey(apiKey);
+          const wrongSalt = crypto.randomBytes(32).toString('hex');
+          
+          const isValid = verifyApiKey(apiKey, hashedKey, wrongSalt);
+          
+          assert.strictEqual(isValid, false, "Should reject with incorrect salt");
+        });
+      });
+
+      describe("apiKeys.create method", function () {
+        it("should create a new API key and return it", async function () {
+          const clientId = "test-client.example.com";
+          
+          const apiKey = await Meteor.callAsync('apiKeys.create', clientId);
+          
+          assert.ok(apiKey, "Should return an API key");
+          assert.strictEqual(apiKey.length, 64, "API key should be 64 hex characters");
+          
+          // Verify it was stored
+          const stored = await ApiKeys.findOneAsync({ clientId });
+          assert.ok(stored, "Should store the key in database");
+          assert.ok(stored.hashedKey, "Should store hashed key");
+          assert.ok(stored.salt, "Should store salt");
+          assert.ok(stored.createdAt, "Should store creation date");
+        });
+
+        it("should reject duplicate client IDs", async function () {
+          const clientId = "duplicate-client.example.com";
+          
+          // Create first key
+          await Meteor.callAsync('apiKeys.create', clientId);
+          
+          // Try to create duplicate
+          try {
+            await Meteor.callAsync('apiKeys.create', clientId);
+            assert.fail("Should have thrown an error");
+          } catch (error) {
+            assert.strictEqual(error.error, 'client-exists', "Should throw client-exists error");
+          }
+        });
+
+        it("should reject 'unspecified' as client ID", async function () {
+          try {
+            await Meteor.callAsync('apiKeys.create', 'unspecified');
+            assert.fail("Should have thrown an error");
+          } catch (error) {
+            assert.strictEqual(error.error, 'invalid-client-id', "Should throw invalid-client-id error");
+          }
+        });
+
+        it("should reject 'UNSPECIFIED' (case-insensitive) as client ID", async function () {
+          try {
+            await Meteor.callAsync('apiKeys.create', 'UNSPECIFIED');
+            assert.fail("Should have thrown an error");
+          } catch (error) {
+            assert.strictEqual(error.error, 'invalid-client-id', "Should throw invalid-client-id error");
+          }
+        });
+      });
+
+      describe("apiKeys.verify method", function () {
+        it("should validate correct API keys", async function () {
+          const clientId = "verify-test.example.com";
+          const apiKey = await Meteor.callAsync('apiKeys.create', clientId);
+          
+          const result = await Meteor.callAsync('apiKeys.verify', apiKey, clientId);
+          
+          assert.strictEqual(result.isValid, true, "Should validate correct key");
+          assert.strictEqual(result.clientId, clientId, "Should return correct client ID");
+        });
+
+        it("should validate correct API keys without client ID hint", async function () {
+          const clientId = "verify-no-hint.example.com";
+          const apiKey = await Meteor.callAsync('apiKeys.create', clientId);
+          
+          const result = await Meteor.callAsync('apiKeys.verify', apiKey);
+          
+          assert.strictEqual(result.isValid, true, "Should validate correct key");
+          assert.strictEqual(result.clientId, clientId, "Should return correct client ID");
+        });
+
+        it("should reject incorrect API keys", async function () {
+          const clientId = "reject-test.example.com";
+          await Meteor.callAsync('apiKeys.create', clientId);
+          
+          const result = await Meteor.callAsync('apiKeys.verify', 'wrong-api-key', clientId);
+          
+          assert.strictEqual(result.isValid, false, "Should reject incorrect key");
+          assert.strictEqual(result.clientId, null, "Should return null client ID");
+        });
+
+        it("should reject API keys for non-existent clients", async function () {
+          const result = await Meteor.callAsync('apiKeys.verify', 'any-key', 'non-existent-client');
+          
+          assert.strictEqual(result.isValid, false, "Should reject key for non-existent client");
+        });
+
+        it("should update lastUsed timestamp on successful verification", async function () {
+          const clientId = "timestamp-test.example.com";
+          const apiKey = await Meteor.callAsync('apiKeys.create', clientId);
+          
+          // Initially lastUsed should be null
+          let stored = await ApiKeys.findOneAsync({ clientId });
+          assert.strictEqual(stored.lastUsed, null, "lastUsed should be null initially");
+          
+          // Verify the key
+          await Meteor.callAsync('apiKeys.verify', apiKey, clientId);
+          
+          // Check lastUsed was updated
+          stored = await ApiKeys.findOneAsync({ clientId });
+          assert.ok(stored.lastUsed, "lastUsed should be updated");
+          assert.ok(stored.lastUsed instanceof Date, "lastUsed should be a Date");
+        });
+
+        it("should reject 'unspecified' as client ID", async function () {
+          const result = await Meteor.callAsync('apiKeys.verify', 'any-key', 'unspecified');
+          
+          assert.strictEqual(result.isValid, false, "Should reject unspecified client ID");
+        });
+      });
+
+      describe("apiKeys.list method", function () {
+        it("should return all keys with metadata", async function () {
+          // Create some keys
+          await Meteor.callAsync('apiKeys.create', 'list-test-1.example.com');
+          await Meteor.callAsync('apiKeys.create', 'list-test-2.example.com');
+          
+          const keys = await Meteor.callAsync('apiKeys.list');
+          
+          assert.strictEqual(keys.length, 2, "Should return 2 keys");
+          assert.ok(keys[0].clientId, "Should include clientId");
+          assert.ok(keys[0].createdAt, "Should include createdAt");
+          assert.ok(!keys[0].hashedKey, "Should NOT include hashedKey");
+          assert.ok(!keys[0].salt, "Should NOT include salt");
+        });
+
+        it("should return empty array when no keys exist", async function () {
+          const keys = await Meteor.callAsync('apiKeys.list');
+          
+          assert.strictEqual(keys.length, 0, "Should return empty array");
+        });
+      });
+
+      describe("apiKeys.delete method", function () {
+        it("should delete an existing key", async function () {
+          const clientId = "delete-test.example.com";
+          await Meteor.callAsync('apiKeys.create', clientId);
+          
+          const result = await Meteor.callAsync('apiKeys.delete', clientId);
+          
+          assert.strictEqual(result, true, "Should return true on successful delete");
+          
+          // Verify it was deleted
+          const stored = await ApiKeys.findOneAsync({ clientId });
+          assert.strictEqual(stored, undefined, "Key should be deleted");
+        });
+
+        it("should return false for non-existent keys", async function () {
+          const result = await Meteor.callAsync('apiKeys.delete', 'non-existent-client');
+          
+          assert.strictEqual(result, false, "Should return false for non-existent key");
+        });
+      });
+
+      describe("apiKeys.regenerate method", function () {
+        it("should generate a new key and invalidate the old one", async function () {
+          const clientId = "regenerate-test.example.com";
+          const oldKey = await Meteor.callAsync('apiKeys.create', clientId);
+          
+          const newKey = await Meteor.callAsync('apiKeys.regenerate', clientId);
+          
+          assert.ok(newKey, "Should return new key");
+          assert.notStrictEqual(newKey, oldKey, "New key should be different");
+          
+          // Old key should no longer work
+          const oldResult = await Meteor.callAsync('apiKeys.verify', oldKey, clientId);
+          assert.strictEqual(oldResult.isValid, false, "Old key should be invalid");
+          
+          // New key should work
+          const newResult = await Meteor.callAsync('apiKeys.verify', newKey, clientId);
+          assert.strictEqual(newResult.isValid, true, "New key should be valid");
+        });
+
+        it("should reject regeneration for non-existent clients", async function () {
+          try {
+            await Meteor.callAsync('apiKeys.regenerate', 'non-existent-client');
+            assert.fail("Should have thrown an error");
+          } catch (error) {
+            assert.strictEqual(error.error, 'client-not-found', "Should throw client-not-found error");
+          }
+        });
+
+        it("should reject 'unspecified' as client ID", async function () {
+          try {
+            await Meteor.callAsync('apiKeys.regenerate', 'unspecified');
+            assert.fail("Should have thrown an error");
+          } catch (error) {
+            assert.strictEqual(error.error, 'invalid-client-id', "Should throw invalid-client-id error");
+          }
+        });
+      });
+    });
+
+    describe("Notification History clientId tracking", function () {
+      const { NotificationHistory } = require("../utils/api/notificationHistory");
+
+      beforeEach(async function () {
+        await NotificationHistory.removeAsync({});
+      });
+
+      afterEach(async function () {
+        await NotificationHistory.removeAsync({});
+      });
+
+      it("should default clientId to 'unspecified' when not provided", async function () {
+        const notificationId = await Meteor.callAsync('notificationHistory.insert', {
+          userId: 'test-user-id',
+          title: 'Test Notification',
+          body: 'Test body'
+        });
+        
+        const notification = await NotificationHistory.findOneAsync({ _id: notificationId });
+        
+        assert.strictEqual(notification.clientId, 'unspecified', "Should default to 'unspecified'");
+      });
+
+      it("should store provided clientId", async function () {
+        const clientId = 'ldap.example.com';
+        const notificationId = await Meteor.callAsync('notificationHistory.insert', {
+          userId: 'test-user-id',
+          title: 'Test Notification',
+          body: 'Test body',
+          clientId: clientId
+        });
+        
+        const notification = await NotificationHistory.findOneAsync({ _id: notificationId });
+        
+        assert.strictEqual(notification.clientId, clientId, "Should store provided clientId");
+      });
+    });
   }
 });
