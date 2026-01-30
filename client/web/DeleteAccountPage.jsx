@@ -14,9 +14,9 @@ export const DeleteAccountPage = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    // Only trim for email and username, allow spaces in reason
-    const processedValue = (name === 'email' || name === 'username') ? value.trim() : value;
-    setFormData(prev => ({ ...prev, [name]: processedValue }));
+    // Don't trim on keystroke - it removes spaces while typing, confusing users
+    // Trimming is done in handleSubmit before API call
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const validateForm = () => {
@@ -67,8 +67,15 @@ export const DeleteAccountPage = () => {
     
     setIsSubmitting(true);
 
+    // Trim email and username before sending to API
+    const trimmedData = {
+      email: formData.email.trim(),
+      username: formData.username.trim(),
+      reason: formData.reason
+    };
+
     try {
-      await Meteor.callAsync('users.requestAccountDeletion', formData);
+      await Meteor.callAsync('users.requestAccountDeletion', trimmedData);
       setStatus({
         type: 'success',
         message: 'Account deletion request submitted successfully. You will receive a confirmation email shortly.'

@@ -515,19 +515,26 @@ Meteor.methods({
     // Normalize email to lowercase for consistent comparison
     const normalizedEmail = email.toLowerCase();
 
-    // Verify user exists using exact match (no regex to prevent ReDoS)
+    // Allow other method calls from this client to run during async operations
+    this.unblock();
+
+    // Verify user exists using case-insensitive username match (consistent with users.register)
     // Both email AND username must match the same user account
-    const user = await Meteor.users.findOneAsync({
-      'emails.address': normalizedEmail,
-      username: username
-    });
+    // Using MongoDB collation for case-insensitive matching (safe from ReDoS unlike regex)
+    const user = await Meteor.users.findOneAsync(
+      {
+        'emails.address': normalizedEmail,
+        username: username
+      },
+      {
+        collation: { locale: 'en', strength: 2 } // Case-insensitive comparison
+      }
+    );
 
     if (!user) {
       // Generic error message to prevent user enumeration
       throw new Meteor.Error('invalid-request', 'Unable to process your request. Please verify that both your email and username are correct.');
     }
-
-    this.unblock();
 
     try {
       // Escape only user inputs that will be displayed in HTML (not ObjectId)
@@ -535,11 +542,14 @@ Meteor.methods({
       const safeEmail = escapeHtml(email);
       const safeReason = escapeHtml(reason);
 
-      // Send notification to admin (username in subject is plain text, no escaping needed)
+      // Sanitize username for email subject to prevent header injection
+      const subjectUsername = String(username).replace(/[\r\n]/g, '').trim();
+
+      // Send notification to admin
       await Email.sendAsync({
         to: adminEmails,
         from: fromEmail,
-        subject: `[Account Deletion Request] ${username}`,
+        subject: `[Account Deletion Request] ${subjectUsername}`,
         html: `
           <h3>Account Deletion Request</h3>
           <p>A user has requested account deletion with the following details:</p>
@@ -586,7 +596,12 @@ Meteor.methods({
 
       return { success: true };
     } catch (error) {
-      console.error('Error sending deletion request email:', error);
+      // Only log full error details in development to avoid exposing sensitive info
+      if (Meteor.isDevelopment) {
+        console.error('Error sending deletion request email:', error);
+      } else {
+        console.error('Error sending deletion request email');
+      }
       throw new Meteor.Error('email-error', 'Failed to send deletion request');
     }
   },
