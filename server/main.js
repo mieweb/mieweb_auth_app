@@ -9,7 +9,7 @@ import { DeviceDetails } from "../utils/api/deviceDetails.js";
 import { NotificationHistory } from "../utils/api/notificationHistory.js"
 import { ApprovalTokens } from "../utils/api/approvalTokens";
 import { PendingResponses } from "../utils/api/pendingResponses.js";
-import { ApiKeys } from "../utils/api/apiKeys.js";
+import "../utils/api/apiKeys.js"; // Import for side effects (Meteor methods registration)
 import { isValidToken } from "../utils/utils";
 import { successTemplate, errorTemplate, rejectionTemplate, previouslyUsedTemplate } from './templates/email';
 import dotenv from 'dotenv';
@@ -144,7 +144,12 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
         throw new Error("Invalid JSON in request body");
       }
       
-      console.log("Parsed request body:", requestBody);
+      // Log request body with sensitive fields redacted
+      const sanitizedBody = { ...requestBody };
+      if (sanitizedBody.apikey) {
+        sanitizedBody.apikey = '[REDACTED]';
+      }
+      console.log("Parsed request body:", sanitizedBody);
       
       const { username, title, body: messageBody, actions, apikey, client_id } = requestBody;
       

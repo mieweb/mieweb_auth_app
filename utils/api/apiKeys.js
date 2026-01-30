@@ -1,8 +1,18 @@
 import { Mongo } from 'meteor/mongo';
 import { check } from 'meteor/check';
 import crypto from 'crypto';
+import { promisify } from 'util';
 
 export const ApiKeys = new Mongo.Collection('apiKeys');
+
+// Promisify pbkdf2 for async usage
+const pbkdf2Async = promisify(crypto.pbkdf2);
+
+// Centralized PBKDF2 parameters - shared with CLI tool
+export const PBKDF2_ITERATIONS = 100000;
+export const PBKDF2_KEY_LENGTH = 64;
+export const PBKDF2_DIGEST = 'sha512';
+export const SALT_BYTES = 32;
 
 // Create indexes for better query performance
 if (Meteor.isServer) {
@@ -13,20 +23,32 @@ if (Meteor.isServer) {
 }
 
 /**
- * Hash an API key using PBKDF2
+ * Hash an API key using PBKDF2 (synchronous version for tests)
  * @param {string} apiKey - The plain API key
  * @param {string} salt - Optional salt (generated if not provided)
  * @returns {object} Object with hashedKey and salt
  */
 export const hashApiKey = (apiKey, salt = null) => {
-  const actualSalt = salt || crypto.randomBytes(32).toString('hex');
+  const actualSalt = salt || crypto.randomBytes(SALT_BYTES).toString('hex');
   // Use PBKDF2 - 100k iterations with SHA-512 provides strong security
-  const hashedKey = crypto.pbkdf2Sync(apiKey, actualSalt, 100000, 64, 'sha512').toString('hex');
+  const hashedKey = crypto.pbkdf2Sync(apiKey, actualSalt, PBKDF2_ITERATIONS, PBKDF2_KEY_LENGTH, PBKDF2_DIGEST).toString('hex');
   return { hashedKey, salt: actualSalt };
 };
 
 /**
- * Verify an API key against a stored hash
+ * Hash an API key using PBKDF2 (async version - non-blocking)
+ * @param {string} apiKey - The plain API key
+ * @param {string} salt - Optional salt (generated if not provided)
+ * @returns {Promise<object>} Object with hashedKey and salt
+ */
+export const hashApiKeyAsync = async (apiKey, salt = null) => {
+  const actualSalt = salt || crypto.randomBytes(SALT_BYTES).toString('hex');
+  const hashedKeyBuffer = await pbkdf2Async(apiKey, actualSalt, PBKDF2_ITERATIONS, PBKDF2_KEY_LENGTH, PBKDF2_DIGEST);
+  return { hashedKey: hashedKeyBuffer.toString('hex'), salt: actualSalt };
+};
+
+/**
+ * Verify an API key against a stored hash using timing-safe comparison
  * @param {string} apiKey - The plain API key to verify
  * @param {string} storedHash - The stored hash
  * @param {string} salt - The salt used for hashing
@@ -34,16 +56,52 @@ export const hashApiKey = (apiKey, salt = null) => {
  */
 export const verifyApiKey = (apiKey, storedHash, salt) => {
   const { hashedKey } = hashApiKey(apiKey, salt);
-  return hashedKey === storedHash;
+  
+  // Use timing-safe comparison to prevent timing attacks
+  const hashedKeyBuffer = Buffer.from(hashedKey, 'hex');
+  const storedHashBuffer = Buffer.from(storedHash, 'hex');
+  
+  if (hashedKeyBuffer.length !== storedHashBuffer.length) {
+    return false;
+  }
+  
+  return crypto.timingSafeEqual(hashedKeyBuffer, storedHashBuffer);
+};
+
+/**
+ * Verify an API key against a stored hash using timing-safe comparison (async version)
+ * @param {string} apiKey - The plain API key to verify
+ * @param {string} storedHash - The stored hash
+ * @param {string} salt - The salt used for hashing
+ * @returns {Promise<boolean>} True if the key matches
+ */
+export const verifyApiKeyAsync = async (apiKey, storedHash, salt) => {
+  const { hashedKey } = await hashApiKeyAsync(apiKey, salt);
+  
+  // Use timing-safe comparison to prevent timing attacks
+  const hashedKeyBuffer = Buffer.from(hashedKey, 'hex');
+  const storedHashBuffer = Buffer.from(storedHash, 'hex');
+  
+  if (hashedKeyBuffer.length !== storedHashBuffer.length) {
+    return false;
+  }
+  
+  return crypto.timingSafeEqual(hashedKeyBuffer, storedHashBuffer);
 };
 
 Meteor.methods({
   /**
    * Create a new API key for a client
+   * Server-only method - cannot be called from client
    * @param {string} clientId - The client identifier (e.g., ldap.example.com)
    * @returns {string} The generated API key (only returned once)
    */
   'apiKeys.create': async function (clientId) {
+    // Authorization: Only allow server-side calls (no DDP connection)
+    if (this.connection) {
+      throw new Meteor.Error('unauthorized', 'This method can only be called from the server');
+    }
+    
     check(clientId, String);
 
     // Reject 'unspecified' as a client ID
@@ -78,6 +136,7 @@ Meteor.methods({
 
   /**
    * Verify an API key for a client
+   * This method is intentionally callable from anywhere (needed for endpoint auth)
    * @param {string} apiKey - The API key to verify
    * @param {string} clientId - Optional client ID to speed up lookup
    * @returns {object} Object with isValid and clientId
@@ -102,7 +161,8 @@ Meteor.methods({
         return { isValid: false, clientId: null };
       }
       
-      const isValid = verifyApiKey(apiKey, keyDoc.hashedKey, keyDoc.salt);
+      // Use async version to avoid blocking event loop
+      const isValid = await verifyApiKeyAsync(apiKey, keyDoc.hashedKey, keyDoc.salt);
       
       if (isValid) {
         // Update last used timestamp
@@ -126,7 +186,8 @@ Meteor.methods({
         continue;
       }
       
-      if (verifyApiKey(apiKey, doc.hashedKey, doc.salt)) {
+      // Use async version to avoid blocking event loop
+      if (await verifyApiKeyAsync(apiKey, doc.hashedKey, doc.salt)) {
         // Update last used timestamp
         await ApiKeys.updateAsync(
           { _id: doc._id },
@@ -142,9 +203,15 @@ Meteor.methods({
 
   /**
    * List all API keys (without revealing the actual keys)
+   * Server-only method - cannot be called from client
    * @returns {Array} Array of client IDs with metadata
    */
   'apiKeys.list': async function () {
+    // Authorization: Only allow server-side calls (no DDP connection)
+    if (this.connection) {
+      throw new Meteor.Error('unauthorized', 'This method can only be called from the server');
+    }
+    
     const keys = await ApiKeys.find(
       {},
       { fields: { clientId: 1, createdAt: 1, lastUsed: 1 } }
@@ -159,10 +226,16 @@ Meteor.methods({
 
   /**
    * Delete an API key for a client
+   * Server-only method - cannot be called from client
    * @param {string} clientId - The client identifier
    * @returns {boolean} True if deleted
    */
   'apiKeys.delete': async function (clientId) {
+    // Authorization: Only allow server-side calls (no DDP connection)
+    if (this.connection) {
+      throw new Meteor.Error('unauthorized', 'This method can only be called from the server');
+    }
+    
     check(clientId, String);
     
     const result = await ApiKeys.removeAsync({ clientId });
@@ -173,10 +246,16 @@ Meteor.methods({
 
   /**
    * Regenerate an API key for a client
+   * Server-only method - cannot be called from client
    * @param {string} clientId - The client identifier
    * @returns {string} The new API key
    */
   'apiKeys.regenerate': async function (clientId) {
+    // Authorization: Only allow server-side calls (no DDP connection)
+    if (this.connection) {
+      throw new Meteor.Error('unauthorized', 'This method can only be called from the server');
+    }
+    
     check(clientId, String);
 
     // Reject 'unspecified' as a client ID

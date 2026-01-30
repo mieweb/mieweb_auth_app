@@ -129,9 +129,11 @@ curl -X POST http://localhost:3000/send-notification \
 
 1. **One-way hashing**: API keys are hashed with PBKDF2 and cannot be recovered from the database
 2. **Unique salts**: Each key has its own salt, preventing rainbow table attacks
-3. **Timing-safe comparison**: Verification uses constant-time comparison
-4. **Key shown once**: The plain API key is only displayed when generated/regenerated
-5. **Reserved 'unspecified'**: Cannot be used as a client ID to prevent spoofing
+3. **Timing-safe comparison**: Verification uses `crypto.timingSafeEqual()` for constant-time comparison to prevent timing attacks
+4. **Non-blocking hashing**: Uses async PBKDF2 to avoid blocking the event loop during request handling
+5. **Key shown once**: The plain API key is only displayed when generated/regenerated
+6. **Reserved 'unspecified'**: Cannot be used as a client ID to prevent spoofing
+7. **Server-only methods**: API key management methods (create, list, delete, regenerate) can only be called from the server
 
 ## Web UI Changes
 

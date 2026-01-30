@@ -335,9 +335,9 @@ describe("meteor-app", function () {
       describe("verifyApiKey function", function () {
         it("should return true for valid key/hash pairs", function () {
           const apiKey = "test-api-key-for-verification";
-          const { hashedKey, salt } = hashApiKey(apiKey);
+          const result = hashApiKey(apiKey);
           
-          const isValid = verifyApiKey(apiKey, hashedKey, salt);
+          const isValid = verifyApiKey(apiKey, result.hashedKey, result.salt);
           
           assert.strictEqual(isValid, true, "Should verify correct API key");
         });
