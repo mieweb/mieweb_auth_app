@@ -1,5 +1,5 @@
 import { Mongo } from 'meteor/mongo';
-import { check } from 'meteor/check';
+import { check, Match } from 'meteor/check';
 import { Random } from 'meteor/random';
 
 export const NotificationHistory = new Mongo.Collection('notificationHistory');
@@ -11,31 +11,47 @@ if (Meteor.isServer) {
     NotificationHistory.createIndex({ appId: 1 });
     NotificationHistory.createIndex({ notificationId: 1 });
     NotificationHistory.createIndex({ status: 1 });
+    NotificationHistory.createIndex({ clientId: 1 });
   });
 }
 
 Meteor.methods({
   // Insert a new notification into the history
   'notificationHistory.insert': function (data) {
-    check(data, {
+    check(data, Match.ObjectIncluding({
       userId: String,
-      appId: String,
       title: String,
       body: String,
-    });
+    }));
+    // appId and clientId are optional
+    if (data.appId !== undefined) {
+      check(data.appId, String);
+    }
+    if (data.clientId !== undefined) {
+      check(data.clientId, String);
+    }
 
     // Dynamically generate a unique notificationId
     const notificationId = Random.id();
 
-    return NotificationHistory.insertAsync({
+    const insertData = {
       userId: data.userId,
-      appId: data.appId,
       notificationId: notificationId,
       title: data.title,
       body: data.body,
       status: 'pending',
       createdAt: new Date()
-    });
+    };
+    
+    // Only include appId if provided
+    if (data.appId) {
+      insertData.appId = data.appId;
+    }
+    
+    // Include clientId (defaults to 'unspecified' if not provided)
+    insertData.clientId = data.clientId || 'unspecified';
+
+    return NotificationHistory.insertAsync(insertData);
   },
 
   // Update the status of a notification

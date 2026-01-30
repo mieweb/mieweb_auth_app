@@ -79,11 +79,16 @@ export const useNotificationHandler = (userId, username, fetchNotificationHistor
     setActionError(null);
 
     try {
+      // Get current device UUID to track which device responded
+      const deviceInfo = Session.get('capturedDeviceInfo') || {};
+      const deviceUUID = deviceInfo.uuid || null;
+      
       const result = await Meteor.callAsync(
         "notifications.handleResponse",
         userId,
         action,
-        notificationIdForAction
+        notificationIdForAction,
+        deviceUUID
       );
       
       setIsActionsModalOpen(false);

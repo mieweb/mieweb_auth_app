@@ -1,6 +1,6 @@
 #!/bin/bash
 
-PUSHGATEWAY="https://aabrol-mieauth.dev.bluehive.com"
+PUSHGATEWAY="http://localhost:3000/"
 RELYINGPARTY="aa"
 #USERID=
 

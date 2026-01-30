@@ -282,6 +282,35 @@ Run the notification script:
 - `action: reject` - User rejected the notification
 - `action: timeout` - Notification timed out without user interaction
 
+## Generating App Icons and Resources
+
+The application includes a Python script to generate all required app icons and splash screens from a single source image.
+
+### Requirements
+
+```bash
+pip install Pillow
+```
+
+### Generating Resources
+
+Provide a high-resolution source image (recommended: 1024x1024 or larger PNG):
+
+```bash
+python3 generate_app_resources.py path/to/your-icon.png
+```
+
+The script will automatically:
+- Generate all iOS icon sizes (1024x1024 down to 20x20)
+- Generate all Android icon sizes (192x192 down to 48x48)
+- Create splash screens for both platforms
+- **Remove alpha channel from iOS icons** (required by Apple App Store guidelines)
+- **Preserve transparency for Android icons** (optional for Android)
+
+**Important:** iOS app icons cannot contain transparency or alpha channels. The script automatically creates fully opaque icons with a white background for iOS, while maintaining transparency for Android icons.
+
+All generated resources are saved to `public/resources/` and are referenced in `mobile-config.js`.
+
 ## Project Structure
 
 Understanding the application architecture and file organization:
@@ -291,6 +320,8 @@ Understanding the application architecture and file organization:
 | `client/main.jsx` | Frontend Logic | React UI components and push notification registration |
 | `server/main.js` | Backend Logic | Meteor server implementation and push notification handling |
 | `mobile-config.js` | Mobile Configuration | Cordova application metadata and mobile-specific settings |
+| `generate_app_resources.py` | Resource Generator | Python script to generate app icons and splash screens |
+| `public/resources/` | App Resources | Generated app icons and splash screens for all platforms |
 | `public/android/` | Android Assets | Android-specific configuration files and resources |
 | `public/ios/` | iOS Assets | iOS-specific configuration files and resources |
 | `server/private/` | Server Secrets | Private configuration files (excluded from version control) |
@@ -322,6 +353,21 @@ The project includes automated CI/CD pipelines:
 3. Add the required secrets with their respective values
 4. Ensure workflows have appropriate permissions
 
+## Authentication & Session Management
+
+### Screen Lock-Based Session Security
+
+The application implements automatic logout based on device screen lock for enhanced security:
+
+- **Device Lock Integration**: Users are automatically logged out when they lock their phone and return to the app
+- **Leverages Phone Security**: Uses the device's built-in security (screen lock/Face ID/fingerprint) instead of arbitrary timeouts
+- **Better UX**: No unexpected logouts while actively using the app
+- **App Lifecycle**: Detects when app goes to background (pause) and logs out on resume
+- **Automatic Logout**: When returning to the app after screen lock, user is logged out and redirected to login
+- **Data Cleanup**: All session data is cleared on logout for security
+
+This feature ensures that if someone unlocks your phone, they still need to authenticate with the app, providing an additional layer of security beyond the device lock.
+
 ## Security Best Practices
 
 ### Firebase Security
@@ -335,6 +381,8 @@ The project includes automated CI/CD pipelines:
 - Implement proper authentication and authorization
 - Use HTTPS for all production communications
 - Regularly audit and update dependencies
+- **Session Management**: Automatic logout when app resumes after device screen lock
+- **Device Lock Integration**: Leverages phone's built-in security for session management
 
 ### Development Security
 - Keep development and production environments separated
