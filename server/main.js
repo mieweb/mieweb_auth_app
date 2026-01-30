@@ -219,7 +219,7 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
           ) {
             await DeviceDetails.updateAsync(
               { username },
-              { $pull: { 'devices.fcmToken': fcmToken } }
+              { $pull: { devices: { fcmToken: fcmToken } } }
             );
             console.log(`Removed invalid token for user ${username}`);
           }
