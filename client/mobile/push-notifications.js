@@ -70,10 +70,6 @@ const configurePushNotifications = () => {
       clearNotifications: false,
       icon: "ic_launcher",
       iconColor: "#4CAF50",
-      actions: [
-        { id: 'approve', title: 'Approve' },
-        { id: 'reject', title: 'Reject' }
-      ],
       priority: "high",
       sound: true,
       vibrate: true,
@@ -134,52 +130,6 @@ const setupNotificationHandler = (push) => {
   });
 };
 
-const setupApproveHandler = (push) => {
-  push.on('approve', (notification) => {
-    console.log('Approve action triggered');
-    
-    Meteor.startup(() => {
-      const additionalData = notification.additionalData || {};
-      const appId = additionalData.appId;
-
-      if (appId) {
-        validateSessionWithRetry(() => {
-          console.log('Processing approve action');
-          sendUserAction(appId, 'approve');
-          Session.set('notificationReceivedId', {
-            appId,
-            status: "approved",
-            timestamp: new Date().getTime()
-          });
-        });
-      }
-    });
-  });
-};
-
-const setupRejectHandler = (push) => {
-  push.on('reject', (notification) => {
-    console.log('Reject action triggered');
-    
-    Meteor.startup(() => {
-      const additionalData = notification.additionalData || {};
-      const appId = additionalData.appId;
-
-      if (appId) {
-        validateSessionWithRetry(() => {
-          console.log('Processing reject action');
-          sendUserAction(appId, 'reject');
-          Session.set('notificationReceivedId', {
-            appId,
-            status: "rejected",
-            timestamp: new Date().getTime()
-          });
-        });
-      }
-    });
-  });
-};
-
 const setupErrorHandler = (push) => {
   push.on('error', (error) => {
     console.error('Push system error:', error);
@@ -204,8 +154,6 @@ export const initializePushNotifications = () => {
     // Register handlers
     setupRegistrationHandler(push);
     setupNotificationHandler(push);
-    setupApproveHandler(push);
-    setupRejectHandler(push);
     setupErrorHandler(push);
 
     // Ensure default channel exists every 30 seconds
