@@ -20,13 +20,15 @@ Meteor.methods({
    * @param {String} requestId - Unique request identifier
    * @param {Number} timeoutMs - Timeout in milliseconds
    * @param {String} userId - Optional user ID for updating notification history
+   * @param {String} notificationId - Optional notification ID to update on timeout
    * @returns {String} The request ID
    */
-  'pendingResponses.create': async function(username, requestId, timeoutMs = 25000, userId = null) {
+  'pendingResponses.create': async function(username, requestId, timeoutMs = 25000, userId = null, notificationId = null) {
     check(username, String);
     check(requestId, String);
     check(timeoutMs, Number);
     if (userId) check(userId, String);
+    if (notificationId) check(notificationId, String);
 
     const expiresAt = new Date(Date.now() + timeoutMs);
 
@@ -44,6 +46,10 @@ Meteor.methods({
     
     if (userId) {
       insertData.userId = userId;
+    }
+    
+    if (notificationId) {
+      insertData.notificationId = notificationId;
     }
     
     await PendingResponses.insertAsync(insertData);
@@ -130,7 +136,7 @@ Meteor.methods({
           if (Date.now() - startTime >= timeoutMs) {
             console.log(`Timeout waiting for response from ${username}`);
             
-            // Get the pending response to access userId
+            // Get the pending response to access userId and notificationId
             const pendingResponse = await PendingResponses.findOneAsync({
               username,
               requestId,
@@ -149,19 +155,20 @@ Meteor.methods({
               }
             );
             
-            // Update NotificationHistory status if we have userId
-            if (pendingResponse && pendingResponse.userId) {
+            // Update NotificationHistory status if we have the notificationId
+            if (pendingResponse && pendingResponse.notificationId) {
               try {
-                // Get the most recent pending notification for this user
-                const notification = await NotificationHistory.findOneAsync(
-                  { userId: pendingResponse.userId, status: 'pending' },
-                  { sort: { createdAt: -1 } }
+                await NotificationHistory.updateAsync(
+                  { notificationId: pendingResponse.notificationId },
+                  {
+                    $set: {
+                      status: 'timeout',
+                      updatedAt: new Date(),
+                    },
+                  },
+                  { multi: true } // Update all matching documents
                 );
-                
-                if (notification) {
-                  await Meteor.callAsync('notificationHistory.updateStatus', notification.notificationId, 'timeout');
-                  console.log(`Updated notification ${notification.notificationId} status to timeout`);
-                }
+                console.log(`Updated notification ${pendingResponse.notificationId} status to timeout`);
               } catch (error) {
                 console.error('Error updating notification history on timeout:', error);
               }

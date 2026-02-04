@@ -51,7 +51,10 @@ Meteor.methods({
     // Include clientId (defaults to 'unspecified' if not provided)
     insertData.clientId = data.clientId || 'unspecified';
 
-    return NotificationHistory.insertAsync(insertData);
+    NotificationHistory.insertAsync(insertData);
+    
+    // Return the notificationId (not the _id) for tracking purposes
+    return notificationId;
   },
 
   // Update the status of a notification

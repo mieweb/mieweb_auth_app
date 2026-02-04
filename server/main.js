@@ -283,8 +283,8 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
       // Create a unique request ID for this notification
       const requestId = Random.id();
       
-      // Create pending response entry in database with userId
-      await Meteor.callAsync('pendingResponses.create', username, requestId, 25000, userDoc.userId);
+      // Create pending response entry in database with userId and notificationId
+      await Meteor.callAsync('pendingResponses.create', username, requestId, 25000, userDoc.userId, notificationId);
       
       console.log(`Waiting for response from ${username} with request ID: ${requestId}...`);
       
