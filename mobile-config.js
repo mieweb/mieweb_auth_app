@@ -19,6 +19,11 @@ App.setPreference('FadeSplashScreen', true);
 App.setPreference('AutoHideSplashScreen', true);
 App.setPreference('SplashScreenBackgroundColor', '#27AAE1');
 
+// Status bar configuration
+App.setPreference('StatusBarOverlaysWebView', false);
+App.setPreference('StatusBarBackgroundColor', '#ffffff');
+App.setPreference('StatusBarStyle', 'default');
+
 // Set up resources such as icons based on generated files in `resources/`
 App.icons({
   // iOS Main App Icons
