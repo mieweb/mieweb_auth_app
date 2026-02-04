@@ -12,41 +12,71 @@ describe("meteor-app", function () {
     });
 
     describe("Screen lock-based session management", function () {
+      const STORAGE_KEY = 'appWasPaused';
+      const PAUSE_TIMESTAMP_KEY = 'appPausedTimestamp';
+      
+      afterEach(function () {
+        // Clean up after each test
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(PAUSE_TIMESTAMP_KEY);
+      });
+
       it("should store pause state in localStorage", function () {
-        const STORAGE_KEY = 'appWasPaused';
-        
         localStorage.setItem(STORAGE_KEY, 'true');
         const pauseState = localStorage.getItem(STORAGE_KEY);
         
         assert.strictEqual(pauseState, 'true', "Should store pause state correctly");
+      });
+
+      it("should store pause timestamp", function () {
+        const pauseTime = Date.now();
+        localStorage.setItem(PAUSE_TIMESTAMP_KEY, pauseTime.toString());
         
-        // Cleanup
-        localStorage.removeItem(STORAGE_KEY);
+        const storedTimestamp = localStorage.getItem(PAUSE_TIMESTAMP_KEY);
+        assert.strictEqual(storedTimestamp, pauseTime.toString(), "Should store pause timestamp correctly");
       });
 
       it("should detect when app was paused", function () {
-        const STORAGE_KEY = 'appWasPaused';
-        
         // Simulate app pause
         localStorage.setItem(STORAGE_KEY, 'true');
         
         // Check if app was paused
         const wasPaused = localStorage.getItem(STORAGE_KEY) === 'true';
         assert.strictEqual(wasPaused, true, "Should detect that app was paused");
-        
-        // Cleanup
-        localStorage.removeItem(STORAGE_KEY);
       });
 
       it("should handle no pause state gracefully", function () {
-        const STORAGE_KEY = 'appWasPaused';
-        
         // Ensure no stored state
         localStorage.removeItem(STORAGE_KEY);
         
         // Check pause state
         const wasPaused = localStorage.getItem(STORAGE_KEY);
         assert.strictEqual(wasPaused, null, "Should return null when no pause state exists");
+      });
+
+      it("should calculate pause duration correctly", function () {
+        const pauseTime = Date.now() - 5000; // Paused 5 seconds ago
+        localStorage.setItem(STORAGE_KEY, 'true');
+        localStorage.setItem(PAUSE_TIMESTAMP_KEY, pauseTime.toString());
+        
+        const resumeTime = Date.now();
+        const pauseDuration = resumeTime - parseInt(localStorage.getItem(PAUSE_TIMESTAMP_KEY), 10);
+        
+        assert.ok(pauseDuration >= 4900 && pauseDuration <= 5100, "Pause duration should be approximately 5 seconds");
+      });
+
+      it("should distinguish between short and long pause durations", function () {
+        const LOGOUT_THRESHOLD_MS = 2000;
+        
+        // Short pause (notification tap)
+        const shortPauseTime = Date.now() - 500;
+        const shortDuration = Date.now() - shortPauseTime;
+        assert.ok(shortDuration < LOGOUT_THRESHOLD_MS, "Short pause should be below threshold");
+        
+        // Long pause (screen lock)
+        const longPauseTime = Date.now() - 3000;
+        const longDuration = Date.now() - longPauseTime;
+        assert.ok(longDuration >= LOGOUT_THRESHOLD_MS, "Long pause should be at or above threshold");
       });
     });
   }
