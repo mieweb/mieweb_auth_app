@@ -14,7 +14,9 @@
   
   /* Ensure the root element also respects safe areas */
   #react-target {
+    /* Fallback for browsers that don't support safe-area-inset */
     min-height: 100vh;
+    /* Actual height accounting for safe areas (overrides fallback when supported) */
     min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   }
 }
