@@ -273,7 +273,7 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
       console.log("All notifications sent successfully");
       
       // Save notification history with clientId
-      await saveUserNotificationHistory({
+      const notificationId = await saveUserNotificationHistory({
         title,
         body: messageBody,
         userId: userDoc.userId,
@@ -283,8 +283,8 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
       // Create a unique request ID for this notification
       const requestId = Random.id();
       
-      // Create pending response entry in database
-      await Meteor.callAsync('pendingResponses.create', username, requestId, 25000);
+      // Create pending response entry in database with userId
+      await Meteor.callAsync('pendingResponses.create', username, requestId, 25000, userDoc.userId);
       
       console.log(`Waiting for response from ${username} with request ID: ${requestId}...`);
       

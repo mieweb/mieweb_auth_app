@@ -89,10 +89,12 @@ export const NotificationList = ({ notifications, isLoading, error, onNotificati
                     ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                     : notification.status === "reject"
                       ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                      : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+                      : notification.status === "timeout"
+                        ? "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200"
+                        : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
                   }`}
               >
-                {notification.status}
+                {notification.status === "timeout" ? "Timed Out" : notification.status}
               </div>
             </div>
           </div>
