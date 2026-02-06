@@ -79,8 +79,7 @@ export const WebNotificationPage = () => {
       }
 
       if (!response.ok) {
-        const errorMessage = result.error || result.message || `HTTP ${response.status}: ${response.statusText}`;
-        throw new Error(errorMessage);
+        throw new Error(result.error || result.message || 'Something went wrong. Please try again.');
       }
 
       console.log('Notification response:', result);
@@ -119,7 +118,9 @@ export const WebNotificationPage = () => {
       }
     } catch (error) {
       console.error('Error sending notification:', error);
-      setStatus({ type: 'error', message: error.message || 'Failed to send notification' });
+      const msg = error.message || 'Failed to send notification';
+      // Show the server message directly — it's now user-friendly
+      setStatus({ type: 'error', message: msg });
       setIsLoading(false);
     }
   };

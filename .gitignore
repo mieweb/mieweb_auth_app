@@ -152,3 +152,4 @@ app-release-final.apk
 debug-multi-instance.js
 set-env-mieauth.sh
 set-env.sh
+set-env-local.sh

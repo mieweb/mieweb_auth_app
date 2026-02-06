@@ -19,6 +19,7 @@ if (Meteor.isServer) {
   Meteor.startup(() => {
     ApiKeys.createIndex({ clientId: 1 }, { unique: true });
     ApiKeys.createIndex({ hashedKey: 1 });
+    ApiKeys.createIndex({ keyPrefix: 1 });
   });
 }
 
@@ -119,11 +120,12 @@ Meteor.methods({
     const apiKey = crypto.randomBytes(32).toString('hex');
     const { hashedKey, salt } = await hashApiKeyAsync(apiKey);
 
-    // Store the hashed key
+    // Store the hashed key with a prefix for display purposes
     await ApiKeys.insertAsync({
       clientId,
       hashedKey,
       salt,
+      keyPrefix: apiKey.substring(0, 5),
       createdAt: new Date(),
       lastUsed: null
     });
@@ -177,10 +179,16 @@ Meteor.methods({
       return { isValid: false, clientId: null };
     }
     
-    // Slow path: check all keys if no client ID provided
-    const allKeys = await ApiKeys.find({}).fetchAsync();
-    
-    for (const doc of allKeys) {
+    // Faster path: narrow candidates by key prefix before doing full PBKDF2 verify
+    const prefix = apiKey.substring(0, 5);
+    let candidates = await ApiKeys.find({ keyPrefix: prefix }).fetchAsync();
+
+    // Fall back to all keys if no prefix matches (handles legacy keys without prefix)
+    if (candidates.length === 0) {
+      candidates = await ApiKeys.find({}).fetchAsync();
+    }
+
+    for (const doc of candidates) {
       // Skip 'unspecified' entries
       if (doc.clientId.toLowerCase() === 'unspecified') {
         continue;
@@ -214,11 +222,12 @@ Meteor.methods({
     
     const keys = await ApiKeys.find(
       {},
-      { fields: { clientId: 1, createdAt: 1, lastUsed: 1 } }
+      { fields: { clientId: 1, keyPrefix: 1, createdAt: 1, lastUsed: 1 } }
     ).fetchAsync();
     
     return keys.map(k => ({
       clientId: k.clientId,
+      keyPrefix: k.keyPrefix || null,
       createdAt: k.createdAt,
       lastUsed: k.lastUsed
     }));
@@ -280,6 +289,7 @@ Meteor.methods({
         $set: {
           hashedKey,
           salt,
+          keyPrefix: apiKey.substring(0, 5),
           createdAt: new Date(),
           lastUsed: null
         }
