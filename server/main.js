@@ -11,7 +11,7 @@ import { ApprovalTokens } from "../utils/api/approvalTokens";
 import { PendingResponses } from "../utils/api/pendingResponses.js";
 import "../utils/api/apiKeys.js"; // Import for side effects (Meteor methods registration)
 import { isValidToken } from "../utils/utils";
-import { APPROVAL_TOKEN_EXPIRY_MS } from "../utils/constants";
+import { APPROVAL_TOKEN_EXPIRY_MS } from "../utils/constants.js";
 import { successTemplate, errorTemplate, rejectionTemplate, previouslyUsedTemplate } from './templates/email';
 import dotenv from 'dotenv';
 
