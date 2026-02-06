@@ -1342,10 +1342,10 @@ Meteor.methods({
     // Generate a secure random token
     const token = Random.secret();
 
-    // TODO: anisha - change later to appropriate expirt time
-    const expiresAt = new Date(Date.now() + 3 * 60 * 1000); // 3 minutes
+    // Approval token expires in 24 hours
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-    // Store the token with short expiration time
+    // Store the token with expiration time
     ApprovalTokens.upsertAsync(
       { userId: userId },
       {
@@ -1359,7 +1359,7 @@ Meteor.methods({
       }
     );
 
-    console.log(`Generated approval token for user ${userId}, expires in 3 minutes`);
+    console.log(`Generated approval token for user ${userId}, expires in 24 hours`);
     return token;
   },
 
