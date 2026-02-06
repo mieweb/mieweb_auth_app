@@ -11,6 +11,7 @@ import { ApprovalTokens } from "../utils/api/approvalTokens";
 import { PendingResponses } from "../utils/api/pendingResponses.js";
 import "../utils/api/apiKeys.js"; // Import for side effects (Meteor methods registration)
 import { isValidToken } from "../utils/utils";
+import { APPROVAL_TOKEN_EXPIRY_MS } from "../utils/constants";
 import { successTemplate, errorTemplate, rejectionTemplate, previouslyUsedTemplate } from './templates/email';
 import dotenv from 'dotenv';
 
@@ -1343,7 +1344,7 @@ Meteor.methods({
     const token = Random.secret();
 
     // Approval token expires in 24 hours
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    const expiresAt = new Date(Date.now() + APPROVAL_TOKEN_EXPIRY_MS);
 
     // Store the token with expiration time
     ApprovalTokens.upsertAsync(
