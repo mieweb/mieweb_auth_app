@@ -18,7 +18,7 @@ export const formatDateTime = (isoString) => {
     return `${formattedDate} ${formattedTime}`;
   };
 
-  export const isValidToken = async(userId, token) => {
+  export const isValidToken = async (userId, token) => {
     // Look up the token
     const tokenRecord = await ApprovalTokens.findOneAsync({
       userId,
@@ -28,4 +28,37 @@ export const formatDateTime = (isoString) => {
     });
 
     return tokenRecord;
-  }
+  };
+
+  export const determineTokenErrorReason = async (userId, token) => {
+    // Check if token exists at all
+    const tokenRecord = await ApprovalTokens.findOneAsync({
+      userId,
+      token
+    });
+
+    if (tokenRecord) {
+      // Token exists, check if it's expired
+      // Use <= to align with isValidToken's $gt boundary check
+      if (tokenRecord.expiresAt <= new Date()) {
+        return 'expired';
+      } else {
+        // Token is not expired, check if user exists
+        const user = await Meteor.users.findOneAsync({ _id: userId });
+        if (!user) {
+          return 'user_not_found';
+        }
+        // Token is valid and user exists - this shouldn't happen if isValidToken returned false
+        // but return unknown as a safe fallback
+        return 'unknown';
+      }
+    } else {
+      // Token doesn't exist, check if user exists
+      const user = await Meteor.users.findOneAsync({ _id: userId });
+      if (user) {
+        return 'invalid_token';
+      } else {
+        return 'user_not_found';
+      }
+    }
+  };

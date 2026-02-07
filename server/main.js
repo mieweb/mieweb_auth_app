@@ -10,7 +10,7 @@ import { NotificationHistory } from "../utils/api/notificationHistory.js"
 import { ApprovalTokens } from "../utils/api/approvalTokens";
 import { PendingResponses } from "../utils/api/pendingResponses.js";
 import "../utils/api/apiKeys.js"; // Import for side effects (Meteor methods registration)
-import { isValidToken } from "../utils/utils";
+import { isValidToken, determineTokenErrorReason } from "../utils/utils";
 import { successTemplate, errorTemplate, rejectionTemplate, previouslyUsedTemplate } from './templates/email';
 import dotenv from 'dotenv';
 
@@ -375,11 +375,13 @@ WebApp.connectHandlers.use('/api/approve-user', async (req, res) => {
 
       res.end(previouslyUsedTemplate());
     } else {
-      // Invalid or expired token
+      // Determine the specific error reason
+      const errorReason = await determineTokenErrorReason(userId, token);
+
       res.writeHead(200, {
         'Content-Type': 'text/html'
       });
-      res.end(errorTemplate());
+      res.end(errorTemplate(errorReason));
     }
   }
 });
@@ -416,7 +418,7 @@ WebApp.connectHandlers.use('/api/reject-user', async (req, res) => {
       res.writeHead(500, {
         'Content-Type': 'text/html'
       });
-      res.end(errorTemplate());
+      res.end(errorTemplate('server_error'));
     }
   } else {
     // Check if token was previously used (same logic as approve route)
@@ -434,11 +436,13 @@ WebApp.connectHandlers.use('/api/reject-user', async (req, res) => {
 
       res.end(previouslyUsedTemplate());
     } else {
-      // Invalid or expired token
+      // Determine the specific error reason
+      const errorReason = await determineTokenErrorReason(userId, token);
+
       res.writeHead(200, {
         'Content-Type': 'text/html'
       });
-      res.end(errorTemplate());
+      res.end(errorTemplate(errorReason));
     }
   }
 });
