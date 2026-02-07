@@ -53,8 +53,19 @@ export const sendNotification = async (fcmToken, title, body, data = {}) => {
       },
       android: {
         priority: 'high',
+        notification: {
+          channelId: 'default',
+          priority: 'max',
+          defaultSound: true,
+          defaultVibrateTimings: true,
+          defaultLightSettings: true
+        }
       },
       apns: {
+        headers: {
+          'apns-priority': '10',
+          'apns-push-type': 'alert'
+        },
         payload: {
           aps: {
             alert: {
@@ -62,10 +73,11 @@ export const sendNotification = async (fcmToken, title, body, data = {}) => {
               body
             },
             badge: 1,
-            sound: "default",
-            category: "APPROVAL",
-            content_available: 1,
-            mutable_content: true
+            sound: 'default',
+            category: 'APPROVAL',
+            'content-available': 1,
+            'mutable-content': 1,
+            'interruption-level': 'time-sensitive'
           }
         }
       }
@@ -86,9 +98,10 @@ export const sendNotification = async (fcmToken, title, body, data = {}) => {
         delete message.apns.payload.aps.alert;
         delete message.apns.payload.aps.sound;
         delete message.apns.payload.aps.badge;
+        delete message.apns.payload.aps['interruption-level'];
         message.apns.payload.aps['content-available'] = 1;
-        message.apns.headers = message.apns.headers || {};
-        message.apns.headers['apns-priority'] = '10';
+        message.apns.headers['apns-priority'] = '5';
+        message.apns.headers['apns-push-type'] = 'background';
       }
       // Android: Silent notifications are handled by empty title/body (excluded above)
     }
@@ -98,7 +111,6 @@ export const sendNotification = async (fcmToken, title, body, data = {}) => {
       if (message.apns && message.apns.payload && message.apns.payload.aps) {
         message.apns.payload.aps.sound = 'default';
         message.apns.payload.aps['content-available'] = 1;
-        message.apns.headers = message.apns.headers || {};
         message.apns.headers['apns-priority'] = '10';
       }
     }

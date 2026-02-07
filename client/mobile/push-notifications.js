@@ -52,8 +52,8 @@ const createNotificationChannel = () => {
     {
       id: 'default',
       name: 'Approval Channel',
-      description: 'Critical security approvals',
-      importance: 4,
+      description: 'Critical security approvals - bypasses Do Not Disturb',
+      importance: 5,
       vibration: true,
       sound: 'default',
       visibility: 1,
