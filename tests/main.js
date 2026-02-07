@@ -276,6 +276,54 @@ describe("meteor-app", function () {
       });
     });
 
+    describe("Error Template with Specific Reasons", function () {
+      const { errorTemplate } = require("../server/templates/email");
+
+      it("should render expired token error message", function () {
+        const html = errorTemplate('expired');
+        
+        assert.ok(html.includes('Token Expired'), "Should show 'Token Expired' title");
+        assert.ok(html.includes('The approval token has expired'), "Should show expired message");
+        assert.ok(html.includes('Please request a new approval link'), "Should show details");
+      });
+
+      it("should render user not found error message", function () {
+        const html = errorTemplate('user_not_found');
+        
+        assert.ok(html.includes('User Not Found'), "Should show 'User Not Found' title");
+        assert.ok(html.includes('The user associated with this approval token was not found'), "Should show user not found message");
+        assert.ok(html.includes('user registered a new account'), "Should explain the reason");
+      });
+
+      it("should render invalid token error message", function () {
+        const html = errorTemplate('invalid_token');
+        
+        assert.ok(html.includes('Invalid Token'), "Should show 'Invalid Token' title");
+        assert.ok(html.includes('The approval token is invalid or does not exist'), "Should show invalid token message");
+      });
+
+      it("should render unknown error message for unrecognized reasons", function () {
+        const html = errorTemplate('some_unknown_reason');
+        
+        assert.ok(html.includes('Invalid Request'), "Should show default 'Invalid Request' title");
+        assert.ok(html.includes('This link is invalid or has expired'), "Should show default message");
+      });
+
+      it("should render unknown error message when no reason is provided", function () {
+        const html = errorTemplate();
+        
+        assert.ok(html.includes('Invalid Request'), "Should show default 'Invalid Request' title");
+        assert.ok(html.includes('This link is invalid or has expired'), "Should show default message");
+      });
+
+      it("should always include error styling", function () {
+        const html = errorTemplate('expired');
+        
+        assert.ok(html.includes('error-message'), "Should include error-message class");
+        assert.ok(html.includes('background-color: #f44336'), "Should include error background color");
+      });
+    });
+
     describe("API Key Authentication", function () {
       const { ApiKeys, hashApiKey, verifyApiKey } = require("../utils/api/apiKeys");
       const crypto = require('crypto');
