@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { FiMail, FiLock, FiAlertCircle } from 'react-icons/fi';
 import { Meteor } from 'meteor/meteor';
 import { Session } from 'meteor/session';
@@ -316,12 +316,12 @@ export const LoginPage = ({ deviceDetails }) => {
 
           <div className="text-center text-sm text-gray-600">
             Need help?{' '}
-            <a
-              href="/support"
+            <Link
+              to="/support"
               className="text-blue-600 hover:text-blue-800 font-medium"
             >
               Contact Support
-            </a>
+            </Link>
           </div>
         </form>
       </div>

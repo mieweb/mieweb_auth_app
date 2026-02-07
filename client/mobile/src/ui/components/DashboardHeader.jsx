@@ -37,7 +37,6 @@ export const DashboardHeader = ({
           <div className="flex items-center space-x-4">
             <button
               onClick={handleSupportClick}
-              title="Support"
               className="flex items-center justify-center p-2 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
               aria-label="Support"
             >

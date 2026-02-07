@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { FiUser, FiMail, FiLock } from 'react-icons/fi';
 import { motion } from 'framer-motion';
 import { Meteor } from 'meteor/meteor';
@@ -325,12 +325,12 @@ export const RegistrationPage = ({ deviceDetails }) => {
 
           <div className="text-center text-sm text-gray-600">
             Need help?{' '}
-            <a
-              href="/support"
+            <Link
+              to="/support"
               className="text-blue-600 hover:text-blue-800 font-medium"
             >
               Contact Support
-            </a>
+            </Link>
           </div>
         </form>
       </motion.div>

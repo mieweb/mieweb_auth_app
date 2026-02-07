@@ -11,7 +11,13 @@ const LoadingState = () => (
   </div>
 );
 
-const ConnectionError = ({ onRetry }) => (
+const ConnectionError = ({ onRetry }) => {
+  const handleSupportClick = (e) => {
+    e.preventDefault();
+    window.location.href = '/support';
+  };
+
+  return (
   <div className="min-h-screen bg-gradient-to-br from-red-50 to-pink-50 flex items-center p-6">
     <div className="max-w-xs mx-auto bg-white rounded-2xl shadow-lg p-6 space-y-6">
       <div className="text-center space-y-3">
@@ -49,6 +55,7 @@ const ConnectionError = ({ onRetry }) => (
       <div className="text-center text-sm text-gray-600">
         <a
           href="/support"
+          onClick={handleSupportClick}
           className="text-blue-600 hover:text-blue-800 font-medium"
         >
           Contact Support
@@ -56,7 +63,8 @@ const ConnectionError = ({ onRetry }) => (
       </div>
     </div>
   </div>
-);
+  );
+};
 
 export const App = () => {
   const { capturedDeviceUuid, boolRegisteredDevice, isLoading } = useDeviceRegistration();
