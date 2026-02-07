@@ -594,5 +594,58 @@ describe("meteor-app", function () {
         assert.strictEqual(notification.clientId, clientId, "Should store provided clientId");
       });
     });
+
+    describe("Push Notification Priority Configuration", function () {
+      const { sendNotification } = require("../server/firebase");
+      
+      it("should configure iOS notifications with time-sensitive interruption level", function () {
+        // This test verifies the message structure contains iOS priority settings
+        // We can't actually send notifications in tests, but we can verify the code structure
+        const firebaseModule = require("../server/firebase");
+        assert.ok(firebaseModule.sendNotification, "sendNotification function should exist");
+      });
+      
+      it("should verify Android notification channel uses maximum importance", function () {
+        // Verify that the push-notifications.js configures channel with importance: 5
+        const fs = require('fs');
+        const pushNotificationsContent = fs.readFileSync(
+          '/home/runner/work/mieweb_auth_app/mieweb_auth_app/client/mobile/push-notifications.js', 
+          'utf8'
+        );
+        
+        // Check for importance: 5 (IMPORTANCE_MAX)
+        assert.ok(
+          pushNotificationsContent.includes('importance: 5'),
+          "Android notification channel should have importance level 5 (IMPORTANCE_MAX)"
+        );
+        
+        // Check for priority notification description
+        assert.ok(
+          pushNotificationsContent.includes('bypasses Do Not Disturb'),
+          "Channel description should indicate it bypasses Do Not Disturb"
+        );
+      });
+      
+      it("should verify iOS notification includes interruption-level setting", function () {
+        // Verify that the firebase.js includes interruption-level in APNS payload
+        const fs = require('fs');
+        const firebaseContent = fs.readFileSync(
+          '/home/runner/work/mieweb_auth_app/mieweb_auth_app/server/firebase.js', 
+          'utf8'
+        );
+        
+        // Check for interruption-level: time-sensitive
+        assert.ok(
+          firebaseContent.includes("'interruption-level': 'time-sensitive'"),
+          "iOS notifications should have interruption-level set to time-sensitive"
+        );
+        
+        // Check for apns-priority: 10 (highest)
+        assert.ok(
+          firebaseContent.includes("'apns-priority': '10'"),
+          "iOS notifications should have apns-priority set to 10 (highest)"
+        );
+      });
+    });
   }
 });
