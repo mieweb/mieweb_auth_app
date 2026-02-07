@@ -11,21 +11,21 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
   };
 
   return (
-    <div className="flex justify-center items-center mt-4 w-full">
+    <div className="flex justify-center items-center mt-6 w-full gap-3">
       <button
         onClick={handlePrev}
         disabled={currentPage === 1}
-        className="px-3 py-1 bg-gray-300 dark:bg-gray-600/80 dark:text-gray-400 rounded disabled:bg-gray-400"
+        className="px-5 py-2.5 font-semibold bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl disabled:bg-gray-400 disabled:cursor-not-allowed dark:disabled:bg-gray-700 transition-all shadow-md hover:shadow-lg active:scale-98"
       >
-        Prev
+        Previous
       </button>
-      <span className="px-2 dark:text-gray-300">
-        Page {currentPage} of {totalPages}
+      <span className="px-4 py-2 bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white font-semibold">
+        {currentPage} / {totalPages}
       </span>
       <button
         onClick={handleNext}
         disabled={currentPage === totalPages}
-        className="px-3 py-1 bg-gray-300 dark:bg-gray-600/80 dark:text-gray-400 rounded disabled:bg-gray-400"
+        className="px-5 py-2.5 font-semibold bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl disabled:bg-gray-400 disabled:cursor-not-allowed dark:disabled:bg-gray-700 transition-all shadow-md hover:shadow-lg active:scale-98"
       >
         Next
       </button>

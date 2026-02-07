@@ -206,38 +206,38 @@ export const LoginPage = ({ deviceDetails }) => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gray-50">
-      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-lg">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+      <div className="max-w-md w-full space-y-8 bg-white dark:bg-gray-800 p-8 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-700">
         <div className="text-center">
-          <h2 className="text-3xl font-bold text-gray-900">
+          <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
             {isReturningUser ? 'Welcome Back!' : 'Welcome Back'}
           </h2>
-          <p className="mt-2 text-gray-600">
+          <p className="mt-2 text-gray-600 dark:text-gray-400">
             {isReturningUser ? email : 'Sign in to your account'}
           </p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-6">
           {error && (
-            <div className="flex items-center text-red-600 text-sm text-center bg-red-100 p-3 rounded-lg">
-              <FiAlertCircle className="mr-2" />
+            <div className="flex items-center text-red-700 dark:text-red-300 text-sm text-center bg-red-100 dark:bg-red-900/30 p-4 rounded-xl border border-red-300 dark:border-red-800">
+              <FiAlertCircle className="mr-2 flex-shrink-0" />
               {error}
             </div>
           )}
 
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="email" className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
               Email
             </label>
             <div className="mt-1 relative">
-              <FiMail className="absolute top-3 left-3 text-gray-400" />
+              <FiMail className="absolute top-3 left-3 text-blue-600 dark:text-blue-400" />
               <input
                 id="email"
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full pl-10 pr-4 py-2 border-2 border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900 focus:border-blue-500 dark:focus:border-blue-400 transition-all"
                 placeholder="Enter your email"
                 autoComplete="email"
                 disabled={isLoggingIn || checkingStatus}
@@ -251,7 +251,7 @@ export const LoginPage = ({ deviceDetails }) => {
                   setEmail('');
                   setIsReturningUser(false);
                 }}
-                className="text-sm text-blue-600 hover:underline mt-1"
+                className="text-sm text-blue-600 dark:text-blue-400 hover:underline mt-2 font-medium"
               >
                 Not you? Use a different account
               </button>
@@ -259,18 +259,18 @@ export const LoginPage = ({ deviceDetails }) => {
           </div>
 
           <div>
-            <label htmlFor="pin" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="pin" className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
               PIN
             </label>
             <div className="mt-1 relative">
-              <FiLock className="absolute top-3 left-3 text-gray-400" />
+              <FiLock className="absolute top-3 left-3 text-blue-600 dark:text-blue-400" />
               <input
                 id="pin"
                 type="password"
                 required
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full pl-10 pr-4 py-2 border-2 border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900 focus:border-blue-500 dark:focus:border-blue-400 transition-all"
                 placeholder="Enter your PIN"
                 maxLength={6}
                 minLength={4}
@@ -288,7 +288,7 @@ export const LoginPage = ({ deviceDetails }) => {
                 type="button"
                 onClick={handleBiometricLogin}
                 disabled={isLoggingIn || checkingStatus}
-                className="flex items-center space-x-2 py-2 px-4 rounded-xl text-white bg-green-600 hover:bg-green-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center space-x-2 py-3 px-6 rounded-xl text-white font-semibold bg-green-600 hover:bg-green-700 active:bg-green-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg active:scale-98"
               >
                 <FingerprintIcon />
                 <span>Login with Biometrics</span>
@@ -299,7 +299,7 @@ export const LoginPage = ({ deviceDetails }) => {
           <button
             type="submit"
             disabled={isLoggingIn || checkingStatus}
-            className="w-full py-3 px-4 rounded-xl text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 ease-in-out transform hover:scale-[1.02]"
+            className="w-full py-3 px-4 rounded-xl text-white font-bold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:from-blue-800 active:to-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 ease-in-out shadow-lg hover:shadow-xl active:scale-98"
           >
             {isLoggingIn || checkingStatus ? (
               <div className="flex items-center justify-center">

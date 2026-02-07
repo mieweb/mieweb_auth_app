@@ -9,24 +9,24 @@ export const NotificationFilters = ({
 }) => {
   return (
 
-    <div className="bg-white/80 backdrop-blur-sm dark:bg-gray-800/80 rounded-2xl shadow-lg p-4 m-2">
+    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md border border-gray-200 dark:border-gray-700 p-4 m-2">
       <div className="flex flex-wrap gap-4">
-        <div className="flex-1">
+        <div className="flex-1 min-w-[200px]">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-blue-600 dark:text-blue-400" />
             <input
               type="text"
               placeholder="Search requests..."
-              className="w-full pl-10 pr-4 py-2 text-gray-400 rounded-lg border dark:bg-gray-700 dark:border-gray-600"
+              className="w-full pl-11 pr-4 py-3 rounded-xl border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900 transition-all"
               value={searchTerm}
               onChange={(e) => onSearchChange(e.target.value)}
             />
           </div>
         </div>
         <div className="flex items-center space-x-2">
-          <Filter className="h-4 w-4 text-gray-500" />
+          <Filter className="h-5 w-5 text-blue-600 dark:text-blue-400" />
           <select
-            className="bg-transparent text-gray-400 border rounded-lg px-3 py-2 dark:bg-gray-700 dark:border-gray-600"
+            className="bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-medium border-2 border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900 transition-all cursor-pointer"
             value={filter}
             onChange={(e) => onFilterChange(e.target.value)}
           >
