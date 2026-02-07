@@ -132,13 +132,13 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notific
           {/* Approve / Reject side-by-side */}
           <div className="flex space-x-3">
             <button onClick={onApprove}
-              className="flex-1 flex items-center justify-center space-x-2 bg-[#34c759] active:bg-[#2da44e] text-white py-4 rounded-xl active:scale-[0.97] transition-all font-semibold text-base"
+              className="flex-1 flex items-center justify-center space-x-2 bg-[#34c759] active:bg-[#2da44e] text-white py-4 rounded-xl active:scale-98 transition-all font-semibold text-base"
             >
               <Check className="h-5 w-5" strokeWidth={2.5} />
               <span>Approve</span>
             </button>
             <button onClick={onReject}
-              className="flex-1 flex items-center justify-center space-x-2 bg-[#ff3b30] active:bg-[#d63027] text-white py-4 rounded-xl active:scale-[0.97] transition-all font-semibold text-base"
+              className="flex-1 flex items-center justify-center space-x-2 bg-[#ff3b30] active:bg-[#d63027] text-white py-4 rounded-xl active:scale-98 transition-all font-semibold text-base"
             >
               <X className="h-5 w-5" strokeWidth={2.5} />
               <span>Reject</span>

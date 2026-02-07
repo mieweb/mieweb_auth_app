@@ -1,27 +1,36 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 
 const ResultModal = ({ isOpen, onClose }) => {
   const [phase, setPhase] = useState('hidden'); // hidden → entering → visible → exiting
+  const exitTimerRef = useRef(null);
+  const dismissTimerRef = useRef(null);
+
+  const startExit = useCallback(() => {
+    // Idempotent — only trigger exit once
+    if (exitTimerRef.current) return;
+    setPhase('exiting');
+    exitTimerRef.current = setTimeout(() => onClose(), 250);
+  }, [onClose]);
 
   useEffect(() => {
     if (isOpen) {
+      exitTimerRef.current = null;
       setPhase('entering');
       const enterTimer = requestAnimationFrame(() => setPhase('visible'));
 
       // Auto-dismiss with exit animation
-      const dismissTimer = setTimeout(() => {
-        setPhase('exiting');
-        setTimeout(() => onClose(), 250);
-      }, 2500);
+      dismissTimerRef.current = setTimeout(() => startExit(), 2500);
 
       return () => {
         cancelAnimationFrame(enterTimer);
-        clearTimeout(dismissTimer);
+        clearTimeout(dismissTimerRef.current);
+        clearTimeout(exitTimerRef.current);
+        exitTimerRef.current = null;
       };
     } else {
       setPhase('hidden');
     }
-  }, [isOpen, onClose]);
+  }, [isOpen, startExit]);
 
   if (!isOpen && phase === 'hidden') return null;
 
@@ -32,12 +41,15 @@ const ResultModal = ({ isOpen, onClose }) => {
       className={`fixed inset-0 z-50 flex items-center justify-center transition-all duration-300 ${
         isVisible ? 'bg-black/30 backdrop-blur-[3px]' : 'bg-transparent'
       }`}
-      onClick={() => { setPhase('exiting'); setTimeout(onClose, 250); }}
+      onClick={startExit}
     >
       <div
         className={`relative w-56 text-center transition-all duration-300 ease-out ${
           isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-90'
         }`}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Authentication successful"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Glass card */}
