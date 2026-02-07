@@ -10,8 +10,10 @@ import { NotificationHistory } from "../utils/api/notificationHistory.js"
 import { ApprovalTokens } from "../utils/api/approvalTokens";
 import { PendingResponses } from "../utils/api/pendingResponses.js";
 import "../utils/api/apiKeys.js"; // Import for side effects (Meteor methods registration)
-import { isValidToken } from "../utils/utils";
+import { APPROVAL_TOKEN_EXPIRY_MS } from "../utils/constants.js";
+import { isValidToken, isNotificationExpired, determineTokenErrorReason } from "../utils/utils";
 import { successTemplate, errorTemplate, rejectionTemplate, previouslyUsedTemplate } from './templates/email';
+import { INTERNAL_SERVER_SECRET } from './internalSecret.js';
 import dotenv from 'dotenv';
 
 
@@ -59,7 +61,7 @@ const saveUserNotificationHistory = async (notification) => {
  */
 const sendSyncNotificationToDevices = async (userId, notificationId, action) => {
   try {
-    const fcmTokens = await Meteor.callAsync('deviceDetails.getFCMTokenByUserId', userId);
+    const fcmTokens = await Meteor.callAsync('deviceDetails.getApprovedFCMTokensByUserId', userId);
     if (!fcmTokens || fcmTokens.length === 0) return;
 
     const syncData = {
@@ -156,9 +158,15 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
       // Check if authentication is required
       const forceAuth = process.env.SEND_NOTIFICATION_FORCE_AUTH === 'true';
       let clientId = 'unspecified';
-      
-      if (forceAuth || apikey) {
-        // Verify API key if force auth is enabled or if apikey is provided
+
+      // Internal server-to-server calls are trusted (e.g. device approval notifications)
+      const internalSecret = req.headers['x-internal-secret'];
+      const isInternalCall = internalSecret && internalSecret === INTERNAL_SERVER_SECRET;
+      if (isInternalCall) {
+        clientId = 'internal-server';
+        console.log('Request authenticated as internal server call');
+      } else if (forceAuth) {
+        // Only verify API key when force auth is enabled
         if (!apikey) {
           console.error("API key required but not provided");
           res.writeHead(403, { "Content-Type": "application/json" });
@@ -194,23 +202,6 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
       
       console.log(`Processing notification for user: ${username}`);
       
-      // Get FCM tokens
-      const fcmTokens = await new Promise((resolve, reject) => {
-        Meteor.call("deviceDetails.getFCMTokenByUsername", username, (error, result) => {
-          if (error) {
-            console.error("Error getting FCM tokens:", error);
-            reject(error);
-          } else {
-            console.log("FCM tokens found:", result?.length || 0);
-            resolve(result);
-          }
-        });
-      });
-      
-      if (!fcmTokens || fcmTokens.length === 0) {
-        throw new Error(`No FCM tokens found for username: ${username}`);
-      }
-      
       // Get user document
       const userDoc = await DeviceDetails.findOneAsync({ username });
       if (!userDoc) {
@@ -221,10 +212,40 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
         throw new Error(`No devices found for user: ${username}`);
       }
       
-      // Find the primary device, or fallback to first approved device, or first device
-      const primaryDevice = userDoc.devices.find(d => d.isPrimary === true) 
-        || userDoc.devices.find(d => d.deviceRegistrationStatus === 'approved')
-        || userDoc.devices[0];
+      // Check if the user has any approved devices
+      const approvedDevices = userDoc.devices.filter(
+        d => d.deviceRegistrationStatus === 'approved'
+      );
+      
+      if (approvedDevices.length === 0) {
+        // Determine if all devices are pending or rejected
+        const hasPending = userDoc.devices.some(d => d.deviceRegistrationStatus === 'pending');
+        const errorMessage = hasPending
+          ? `Cannot send notification: device registration for user '${username}' is still pending admin approval`
+          : `Cannot send notification: no approved devices found for user '${username}'`;
+        
+        console.warn(errorMessage);
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          success: false,
+          error: errorMessage,
+          reason: 'device_not_approved'
+        }));
+        return;
+      }
+      
+      // Get FCM tokens only from approved devices
+      const fcmTokens = approvedDevices.map(d => d.fcmToken).filter(Boolean);
+      
+      if (fcmTokens.length === 0) {
+        throw new Error(`No valid FCM tokens found for approved devices of user: ${username}`);
+      }
+      
+      console.log("Approved FCM tokens found:", fcmTokens.length);
+      
+      // Find the primary device among approved devices, or fallback to first approved device
+      const primaryDevice = approvedDevices.find(d => d.isPrimary === true) 
+        || approvedDevices[0];
       
       // Prepare notification data
       const notificationData = {
@@ -375,11 +396,13 @@ WebApp.connectHandlers.use('/api/approve-user', async (req, res) => {
 
       res.end(previouslyUsedTemplate());
     } else {
-      // Invalid or expired token
+      // Determine the specific error reason
+      const errorReason = await determineTokenErrorReason(userId, token);
+
       res.writeHead(200, {
         'Content-Type': 'text/html'
       });
-      res.end(errorTemplate());
+      res.end(errorTemplate(errorReason));
     }
   }
 });
@@ -416,7 +439,7 @@ WebApp.connectHandlers.use('/api/reject-user', async (req, res) => {
       res.writeHead(500, {
         'Content-Type': 'text/html'
       });
-      res.end(errorTemplate());
+      res.end(errorTemplate('server_error'));
     }
   } else {
     // Check if token was previously used (same logic as approve route)
@@ -434,11 +457,13 @@ WebApp.connectHandlers.use('/api/reject-user', async (req, res) => {
 
       res.end(previouslyUsedTemplate());
     } else {
-      // Invalid or expired token
+      // Determine the specific error reason
+      const errorReason = await determineTokenErrorReason(userId, token);
+
       res.writeHead(200, {
         'Content-Type': 'text/html'
       });
-      res.end(errorTemplate());
+      res.end(errorTemplate(errorReason));
     }
   }
 });
@@ -712,6 +737,18 @@ Meteor.methods({
 
     const username = user.username;
 
+    // Check if the responding device is approved
+    if (respondingDeviceUUID) {
+      const userDeviceDoc = await DeviceDetails.findOneAsync({ userId });
+      if (userDeviceDoc && userDeviceDoc.devices) {
+        const respondingDevice = userDeviceDoc.devices.find(d => d.deviceUUID === respondingDeviceUUID);
+        if (respondingDevice && respondingDevice.deviceRegistrationStatus !== 'approved') {
+          console.warn(`Device ${respondingDeviceUUID} for user ${username} is not approved (status: ${respondingDevice.deviceRegistrationStatus}). Blocking notification response.`);
+          throw new Meteor.Error('device-not-approved', 'Your device registration is still pending admin approval. You cannot respond to notifications until your device is approved.');
+        }
+      }
+    }
+
     const targetNotification = await NotificationHistory.findOneAsync({
       userId,
       notificationId: notificationIdForAction
@@ -720,6 +757,22 @@ Meteor.methods({
     if (!targetNotification) {
       console.log("Notification not found for given userId and notificationId");
       return { success: false, message: "Notification not found" };
+    }
+
+    // Check if notification has expired
+    if (isNotificationExpired(targetNotification.createdAt)) {
+      console.log(`Notification ${targetNotification.notificationId} has expired`);
+      
+      // Mark as timed out if still pending
+      if (targetNotification.status === 'pending') {
+        await NotificationHistory.updateAsync(
+          { _id: targetNotification._id },
+          { $set: { status: 'timeout', updatedAt: new Date() } }
+        );
+        console.log(`Expired notification ${targetNotification.notificationId} marked as timeout`);
+      }
+      
+      return { success: false, message: "Notification has expired" };
     }
 
     if (targetNotification.status !== 'pending') {
@@ -981,7 +1034,20 @@ Meteor.methods({
         try {
           const res = await sendDeviceApprovalNotification(userId, sessionDeviceInfo.uuid);
 
-          if (res === 'timeout' || res === 'rejected' || res === 'reject') {
+          if (res === 'approve' || res === 'approved') {
+            // Primary device approved — update the secondary device's registration status
+            await DeviceDetails.updateAsync(
+              { userId, 'devices.deviceUUID': sessionDeviceInfo.uuid },
+              {
+                $set: {
+                  'devices.$.deviceRegistrationStatus': 'approved',
+                  'devices.$.lastUpdated': new Date(),
+                  lastUpdated: new Date()
+                }
+              }
+            );
+            console.log(`Secondary device ${sessionDeviceInfo.uuid} approved and database updated`);
+          } else if (res === 'timeout' || res === 'rejected' || res === 'reject') {
             await DeviceDetails.updateAsync(
               { userId: userId },
               { $pull: { devices: { appId: deviceResp.appId } } }
@@ -1230,7 +1296,7 @@ Meteor.methods({
     const device = userDeviceDoc.devices[deviceIndex];
 
     // Check if this is the first device (should be pending)
-    if (device.approvalStatus !== 'pending') {
+    if (device.deviceRegistrationStatus !== 'pending') {
       throw new Meteor.Error('invalid-status', 'Device is not pending approval');
     }
 
@@ -1239,7 +1305,7 @@ Meteor.methods({
       { userId, 'devices.deviceUUID': deviceUUID },
       {
         $set: {
-          [`devices.${deviceIndex}.approvalStatus`]: approved ? 'approved' : 'rejected',
+          [`devices.${deviceIndex}.deviceRegistrationStatus`]: approved ? 'approved' : 'rejected',
           [`devices.${deviceIndex}.lastUpdated`]: new Date(),
           lastUpdated: new Date()
         }
@@ -1306,7 +1372,7 @@ Meteor.methods({
       { userId, 'devices.deviceUUID': secondaryDeviceUUID },
       {
         $set: {
-          [`devices.${secondaryDeviceIndex}.approvalStatus`]: approved ? 'approved' : 'rejected',
+          [`devices.${secondaryDeviceIndex}.deviceRegistrationStatus`]: approved ? 'approved' : 'rejected',
           [`devices.${secondaryDeviceIndex}.lastUpdated`]: new Date(),
           lastUpdated: new Date()
         }
@@ -1342,10 +1408,10 @@ Meteor.methods({
     // Generate a secure random token
     const token = Random.secret();
 
-    // TODO: anisha - change later to appropriate expirt time
-    const expiresAt = new Date(Date.now() + 3 * 60 * 1000); // 3 minutes
+    // Approval token expires in 24 hours
+    const expiresAt = new Date(Date.now() + APPROVAL_TOKEN_EXPIRY_MS);
 
-    // Store the token with short expiration time
+    // Store the token with expiration time
     ApprovalTokens.upsertAsync(
       { userId: userId },
       {
@@ -1359,7 +1425,7 @@ Meteor.methods({
       }
     );
 
-    console.log(`Generated approval token for user ${userId}, expires in 3 minutes`);
+    console.log(`Generated approval token for user ${userId}, expires in 24 hours`);
     return token;
   },
 

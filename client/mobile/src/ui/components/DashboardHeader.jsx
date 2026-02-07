@@ -6,7 +6,9 @@ import {
   RotateCcw,
   BellRing,
   Shield,
+  HelpCircle,
 } from 'lucide-react';
+import { openSupportLink } from '../../../../../utils/openExternal';
 
 export const DashboardHeader = ({
   title = "My Dashboard",
@@ -26,14 +28,14 @@ export const DashboardHeader = ({
               {title}
             </h1>
           </div>
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2">
             <button
               onClick={onRefresh}
               title="Refresh"
               className="flex items-center justify-center p-2 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
               aria-label="Refresh"
             >
-              <RotateCcw className="h-5 w-5 text-gray-600 dark:text-gray-300" />
+              <RotateCcw className="h-4 w-4 text-gray-600 dark:text-gray-300" />
             </button>
             <button
               onClick={toggleDarkMode}
@@ -42,18 +44,26 @@ export const DashboardHeader = ({
               aria-label="Toggle Night Mode"
             >
               {isDarkMode ? (
-                <Sun className="h-6 w-6 text-yellow-400" />
+                <Sun className="h-4 w-4 text-yellow-400" />
               ) : (
-                <Moon className="h-6 w-6 text-gray-600 dark:text-gray-400" />
+                <Moon className="h-4 w-4 text-gray-600 dark:text-gray-400" />
               )}
+            </button>
+            <button
+              onClick={() => openSupportLink()}
+              title="Support"
+              className="flex items-center justify-center p-2 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+              aria-label="Support"
+            >
+              <HelpCircle className="h-4 w-4 text-gray-600 dark:text-gray-300" />
             </button>
             <button
               onClick={onLogout}
               title="Logout"
-              className="flex items-center space-x-2 px-4 py-2 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors"
+              className="flex items-center justify-center p-2 rounded-full bg-red-500 text-white hover:bg-red-600 transition"
+              aria-label="Logout"
             >
               <LogOut className="h-4 w-4" />
-              <span>Logout</span>
             </button>
           </div>
         </div>

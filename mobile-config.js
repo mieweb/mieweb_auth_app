@@ -5,7 +5,7 @@ App.info({
   author: 'Anshul Abrol',
   email: 'abrol.anshul10@gmail.com',
   website: 'https://mieauth-prod.os.mieweb.org',
-  version: '1.0.2',
+  version: '1.1.0',
 });
 
 App.setPreference('android-targetSdkVersion', '35');
@@ -73,6 +73,8 @@ App.launchScreens({
 App.configurePlugin('cordova-plugin-device', {
   version: '2.0.5',
 });
+
+App.configurePlugin('cordova-plugin-inappbrowser', {});
 
 App.addResourceFile('private/android/google-services.json', 'app/google-services.json', 'android');
 App.addResourceFile('private/ios/GoogleService-Info.plist', 'GoogleService-Info.plist', 'ios');

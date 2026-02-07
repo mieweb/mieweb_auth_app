@@ -229,6 +229,48 @@ Meteor.methods({
     return userDoc.devices.map(device => device.fcmToken);
   },
 
+  /**
+   * Get FCM tokens only from approved devices by username
+   * @param {String} username - Username
+   * @returns {Array} Array of FCM tokens from approved devices
+   */
+  'deviceDetails.getApprovedFCMTokensByUsername': async function(username) {
+    check(username, String);
+    
+    const userDoc = await DeviceDetails.findOneAsync({ username });
+    if (!userDoc) {
+      throw new Meteor.Error('invalid-username', 'No device found with this Username');
+    }
+    
+    // Filter to only approved devices and return their FCM tokens
+    const approvedDevices = userDoc.devices.filter(
+      device => device.deviceRegistrationStatus === 'approved'
+    );
+    
+    return approvedDevices.map(device => device.fcmToken);
+  },
+
+  /**
+   * Get FCM tokens only from approved devices by userId
+   * @param {String} userId - User ID
+   * @returns {Array} Array of FCM tokens from approved devices
+   */
+  'deviceDetails.getApprovedFCMTokensByUserId': async function(userId) {
+    check(userId, String);
+    
+    const userDoc = await DeviceDetails.findOneAsync({ userId });
+    if (!userDoc) {
+      throw new Meteor.Error('invalid-username', 'No device found with this UserId');
+    }
+    
+    // Filter to only approved devices and return their FCM tokens
+    const approvedDevices = userDoc.devices.filter(
+      device => device.deviceRegistrationStatus === 'approved'
+    );
+    
+    return approvedDevices.map(device => device.fcmToken);
+  },
+
     /**
    * Get all FCM tokens by username
    * @param {String} userId - User ID
