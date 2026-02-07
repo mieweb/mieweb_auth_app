@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { openSupportLink } from '../../../../utils/openExternal';
 import { FiUser, FiMail, FiLock } from 'react-icons/fi';
 import { motion } from 'framer-motion';
 import { Meteor } from 'meteor/meteor';
@@ -325,12 +326,13 @@ export const RegistrationPage = ({ deviceDetails }) => {
 
           <div className="text-center text-sm text-gray-600">
             Need help?{' '}
-            <Link
-              to="/support"
+            <button
+              type="button"
+              onClick={() => openSupportLink()}
               className="text-blue-600 hover:text-blue-800 font-medium"
             >
               Contact Support
-            </Link>
+            </button>
           </div>
         </form>
       </motion.div>

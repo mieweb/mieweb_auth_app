@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useDeviceRegistration } from './hooks/useDeviceRegistration';
 import { AppRoutes } from './components/AppRoutes';
+import { openSupportLink } from '../../../../utils/openExternal';
 
 const LoadingState = () => (
   <div className="flex flex-col items-center justify-center min-h-screen bg-white space-y-6">
@@ -12,11 +13,6 @@ const LoadingState = () => (
 );
 
 const ConnectionError = ({ onRetry }) => {
-  const handleSupportClick = (e) => {
-    e.preventDefault();
-    window.location.href = '/support';
-  };
-
   return (
   <div className="min-h-screen bg-gradient-to-br from-red-50 to-pink-50 flex items-center p-6">
     <div className="max-w-xs mx-auto bg-white rounded-2xl shadow-lg p-6 space-y-6">
@@ -53,13 +49,12 @@ const ConnectionError = ({ onRetry }) => {
       </button>
 
       <div className="text-center text-sm text-gray-600">
-        <a
-          href="/support"
-          onClick={handleSupportClick}
+        <button
+          onClick={() => openSupportLink()}
           className="text-blue-600 hover:text-blue-800 font-medium"
         >
           Contact Support
-        </a>
+        </button>
       </div>
     </div>
   </div>
@@ -94,7 +89,7 @@ export const App = () => {
       ) : isLoading ? (
         <LoadingState />
       ) : (
-        <div className="min-h-screen bg-gradient-to-br from-blwue-50 to-indigo-50">
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
           <AppRoutes 
             isRegistered={boolRegisteredDevice} 
             deviceUuid={capturedDeviceUuid} 
