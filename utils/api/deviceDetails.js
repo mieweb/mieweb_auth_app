@@ -225,8 +225,10 @@ Meteor.methods({
       throw new Meteor.Error('invalid-username', 'No device found with this Username');
     }
     
-    // Return array of FCM tokens from all devices
-    return userDoc.devices.map(device => device.fcmToken);
+    // Return array of FCM tokens from approved devices only
+    return userDoc.devices
+      .filter(device => device.deviceRegistrationStatus === 'approved')
+      .map(device => device.fcmToken);
   },
 
     /**
@@ -242,8 +244,10 @@ Meteor.methods({
       throw new Meteor.Error('invalid-username', 'No device found with this UserId');
     }
     
-    // Return array of FCM tokens from all devices
-    return userDoc.devices.map(device => device.fcmToken);
+    // Return array of FCM tokens from approved devices only
+    return userDoc.devices
+      .filter(device => device.deviceRegistrationStatus === 'approved')
+      .map(device => device.fcmToken);
   },
   
   /**

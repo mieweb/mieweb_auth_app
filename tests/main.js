@@ -594,5 +594,149 @@ describe("meteor-app", function () {
         assert.strictEqual(notification.clientId, clientId, "Should store provided clientId");
       });
     });
+
+    describe("Device Registration Status - Notification Filtering", function () {
+      const { DeviceDetails } = require("../utils/api/deviceDetails");
+
+      beforeEach(async function () {
+        await DeviceDetails.removeAsync({});
+      });
+
+      afterEach(async function () {
+        await DeviceDetails.removeAsync({});
+      });
+
+      it("should only return FCM tokens for approved devices (getFCMTokenByUsername)", async function () {
+        // Create a user with mixed device statuses
+        await DeviceDetails.insertAsync({
+          userId: 'test-user-123',
+          email: 'test@example.com',
+          username: 'testuser',
+          firstName: 'Test',
+          lastName: 'User',
+          devices: [
+            {
+              deviceUUID: 'device-1',
+              appId: 'app-1',
+              biometricSecret: 'secret-1',
+              fcmToken: 'approved-token-1',
+              isFirstDevice: true,
+              isPrimary: true,
+              deviceRegistrationStatus: 'approved',
+              lastUpdated: new Date()
+            },
+            {
+              deviceUUID: 'device-2',
+              appId: 'app-2',
+              biometricSecret: 'secret-2',
+              fcmToken: 'pending-token-1',
+              isFirstDevice: false,
+              isPrimary: false,
+              deviceRegistrationStatus: 'pending',
+              lastUpdated: new Date()
+            },
+            {
+              deviceUUID: 'device-3',
+              appId: 'app-3',
+              biometricSecret: 'secret-3',
+              fcmToken: 'approved-token-2',
+              isFirstDevice: false,
+              isPrimary: false,
+              deviceRegistrationStatus: 'approved',
+              lastUpdated: new Date()
+            }
+          ],
+          createdAt: new Date(),
+          lastUpdated: new Date()
+        });
+
+        const tokens = await Meteor.callAsync('deviceDetails.getFCMTokenByUsername', 'testuser');
+        
+        assert.strictEqual(tokens.length, 2, "Should return only 2 approved devices");
+        assert.ok(tokens.includes('approved-token-1'), "Should include first approved device");
+        assert.ok(tokens.includes('approved-token-2'), "Should include second approved device");
+        assert.ok(!tokens.includes('pending-token-1'), "Should NOT include pending device");
+      });
+
+      it("should only return FCM tokens for approved devices (getFCMTokenByUserId)", async function () {
+        // Create a user with mixed device statuses
+        await DeviceDetails.insertAsync({
+          userId: 'test-user-456',
+          email: 'test2@example.com',
+          username: 'testuser2',
+          firstName: 'Test',
+          lastName: 'User',
+          devices: [
+            {
+              deviceUUID: 'device-1',
+              appId: 'app-1',
+              biometricSecret: 'secret-1',
+              fcmToken: 'approved-token-1',
+              isFirstDevice: true,
+              isPrimary: true,
+              deviceRegistrationStatus: 'approved',
+              lastUpdated: new Date()
+            },
+            {
+              deviceUUID: 'device-2',
+              appId: 'app-2',
+              biometricSecret: 'secret-2',
+              fcmToken: 'pending-token-1',
+              isFirstDevice: false,
+              isPrimary: false,
+              deviceRegistrationStatus: 'pending',
+              lastUpdated: new Date()
+            }
+          ],
+          createdAt: new Date(),
+          lastUpdated: new Date()
+        });
+
+        const tokens = await Meteor.callAsync('deviceDetails.getFCMTokenByUserId', 'test-user-456');
+        
+        assert.strictEqual(tokens.length, 1, "Should return only 1 approved device");
+        assert.ok(tokens.includes('approved-token-1'), "Should include approved device");
+        assert.ok(!tokens.includes('pending-token-1'), "Should NOT include pending device");
+      });
+
+      it("should return empty array when no approved devices exist", async function () {
+        // Create a user with only pending devices
+        await DeviceDetails.insertAsync({
+          userId: 'test-user-789',
+          email: 'test3@example.com',
+          username: 'testuser3',
+          firstName: 'Test',
+          lastName: 'User',
+          devices: [
+            {
+              deviceUUID: 'device-1',
+              appId: 'app-1',
+              biometricSecret: 'secret-1',
+              fcmToken: 'pending-token-1',
+              isFirstDevice: true,
+              isPrimary: true,
+              deviceRegistrationStatus: 'pending',
+              lastUpdated: new Date()
+            },
+            {
+              deviceUUID: 'device-2',
+              appId: 'app-2',
+              biometricSecret: 'secret-2',
+              fcmToken: 'pending-token-2',
+              isFirstDevice: false,
+              isPrimary: false,
+              deviceRegistrationStatus: 'pending',
+              lastUpdated: new Date()
+            }
+          ],
+          createdAt: new Date(),
+          lastUpdated: new Date()
+        });
+
+        const tokens = await Meteor.callAsync('deviceDetails.getFCMTokenByUsername', 'testuser3');
+        
+        assert.strictEqual(tokens.length, 0, "Should return empty array when all devices are pending");
+      });
+    });
   }
 });
