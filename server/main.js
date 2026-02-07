@@ -1034,7 +1034,20 @@ Meteor.methods({
         try {
           const res = await sendDeviceApprovalNotification(userId, sessionDeviceInfo.uuid);
 
-          if (res === 'timeout' || res === 'rejected' || res === 'reject') {
+          if (res === 'approve' || res === 'approved') {
+            // Primary device approved — update the secondary device's registration status
+            await DeviceDetails.updateAsync(
+              { userId, 'devices.deviceUUID': sessionDeviceInfo.uuid },
+              {
+                $set: {
+                  'devices.$.deviceRegistrationStatus': 'approved',
+                  'devices.$.lastUpdated': new Date(),
+                  lastUpdated: new Date()
+                }
+              }
+            );
+            console.log(`Secondary device ${sessionDeviceInfo.uuid} approved and database updated`);
+          } else if (res === 'timeout' || res === 'rejected' || res === 'reject') {
             await DeviceDetails.updateAsync(
               { userId: userId },
               { $pull: { devices: { appId: deviceResp.appId } } }
@@ -1283,7 +1296,7 @@ Meteor.methods({
     const device = userDeviceDoc.devices[deviceIndex];
 
     // Check if this is the first device (should be pending)
-    if (device.approvalStatus !== 'pending') {
+    if (device.deviceRegistrationStatus !== 'pending') {
       throw new Meteor.Error('invalid-status', 'Device is not pending approval');
     }
 
@@ -1292,7 +1305,7 @@ Meteor.methods({
       { userId, 'devices.deviceUUID': deviceUUID },
       {
         $set: {
-          [`devices.${deviceIndex}.approvalStatus`]: approved ? 'approved' : 'rejected',
+          [`devices.${deviceIndex}.deviceRegistrationStatus`]: approved ? 'approved' : 'rejected',
           [`devices.${deviceIndex}.lastUpdated`]: new Date(),
           lastUpdated: new Date()
         }
@@ -1359,7 +1372,7 @@ Meteor.methods({
       { userId, 'devices.deviceUUID': secondaryDeviceUUID },
       {
         $set: {
-          [`devices.${secondaryDeviceIndex}.approvalStatus`]: approved ? 'approved' : 'rejected',
+          [`devices.${secondaryDeviceIndex}.deviceRegistrationStatus`]: approved ? 'approved' : 'rejected',
           [`devices.${secondaryDeviceIndex}.lastUpdated`]: new Date(),
           lastUpdated: new Date()
         }
