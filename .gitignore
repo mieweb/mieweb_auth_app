@@ -155,3 +155,5 @@ set-env.sh
 
 # Generated build info
 public/buildInfo.json
+set-env-*.sh
+set-env.sh

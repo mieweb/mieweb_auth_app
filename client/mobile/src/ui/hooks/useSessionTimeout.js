@@ -5,27 +5,27 @@ import { useNavigate } from 'react-router-dom';
 const STORAGE_KEY = 'appWasPaused';
 
 /**
- * Custom hook to manage user session based on device screen lock
- * Automatically logs out the user when they return to the app after locking their phone.
- * This leverages the device's built-in security (phone lock) instead of arbitrary timeouts.
+ * Custom hook to manage user session based on device screen lock.
+ * When the user returns to the app after screen lock / background,
+ * it logs them out and navigates to /login where the lock screen
+ * will automatically re-trigger biometric authentication.
  */
 export const useSessionTimeout = () => {
   const navigate = useNavigate();
 
   // Handle logout when app resumes after screen lock
   const handleLogout = useCallback(() => {
-    console.log('Logging out user after device screen lock');
+    console.log('Session: Logging out after device screen lock – biometric re-auth will trigger on login screen');
     
-    // Logout the user
     Meteor.logout((err) => {
       if (err) {
         console.error('Error during automatic logout:', err);
       }
       
-      // Clear pause flag (keep lastLoggedInEmail for UX - it's safe and convenient)
+      // Clear pause flag (keep lastLoggedInEmail & biometricUserId for seamless re-auth)
       localStorage.removeItem(STORAGE_KEY);
       
-      // Navigate to login page
+      // Navigate to login – the lock screen will auto-trigger biometrics
       navigate('/login');
     });
   }, [navigate]);

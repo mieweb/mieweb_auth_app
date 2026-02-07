@@ -1,5 +1,6 @@
 import React from 'react';
 import { useLocation, Link } from 'react-router-dom';
+import { openSupportLink } from '../../../../utils/openExternal';
 
 const PendingRegistrationPage = () => {
   const location = useLocation();
@@ -71,12 +72,12 @@ const PendingRegistrationPage = () => {
               Refresh Status
             </button>
             
-            <a 
-              href="mailto:devopsalerts@mieweb.com" 
+            <button 
+              onClick={() => openSupportLink()} 
               className="text-gray-600 hover:text-gray-800 text-sm"
             >
               Contact Support
-            </a>
+            </button>
           </div>
         </div>
       </div>
