@@ -13,6 +13,7 @@ import "../utils/api/apiKeys.js"; // Import for side effects (Meteor methods reg
 import { APPROVAL_TOKEN_EXPIRY_MS } from "../utils/constants.js";
 import { isValidToken, isNotificationExpired, determineTokenErrorReason } from "../utils/utils";
 import { successTemplate, errorTemplate, rejectionTemplate, previouslyUsedTemplate } from './templates/email';
+import { INTERNAL_SERVER_SECRET } from './internalSecret.js';
 import dotenv from 'dotenv';
 
 
@@ -157,9 +158,15 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
       // Check if authentication is required
       const forceAuth = process.env.SEND_NOTIFICATION_FORCE_AUTH === 'true';
       let clientId = 'unspecified';
-      
-      if (forceAuth || apikey) {
-        // Verify API key if force auth is enabled or if apikey is provided
+
+      // Internal server-to-server calls are trusted (e.g. device approval notifications)
+      const internalSecret = req.headers['x-internal-secret'];
+      const isInternalCall = internalSecret && internalSecret === INTERNAL_SERVER_SECRET;
+      if (isInternalCall) {
+        clientId = 'internal-server';
+        console.log('Request authenticated as internal server call');
+      } else if (forceAuth) {
+        // Only verify API key when force auth is enabled
         if (!apikey) {
           console.error("API key required but not provided");
           res.writeHead(403, { "Content-Type": "application/json" });
