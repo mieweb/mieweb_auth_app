@@ -418,7 +418,7 @@ WebApp.connectHandlers.use('/api/reject-user', async (req, res) => {
       res.writeHead(500, {
         'Content-Type': 'text/html'
       });
-      res.end(errorTemplate('unknown'));
+      res.end(errorTemplate('server_error'));
     }
   } else {
     // Check if token was previously used (same logic as approve route)

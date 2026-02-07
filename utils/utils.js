@@ -39,7 +39,8 @@ export const formatDateTime = (isoString) => {
 
     if (tokenRecord) {
       // Token exists, check if it's expired
-      if (tokenRecord.expiresAt < new Date()) {
+      // Use <= to align with isValidToken's $gt boundary check
+      if (tokenRecord.expiresAt <= new Date()) {
         return 'expired';
       } else {
         // Token is not expired, check if user exists

@@ -60,6 +60,11 @@ export const errorTemplate = (reason = 'unknown') => {
       message: 'The approval token is invalid or does not exist.',
       details: 'Please contact the system administrator for a new approval link.'
     },
+    'server_error': {
+      title: 'Internal Server Error',
+      message: 'An internal server error occurred while processing your request.',
+      details: 'Please try again later or contact the system administrator for assistance.'
+    },
     'unknown': {
       title: 'Invalid Request',
       message: 'This link is invalid or has expired.',

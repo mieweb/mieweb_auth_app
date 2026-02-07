@@ -322,6 +322,79 @@ describe("meteor-app", function () {
         assert.ok(html.includes('error-message'), "Should include error-message class");
         assert.ok(html.includes('background-color: #f44336'), "Should include error background color");
       });
+
+      it("should render server error message", function () {
+        const html = errorTemplate('server_error');
+        
+        assert.ok(html.includes('Internal Server Error'), "Should show 'Internal Server Error' title");
+        assert.ok(html.includes('An internal server error occurred'), "Should show server error message");
+        assert.ok(html.includes('try again later'), "Should suggest retrying");
+      });
+    });
+
+    describe("determineTokenErrorReason", function () {
+      const { ApprovalTokens } = require("../utils/api/approvalTokens");
+      const { determineTokenErrorReason } = require("../utils/utils");
+
+      const testUserId = 'test-user-error-reason';
+      const testToken = 'test-token-error-reason';
+
+      afterEach(async function () {
+        await ApprovalTokens.removeAsync({ userId: testUserId });
+        await Meteor.users.removeAsync({ _id: testUserId });
+      });
+
+      it("should return 'expired' when token exists but is expired", async function () {
+        await ApprovalTokens.insertAsync({
+          userId: testUserId,
+          token: testToken,
+          expiresAt: new Date(Date.now() - 1000), // expired 1 second ago
+          used: false
+        });
+
+        const reason = await determineTokenErrorReason(testUserId, testToken);
+        assert.strictEqual(reason, 'expired');
+      });
+
+      it("should return 'expired' when expiresAt equals current time (boundary)", async function () {
+        const now = new Date();
+        await ApprovalTokens.insertAsync({
+          userId: testUserId,
+          token: testToken,
+          expiresAt: now,
+          used: false
+        });
+
+        const reason = await determineTokenErrorReason(testUserId, testToken);
+        assert.strictEqual(reason, 'expired');
+      });
+
+      it("should return 'user_not_found' when token exists, not expired, but user missing", async function () {
+        await ApprovalTokens.insertAsync({
+          userId: testUserId,
+          token: testToken,
+          expiresAt: new Date(Date.now() + 60000), // expires in 1 minute
+          used: false
+        });
+        // No user inserted
+
+        const reason = await determineTokenErrorReason(testUserId, testToken);
+        assert.strictEqual(reason, 'user_not_found');
+      });
+
+      it("should return 'invalid_token' when token doesn't exist but user does", async function () {
+        await Meteor.users.insertAsync({ _id: testUserId, profile: {} });
+        // No token inserted
+
+        const reason = await determineTokenErrorReason(testUserId, testToken);
+        assert.strictEqual(reason, 'invalid_token');
+      });
+
+      it("should return 'user_not_found' when neither token nor user exist", async function () {
+        // No token or user inserted
+        const reason = await determineTokenErrorReason(testUserId, testToken);
+        assert.strictEqual(reason, 'user_not_found');
+      });
     });
 
     describe("API Key Authentication", function () {
