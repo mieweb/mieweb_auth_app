@@ -1,36 +1,99 @@
-import React, {useEffect} from 'react';
-import { CheckCircle } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 
 const ResultModal = ({ isOpen, onClose }) => {
+  const [phase, setPhase] = useState('hidden'); // hidden → entering → visible → exiting
+
   useEffect(() => {
     if (isOpen) {
-      const timer = setTimeout(() => {
-        onClose();
-      }, 3000); 
-      return () => clearTimeout(timer);
+      setPhase('entering');
+      const enterTimer = requestAnimationFrame(() => setPhase('visible'));
+
+      // Auto-dismiss with exit animation
+      const dismissTimer = setTimeout(() => {
+        setPhase('exiting');
+        setTimeout(() => onClose(), 250);
+      }, 2500);
+
+      return () => {
+        cancelAnimationFrame(enterTimer);
+        clearTimeout(dismissTimer);
+      };
+    } else {
+      setPhase('hidden');
     }
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  if (!isOpen && phase === 'hidden') return null;
+
+  const isVisible = phase === 'visible';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="bg-white rounded-lg shadow-lg w-11/12 max-w-md p-6 text-center">
-        <div className="flex justify-center mb-4">
-          <div className="w-16 h-16 flex items-center justify-center bg-green-100 rounded-full">
-            <CheckCircle className="h-10 w-10 text-green-500" />
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center transition-all duration-300 ${
+        isVisible ? 'bg-black/30 backdrop-blur-[3px]' : 'bg-transparent'
+      }`}
+      onClick={() => { setPhase('exiting'); setTimeout(onClose, 250); }}
+    >
+      <div
+        className={`relative w-56 text-center transition-all duration-300 ease-out ${
+          isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-90'
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Glass card */}
+        <div className="bg-white dark:bg-[#2c2c2e] rounded-3xl px-6 pt-8 pb-6 shadow-2xl shadow-black/10 dark:shadow-black/30">
+          {/* Animated check circle with ring pulse */}
+          <div className="flex justify-center mb-5">
+            <div className="relative">
+              <div className={`absolute inset-0 rounded-full bg-emerald-400/20 transition-all duration-700 ${
+                isVisible ? 'scale-150 opacity-0' : 'scale-100 opacity-100'
+              }`} style={{ width: 56, height: 56 }} />
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-emerald-400 to-green-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                <svg
+                  className={`w-7 h-7 text-white transition-all duration-500 delay-200 ${
+                    isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-50'
+                  }`}
+                  fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"
+                    className={isVisible ? 'animate-draw-check' : ''}
+                    style={{ strokeDasharray: 24, strokeDashoffset: isVisible ? 0 : 24 }}
+                  />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-[15px] font-semibold text-gray-900 dark:text-white">
+            Authenticated
+          </p>
+          <p className="text-[13px] text-gray-400 dark:text-gray-500 mt-1">
+            Successfully verified
+          </p>
+
+          {/* Auto-dismiss progress bar */}
+          <div className="mt-5 h-0.5 w-full rounded-full bg-gray-200/60 dark:bg-white/10 overflow-hidden">
+            <div
+              className={`h-full rounded-full bg-emerald-500/50 transition-all ease-linear ${
+                isVisible ? 'w-0' : 'w-full'
+              }`}
+              style={{ transitionDuration: isVisible ? '2500ms' : '0ms', width: isVisible ? '0%' : '100%' }}
+            />
           </div>
         </div>
-        <h2 className="text-lg font-bold text-gray-800 mb-4">
-          You have been successfully authenticated.
-        </h2>
-        <button
-          className="w-full py-2 mt-4 text-white bg-blue-500 rounded-lg hover:bg-blue-600"
-          onClick={onClose}
-        >
-          Close
-        </button>
       </div>
+
+      <style>{`
+        @keyframes draw-check {
+          from { stroke-dashoffset: 24; }
+          to   { stroke-dashoffset: 0; }
+        }
+        .animate-draw-check {
+          animation: draw-check 0.4s ease-out 0.25s forwards;
+          stroke-dashoffset: 24;
+        }
+      `}</style>
     </div>
   );
 };
