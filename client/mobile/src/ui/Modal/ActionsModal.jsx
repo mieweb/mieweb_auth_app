@@ -41,6 +41,12 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notific
       }
     };
 
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
     if (isOpen && notification) {
       const initialTime = calculateInitialTime();
       console.log('Initial timer value:', initialTime);
@@ -66,11 +72,15 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notific
 
       // Status checking
       statusCheckInterval = setInterval(checkStatus, 2000);
+
+      // Keyboard support
+      document.addEventListener('keydown', handleEscape);
     }
 
     return () => {
       clearInterval(timer);
       clearInterval(statusCheckInterval);
+      document.removeEventListener('keydown', handleEscape);
     };
   }, [isOpen, notification, onClose, onTimeOut]);
 
