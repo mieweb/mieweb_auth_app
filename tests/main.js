@@ -596,22 +596,14 @@ describe("meteor-app", function () {
     });
 
     describe("Push Notification Priority Configuration", function () {
+      const path = require('path');
+      const fs = require('fs');
       const { sendNotification } = require("../server/firebase");
-      
-      it("should configure iOS notifications with time-sensitive interruption level", function () {
-        // This test verifies the message structure contains iOS priority settings
-        // We can't actually send notifications in tests, but we can verify the code structure
-        const firebaseModule = require("../server/firebase");
-        assert.ok(firebaseModule.sendNotification, "sendNotification function should exist");
-      });
       
       it("should verify Android notification channel uses maximum importance", function () {
         // Verify that the push-notifications.js configures channel with importance: 5
-        const fs = require('fs');
-        const pushNotificationsContent = fs.readFileSync(
-          '/home/runner/work/mieweb_auth_app/mieweb_auth_app/client/mobile/push-notifications.js', 
-          'utf8'
-        );
+        const pushNotificationsPath = path.join(__dirname, '..', 'client', 'mobile', 'push-notifications.js');
+        const pushNotificationsContent = fs.readFileSync(pushNotificationsPath, 'utf8');
         
         // Check for importance: 5 (IMPORTANCE_MAX)
         assert.ok(
@@ -628,11 +620,8 @@ describe("meteor-app", function () {
       
       it("should verify iOS notification includes interruption-level setting", function () {
         // Verify that the firebase.js includes interruption-level in APNS payload
-        const fs = require('fs');
-        const firebaseContent = fs.readFileSync(
-          '/home/runner/work/mieweb_auth_app/mieweb_auth_app/server/firebase.js', 
-          'utf8'
-        );
+        const firebasePath = path.join(__dirname, '..', 'server', 'firebase.js');
+        const firebaseContent = fs.readFileSync(firebasePath, 'utf8');
         
         // Check for interruption-level: time-sensitive
         assert.ok(
