@@ -10,6 +10,7 @@ import { NotificationHistory } from "../utils/api/notificationHistory.js"
 import { ApprovalTokens } from "../utils/api/approvalTokens";
 import { PendingResponses } from "../utils/api/pendingResponses.js";
 import "../utils/api/apiKeys.js"; // Import for side effects (Meteor methods registration)
+import { APPROVAL_TOKEN_EXPIRY_MS } from "../utils/constants.js";
 import { isValidToken, isNotificationExpired, determineTokenErrorReason } from "../utils/utils";
 import { successTemplate, errorTemplate, rejectionTemplate, previouslyUsedTemplate } from './templates/email';
 import dotenv from 'dotenv';
@@ -1362,10 +1363,10 @@ Meteor.methods({
     // Generate a secure random token
     const token = Random.secret();
 
-    // TODO: anisha - change later to appropriate expirt time
-    const expiresAt = new Date(Date.now() + 3 * 60 * 1000); // 3 minutes
+    // Approval token expires in 24 hours
+    const expiresAt = new Date(Date.now() + APPROVAL_TOKEN_EXPIRY_MS);
 
-    // Store the token with short expiration time
+    // Store the token with expiration time
     ApprovalTokens.upsertAsync(
       { userId: userId },
       {
@@ -1379,7 +1380,7 @@ Meteor.methods({
       }
     );
 
-    console.log(`Generated approval token for user ${userId}, expires in 3 minutes`);
+    console.log(`Generated approval token for user ${userId}, expires in 24 hours`);
     return token;
   },
 
