@@ -41,12 +41,33 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notific
       }
     };
 
+    const handleTimeout = async () => {
+      if (!notification?.notificationId) {
+        onTimeOut();
+        return;
+      }
+      
+      try {
+        // Mark the notification as timed out
+        await Meteor.callAsync(
+          'notificationHistory.updateStatus',
+          notification.notificationId,
+          'timeout'
+        );
+        console.log('Notification marked as timeout');
+      } catch (error) {
+        console.error('Failed to update notification status to timeout:', error);
+      }
+      
+      onTimeOut();
+    };
+
     if (isOpen && notification) {
       const initialTime = calculateInitialTime();
       console.log('Initial timer value:', initialTime);
 
       if (initialTime <= 0) {
-        onTimeOut();
+        handleTimeout();
         return;
       }
 
@@ -57,7 +78,7 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notific
         setTimeLeft(prev => {
           if (prev <= 1) {
             clearInterval(timer);
-            onTimeOut();
+            handleTimeout();
             return 0;
           }
           return prev - 1;

@@ -4,7 +4,7 @@ import {
   AlertTriangle, // For timeout or error
   Smartphone
 } from 'lucide-react';
-import { formatDateTime } from '../../../../../utils/utils.js'; // Adjust path
+import { formatDateTime, isNotificationExpired } from '../../../../../utils/utils.js'; // Adjust path
 
 
 export const NotificationList = ({ notifications, isLoading, error, onNotificationClick, isActionsModalOpen }) => {
@@ -44,7 +44,8 @@ export const NotificationList = ({ notifications, isLoading, error, onNotificati
     <div>
       {notifications.map((notification) => {
         const isPending = notification.status === 'pending';
-        const isClickable = isPending && !isActionsModalOpen;
+        const isExpired = isNotificationExpired(notification.createdAt);
+        const isClickable = isPending && !isActionsModalOpen && !isExpired;
         
         return (
           <div
