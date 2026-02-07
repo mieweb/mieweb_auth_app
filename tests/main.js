@@ -733,9 +733,11 @@ describe("meteor-app", function () {
           lastUpdated: new Date()
         });
 
-        const tokens = await Meteor.callAsync('deviceDetails.getFCMTokenByUsername', 'testuser3');
+        const tokensByUsername = await Meteor.callAsync('deviceDetails.getFCMTokenByUsername', 'testuser3');
+        const tokensByUserId = await Meteor.callAsync('deviceDetails.getFCMTokenByUserId', 'test-user-789');
         
-        assert.strictEqual(tokens.length, 0, "Should return empty array when all devices are pending");
+        assert.strictEqual(tokensByUsername.length, 0, "getFCMTokenByUsername should return empty array when all devices are pending");
+        assert.strictEqual(tokensByUserId.length, 0, "getFCMTokenByUserId should return empty array when all devices are pending");
       });
     });
   }
