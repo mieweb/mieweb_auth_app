@@ -311,6 +311,32 @@ The script will automatically:
 
 All generated resources are saved to `public/resources/` and are referenced in `mobile-config.js`.
 
+## Build Information
+
+The application automatically generates build information that is displayed in the Support page of the mobile app.
+
+### Automatic Generation
+
+Build information is automatically generated before builds via the `prebuild` npm script:
+
+```bash
+npm run prebuild
+```
+
+This script:
+- Extracts the app version from `mobile-config.js`
+- Gets the current git commit hash
+- Generates `public/buildInfo.json` with version and build metadata
+
+### Viewing Build Information
+
+Users can view the app version and build number by:
+1. Opening the mobile app
+2. Navigating to the Support page
+3. Scrolling to the "App Information" section
+
+The build number is clickable and links to the corresponding commit on GitHub for easy reference.
+
 ## Project Structure
 
 Understanding the application architecture and file organization:
@@ -321,7 +347,9 @@ Understanding the application architecture and file organization:
 | `server/main.js` | Backend Logic | Meteor server implementation and push notification handling |
 | `mobile-config.js` | Mobile Configuration | Cordova application metadata and mobile-specific settings |
 | `generate_app_resources.py` | Resource Generator | Python script to generate app icons and splash screens |
+| `generate-build-info.js` | Build Info Generator | Node.js script to generate app version and build number metadata |
 | `public/resources/` | App Resources | Generated app icons and splash screens for all platforms |
+| `public/buildInfo.json` | Build Metadata | Auto-generated file with app version and git commit hash |
 | `public/android/` | Android Assets | Android-specific configuration files and resources |
 | `public/ios/` | iOS Assets | iOS-specific configuration files and resources |
 | `server/private/` | Server Secrets | Private configuration files (excluded from version control) |
