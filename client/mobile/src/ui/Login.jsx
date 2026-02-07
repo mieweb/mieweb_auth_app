@@ -1,83 +1,67 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { openSupportLink } from '../../../../utils/openExternal';
-import { FiMail, FiLock, FiAlertCircle, FiChevronUp } from 'react-icons/fi';
+import { FiMail, FiLock, FiAlertCircle } from 'react-icons/fi';
 import { Meteor } from 'meteor/meteor';
 import { Session } from 'meteor/session';
 import { Fingerprint as FingerprintIcon, KeyRound } from 'lucide-react';
 
 // ── Lock Screen (biometric auto-trigger) ────────────────────────────────────
 const LockScreen = ({ email, onBiometricSuccess, onShowPinFallback, error, isAuthenticating }) => {
-  const [time, setTime] = useState('');
-  const [date, setDate] = useState('');
-
-  useEffect(() => {
-    const tick = () => {
-      const now = new Date();
-      setTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-      setDate(now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' }));
-    };
-    tick();
-    const id = setInterval(tick, 10_000);
-    return () => clearInterval(id);
-  }, []);
-
   return (
-    <div className="min-h-screen flex flex-col items-center justify-between bg-gradient-to-b from-gray-900 via-indigo-950 to-gray-900 text-white select-none px-6 py-10">
-      {/* Top – clock */}
-      <div className="text-center mt-8 space-y-1">
-        <p className="text-6xl font-thin tracking-wide tabular-nums">{time}</p>
-        <p className="text-sm font-medium text-indigo-300/80 tracking-wide">{date}</p>
-      </div>
-
-      {/* Centre – biometric indicator */}
-      <div className="flex flex-col items-center space-y-6 -mt-8">
-        {/* Pulsing ring */}
-        <div className="relative flex items-center justify-center">
-          <span className="absolute h-28 w-28 rounded-full bg-indigo-500/20 animate-ping" />
-          <span className="absolute h-24 w-24 rounded-full bg-indigo-500/10" />
-          <button
-            onClick={onBiometricSuccess}
-            disabled={isAuthenticating}
-            aria-label="Authenticate with biometrics"
-            className="relative z-10 h-20 w-20 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center transition-transform active:scale-90 hover:bg-white/20"
-          >
-            {isAuthenticating ? (
-              <svg className="animate-spin h-9 w-9 text-indigo-300" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-            ) : (
-              <FingerprintIcon className="h-9 w-9 text-indigo-300" />
-            )}
-          </button>
-        </div>
-
-        <div className="text-center space-y-1">
-          <p className="text-sm text-indigo-200/90 font-medium tracking-wide">
-            {isAuthenticating ? 'Authenticating…' : 'Tap to unlock with biometrics'}
-          </p>
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-gray-50 to-indigo-50">
+      <div className="max-w-md w-full space-y-6 bg-white p-8 rounded-3xl shadow-xl border border-gray-100">
+        {/* Header */}
+        <div className="text-center space-y-3">
+          <div className="mx-auto w-14 h-14 bg-indigo-100 rounded-2xl flex items-center justify-center">
+            <FingerprintIcon className="h-7 w-7 text-indigo-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900">Welcome Back!</h2>
           {email && (
-            <p className="text-xs text-indigo-400/70">{email}</p>
+            <p className="text-sm text-gray-500">{email}</p>
           )}
         </div>
 
+        {/* Error */}
         {error && (
-          <div className="flex items-center gap-2 bg-red-500/20 border border-red-400/30 text-red-200 text-xs px-4 py-2 rounded-xl max-w-xs text-center">
+          <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 border border-red-100 p-3 rounded-xl">
             <FiAlertCircle className="shrink-0" />
             <span>{error}</span>
           </div>
         )}
-      </div>
 
-      {/* Bottom – swipe hint for PIN fallback */}
-      <button
-        onClick={onShowPinFallback}
-        className="flex flex-col items-center space-y-1 opacity-60 hover:opacity-100 transition-opacity pb-2"
-      >
-        <FiChevronUp className="h-5 w-5 animate-bounce" />
-        <span className="text-xs tracking-wider uppercase">Use PIN instead</span>
-      </button>
+        {/* Biometric button */}
+        <button
+          onClick={onBiometricSuccess}
+          disabled={isAuthenticating}
+          aria-label="Authenticate with biometrics"
+          className="w-full py-3 rounded-xl text-white font-medium bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 disabled:opacity-50 transition-all transform hover:scale-[1.01] active:scale-[0.99] shadow-lg shadow-indigo-200 flex items-center justify-center gap-2"
+        >
+          {isAuthenticating ? (
+            <span className="flex items-center justify-center gap-2">
+              <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              Authenticating…
+            </span>
+          ) : (
+            <>
+              <FingerprintIcon className="h-5 w-5" />
+              Unlock with Biometrics
+            </>
+          )}
+        </button>
+
+        {/* PIN fallback */}
+        <button
+          onClick={onShowPinFallback}
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-indigo-200 text-indigo-600 text-sm font-medium hover:bg-indigo-50 transition"
+        >
+          <KeyRound className="h-4 w-4" />
+          Use PIN Instead
+        </button>
+      </div>
     </div>
   );
 };
