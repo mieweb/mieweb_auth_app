@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { openSupportLink } from '../../../../utils/openExternal';
 import { FiMail, FiLock, FiAlertCircle, FiChevronUp } from 'react-icons/fi';
 import { Meteor } from 'meteor/meteor';
 import { Session } from 'meteor/session';
-import { Fingerprint as FingerprintIcon, ShieldCheck, KeyRound } from 'lucide-react';
+import { Fingerprint as FingerprintIcon, KeyRound } from 'lucide-react';
 
 // ── Lock Screen (biometric auto-trigger) ────────────────────────────────────
 const LockScreen = ({ email, onBiometricSuccess, onShowPinFallback, error, isAuthenticating }) => {
@@ -318,6 +319,17 @@ export const LoginPage = ({ deviceDetails }) => {
               </span>
             ) : 'Sign In with PIN'}
           </button>
+
+          <div className="text-center text-sm text-gray-600">
+            Need help?{' '}
+            <button
+              type="button"
+              onClick={() => openSupportLink()}
+              className="text-blue-600 hover:text-blue-800 font-medium"
+            >
+              Contact Support
+            </button>
+          </div>
         </form>
 
         {/* Back to biometric if available */}
