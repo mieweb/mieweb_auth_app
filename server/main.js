@@ -10,7 +10,7 @@ import { NotificationHistory } from "../utils/api/notificationHistory.js"
 import { ApprovalTokens } from "../utils/api/approvalTokens";
 import { PendingResponses } from "../utils/api/pendingResponses.js";
 import "../utils/api/apiKeys.js"; // Import for side effects (Meteor methods registration)
-import { isValidToken } from "../utils/utils";
+import { isValidToken, determineTokenErrorReason } from "../utils/utils";
 import { successTemplate, errorTemplate, rejectionTemplate, previouslyUsedTemplate } from './templates/email';
 import dotenv from 'dotenv';
 
@@ -376,34 +376,7 @@ WebApp.connectHandlers.use('/api/approve-user', async (req, res) => {
       res.end(previouslyUsedTemplate());
     } else {
       // Determine the specific error reason
-      let errorReason = 'unknown';
-      
-      // Check if token exists at all
-      const tokenRecord = await ApprovalTokens.findOneAsync({
-        userId,
-        token
-      });
-
-      if (tokenRecord) {
-        // Token exists, check if it's expired
-        if (tokenRecord.expiresAt < new Date()) {
-          errorReason = 'expired';
-        } else {
-          // Token is valid but user doesn't exist
-          const user = await Meteor.users.findOneAsync({ _id: userId });
-          if (!user) {
-            errorReason = 'user_not_found';
-          }
-        }
-      } else {
-        // Check if user exists but token is invalid
-        const user = await Meteor.users.findOneAsync({ _id: userId });
-        if (user) {
-          errorReason = 'invalid_token';
-        } else {
-          errorReason = 'user_not_found';
-        }
-      }
+      const errorReason = await determineTokenErrorReason(userId, token);
 
       res.writeHead(200, {
         'Content-Type': 'text/html'
@@ -464,34 +437,7 @@ WebApp.connectHandlers.use('/api/reject-user', async (req, res) => {
       res.end(previouslyUsedTemplate());
     } else {
       // Determine the specific error reason
-      let errorReason = 'unknown';
-      
-      // Check if token exists at all
-      const tokenRecord = await ApprovalTokens.findOneAsync({
-        userId,
-        token
-      });
-
-      if (tokenRecord) {
-        // Token exists, check if it's expired
-        if (tokenRecord.expiresAt < new Date()) {
-          errorReason = 'expired';
-        } else {
-          // Token is valid but user doesn't exist
-          const user = await Meteor.users.findOneAsync({ _id: userId });
-          if (!user) {
-            errorReason = 'user_not_found';
-          }
-        }
-      } else {
-        // Check if user exists but token is invalid
-        const user = await Meteor.users.findOneAsync({ _id: userId });
-        if (user) {
-          errorReason = 'invalid_token';
-        } else {
-          errorReason = 'user_not_found';
-        }
-      }
+      const errorReason = await determineTokenErrorReason(userId, token);
 
       res.writeHead(200, {
         'Content-Type': 'text/html'

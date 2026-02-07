@@ -28,4 +28,35 @@ export const formatDateTime = (isoString) => {
     });
 
     return tokenRecord;
-  }
+  };
+
+  export const determineTokenErrorReason = async(userId, token) => {
+    // Check if token exists at all
+    const tokenRecord = await ApprovalTokens.findOneAsync({
+      userId,
+      token
+    });
+
+    if (tokenRecord) {
+      // Token exists, check if it's expired
+      if (tokenRecord.expiresAt < new Date()) {
+        return 'expired';
+      } else {
+        // Token is valid but user doesn't exist
+        const user = await Meteor.users.findOneAsync({ _id: userId });
+        if (!user) {
+          return 'user_not_found';
+        }
+      }
+    } else {
+      // Check if user exists but token is invalid
+      const user = await Meteor.users.findOneAsync({ _id: userId });
+      if (user) {
+        return 'invalid_token';
+      } else {
+        return 'user_not_found';
+      }
+    }
+
+    return 'unknown';
+  };
