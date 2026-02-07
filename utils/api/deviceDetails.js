@@ -227,7 +227,7 @@ Meteor.methods({
     
     // Return array of FCM tokens from approved devices only
     return userDoc.devices
-      .filter(device => device.deviceRegistrationStatus === 'approved')
+      .filter(device => device.deviceRegistrationStatus === 'approved' && device.fcmToken)
       .map(device => device.fcmToken);
   },
 
@@ -246,7 +246,7 @@ Meteor.methods({
     
     // Return array of FCM tokens from approved devices only
     return userDoc.devices
-      .filter(device => device.deviceRegistrationStatus === 'approved')
+      .filter(device => device.deviceRegistrationStatus === 'approved' && device.fcmToken)
       .map(device => device.fcmToken);
   },
   
