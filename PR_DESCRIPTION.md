@@ -83,7 +83,7 @@ This document outlines all changes from the `development` branch that will be me
    - Added click handlers to pending notifications in history
 
 4. **Lock Screen UI**
-   - Retyled to match app theme
+   - Restyled to match app theme
    - Better biometric prompt integration
    - Consistent with overall design language
 
