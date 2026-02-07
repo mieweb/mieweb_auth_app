@@ -313,6 +313,16 @@ export const LoginPage = ({ deviceDetails }) => {
               'Sign In'
             )}
           </button>
+
+          <div className="text-center text-sm text-gray-600">
+            Need help?{' '}
+            <a
+              href="/support"
+              className="text-blue-600 hover:text-blue-800 font-medium"
+            >
+              Contact Support
+            </a>
+          </div>
         </form>
       </div>
     </div>

@@ -45,6 +45,15 @@ const ConnectionError = ({ onRetry }) => (
       >
         ↻ Refresh Now
       </button>
+
+      <div className="text-center text-sm text-gray-600">
+        <a
+          href="/support"
+          className="text-blue-600 hover:text-blue-800 font-medium"
+        >
+          Contact Support
+        </a>
+      </div>
     </div>
   </div>
 );

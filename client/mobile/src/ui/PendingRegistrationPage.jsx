@@ -71,12 +71,12 @@ const PendingRegistrationPage = () => {
               Refresh Status
             </button>
             
-            <a 
-              href="mailto:devopsalerts@mieweb.com" 
+            <Link 
+              to="/support" 
               className="text-gray-600 hover:text-gray-800 text-sm"
             >
               Contact Support
-            </a>
+            </Link>
           </div>
         </div>
       </div>
