@@ -47,6 +47,9 @@ export const NotificationList = ({ notifications, isLoading, error, onNotificati
         const isExpired = isNotificationExpired(notification.createdAt);
         const isClickable = isPending && !isActionsModalOpen && !isExpired;
         
+        // Compute the display status - show 'timeout' for expired pending notifications
+        const displayStatus = (isPending && isExpired) ? 'timeout' : notification.status;
+        
         return (
           <div
             key={notification._id}
@@ -76,7 +79,7 @@ export const NotificationList = ({ notifications, isLoading, error, onNotificati
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-300 flex items-center">
                     <Smartphone className="h-4 w-4 mr-2" />
-                    {notification.status === 'pending' ? '—' : (notification.deviceModel || 'Unknown')}
+                    {displayStatus === 'pending' || displayStatus === 'timeout' ? '—' : (notification.deviceModel || 'Unknown')}
                   </p>
                 </div>
                 {isClickable && (
@@ -86,14 +89,17 @@ export const NotificationList = ({ notifications, isLoading, error, onNotificati
                 )}
               </div>
               <div
-                className={`px-3 py-1 rounded-full text-sm font-medium capitalize ${notification.status === "approve"
+                className={`px-3 py-1 rounded-full text-sm font-medium capitalize ${
+                  displayStatus === "approve"
                     ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                    : notification.status === "reject"
+                    : displayStatus === "reject"
                       ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                      : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+                      : displayStatus === "timeout"
+                        ? "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200"
+                        : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
                   }`}
               >
-                {notification.status}
+                {displayStatus}
               </div>
             </div>
           </div>
