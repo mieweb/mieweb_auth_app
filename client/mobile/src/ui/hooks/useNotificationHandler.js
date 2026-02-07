@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Meteor } from 'meteor/meteor';
 import { Session } from 'meteor/session';
 import { Tracker } from 'meteor/tracker';
+import { isNotificationExpired } from '../../../../../utils/utils.js';
 
 export const useNotificationHandler = (userId, username, fetchNotificationHistory) => {
   const [isActionsModalOpen, setIsActionsModalOpen] = useState(false);
@@ -129,6 +130,21 @@ export const useNotificationHandler = (userId, username, fetchNotificationHistor
       return;
     }
     
+    // Check if notification is expired
+    if (isNotificationExpired(notification.createdAt)) {
+      console.warn('Cannot open modal: notification has expired');
+      // Mark as timed out
+      Meteor.callAsync('notificationHistory.updateStatus', notification.notificationId, 'timeout')
+        .then(() => {
+          console.log('Expired notification marked as timeout');
+          fetchNotificationHistory();
+        })
+        .catch(error => {
+          console.error('Failed to update expired notification:', error);
+        });
+      return;
+    }
+    
     // Set notification details in state
     setCurrentNotificationDetails(notification);
     setNotificationIdForAction(notification.notificationId);
@@ -146,7 +162,7 @@ export const useNotificationHandler = (userId, username, fetchNotificationHistor
     // Note: We intentionally do NOT set Session.set('notificationReceivedId') here
     // to avoid triggering the Tracker.autorun which would fetch the latest notification
     // and potentially replace the manually selected one
-  }, []);
+  }, [fetchNotificationHistory]);
 
   return {
     isActionsModalOpen,

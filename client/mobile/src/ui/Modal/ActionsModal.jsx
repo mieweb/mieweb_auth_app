@@ -39,19 +39,48 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notific
       }
     };
 
+    const handleTimeout = async () => {
+      if (!notification?.notificationId) {
+        onTimeOut();
+        return;
+      }
+      
+      try {
+        // Mark the notification as timed out
+        await Meteor.callAsync(
+          'notificationHistory.updateStatus',
+          notification.notificationId,
+          'timeout'
+        );
+        console.log('Notification marked as timeout');
+      } catch (error) {
+        console.error('Failed to update notification status to timeout:', error);
+      }
+      
+      onTimeOut();
+    };
+
     const handleEscape = (e) => {
       if (e.key === 'Escape') onClose();
     };
 
     if (isOpen && notification) {
       const initialTime = calculateInitialTime();
-      if (initialTime <= 0) { onTimeOut(); return; }
+
+      if (initialTime <= 0) {
+        handleTimeout();
+        return;
+      }
 
       setTimeLeft(initialTime);
 
       timer = setInterval(() => {
         setTimeLeft(prev => {
-          if (prev <= 1) { clearInterval(timer); onTimeOut(); return 0; }
+          if (prev <= 1) {
+            clearInterval(timer);
+            handleTimeout();
+            return 0;
+          }
           return prev - 1;
         });
       }, 1000);

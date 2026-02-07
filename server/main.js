@@ -10,7 +10,7 @@ import { NotificationHistory } from "../utils/api/notificationHistory.js"
 import { ApprovalTokens } from "../utils/api/approvalTokens";
 import { PendingResponses } from "../utils/api/pendingResponses.js";
 import "../utils/api/apiKeys.js"; // Import for side effects (Meteor methods registration)
-import { isValidToken, determineTokenErrorReason } from "../utils/utils";
+import { isValidToken, isNotificationExpired, determineTokenErrorReason } from "../utils/utils";
 import { successTemplate, errorTemplate, rejectionTemplate, previouslyUsedTemplate } from './templates/email';
 import dotenv from 'dotenv';
 
@@ -724,6 +724,22 @@ Meteor.methods({
     if (!targetNotification) {
       console.log("Notification not found for given userId and notificationId");
       return { success: false, message: "Notification not found" };
+    }
+
+    // Check if notification has expired
+    if (isNotificationExpired(targetNotification.createdAt)) {
+      console.log(`Notification ${targetNotification.notificationId} has expired`);
+      
+      // Mark as timed out if still pending
+      if (targetNotification.status === 'pending') {
+        await NotificationHistory.updateAsync(
+          { _id: targetNotification._id },
+          { $set: { status: 'timeout', updatedAt: new Date() } }
+        );
+        console.log(`Expired notification ${targetNotification.notificationId} marked as timeout`);
+      }
+      
+      return { success: false, message: "Notification has expired" };
     }
 
     if (targetNotification.status !== 'pending') {

@@ -715,5 +715,127 @@ describe("meteor-app", function () {
         assert.strictEqual(notification.clientId, clientId, "Should store provided clientId");
       });
     });
+
+    describe("Notification expiry checks", function () {
+      const { NotificationHistory } = require("../utils/api/notificationHistory");
+      const { isNotificationExpired } = require("../utils/utils");
+      const { TIMEOUT_DURATION_MS } = require("../utils/constants");
+      
+      let testUserIds = [];
+
+      beforeEach(async function () {
+        await NotificationHistory.removeAsync({});
+        testUserIds = [];
+      });
+
+      afterEach(async function () {
+        await NotificationHistory.removeAsync({});
+        // Clean up all test users
+        for (const userId of testUserIds) {
+          await Meteor.users.removeAsync({ _id: userId });
+        }
+        testUserIds = [];
+      });
+
+      it("should identify expired notification", function () {
+        const oldDate = new Date(Date.now() - TIMEOUT_DURATION_MS - 1000); // 1 second past expiry
+        const isExpired = isNotificationExpired(oldDate);
+        assert.strictEqual(isExpired, true, "Should identify expired notification");
+      });
+
+      it("should identify non-expired notification", function () {
+        const recentDate = new Date(Date.now() - 1000); // 1 second ago
+        const isExpired = isNotificationExpired(recentDate);
+        assert.strictEqual(isExpired, false, "Should identify non-expired notification");
+      });
+
+      it("should handle string timestamp", function () {
+        const oldDateString = new Date(Date.now() - TIMEOUT_DURATION_MS - 1000).toISOString();
+        const isExpired = isNotificationExpired(oldDateString);
+        assert.strictEqual(isExpired, true, "Should handle string timestamp");
+      });
+
+      it("should return true for null/undefined createdAt", function () {
+        assert.strictEqual(isNotificationExpired(null), true, "Should return true for null");
+        assert.strictEqual(isNotificationExpired(undefined), true, "Should return true for undefined");
+      });
+
+      it("should reject action on expired notification", async function () {
+        const userId = 'test-user-' + Random.id();
+        testUserIds.push(userId); // Track for cleanup
+        
+        // Create a user
+        await Accounts.createUserAsync({
+          username: userId,
+          email: `${userId}@example.com`,
+          password: 'testpass'
+        });
+
+        // Insert an expired notification
+        const notificationId = await Meteor.callAsync('notificationHistory.insert', {
+          userId: userId,
+          title: 'Test Expired Notification',
+          body: 'This notification is expired'
+        });
+
+        // Get the notification and manually set an old createdAt
+        const notification = await NotificationHistory.findOneAsync({ _id: notificationId });
+        const expiredDate = new Date(Date.now() - TIMEOUT_DURATION_MS - 1000);
+        await NotificationHistory.updateAsync(
+          { _id: notification._id },
+          { $set: { createdAt: expiredDate } }
+        );
+
+        // Try to handle response for expired notification
+        const result = await Meteor.callAsync(
+          'notifications.handleResponse',
+          userId,
+          'approve',
+          notification.notificationId
+        );
+
+        assert.strictEqual(result.success, false, "Should reject action on expired notification");
+        assert.strictEqual(result.message, "Notification has expired", "Should return correct error message");
+
+        // Verify notification was marked as timeout
+        const updatedNotification = await NotificationHistory.findOneAsync({ _id: notification._id });
+        assert.strictEqual(updatedNotification.status, 'timeout', "Should mark notification as timeout");
+      });
+
+      it("should allow action on non-expired notification", async function () {
+        const userId = 'test-user-' + Random.id();
+        testUserIds.push(userId); // Track for cleanup
+        
+        // Create a user
+        await Accounts.createUserAsync({
+          username: userId,
+          email: `${userId}@example.com`,
+          password: 'testpass'
+        });
+
+        // Insert a recent notification
+        const notificationId = await Meteor.callAsync('notificationHistory.insert', {
+          userId: userId,
+          title: 'Test Recent Notification',
+          body: 'This notification is recent'
+        });
+
+        const notification = await NotificationHistory.findOneAsync({ _id: notificationId });
+
+        // Try to handle response for non-expired notification
+        const result = await Meteor.callAsync(
+          'notifications.handleResponse',
+          userId,
+          'approve',
+          notification.notificationId
+        );
+
+        assert.strictEqual(result.success, true, "Should allow action on non-expired notification");
+
+        // Verify notification was updated with action
+        const updatedNotification = await NotificationHistory.findOneAsync({ _id: notification._id });
+        assert.strictEqual(updatedNotification.status, 'approve', "Should update notification with approve status");
+      });
+    });
   }
 });
