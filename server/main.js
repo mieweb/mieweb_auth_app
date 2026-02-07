@@ -13,7 +13,6 @@ import "../utils/api/apiKeys.js"; // Import for side effects (Meteor methods reg
 import { APPROVAL_TOKEN_EXPIRY_MS } from "../utils/constants.js";
 import { isValidToken, isNotificationExpired, determineTokenErrorReason } from "../utils/utils";
 import { successTemplate, errorTemplate, rejectionTemplate, previouslyUsedTemplate } from './templates/email';
-import { adminPageTemplate } from './templates/admin';
 import { INTERNAL_SERVER_SECRET } from './internalSecret.js';
 import dotenv from 'dotenv';
 
