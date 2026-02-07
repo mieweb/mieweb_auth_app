@@ -77,10 +77,16 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notific
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-t-3xl p-6 w-full mx-0 max-h-[85vh] flex flex-col">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center z-50" onClick={onClose}>
+      <div 
+        className="bg-white dark:bg-gray-800 rounded-t-3xl p-6 w-full mx-0 max-h-[85vh] flex flex-col"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="actions-modal-title"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+          <h2 id="actions-modal-title" className="text-2xl font-bold text-gray-900 dark:text-white">
             Action Required
           </h2>
           <div className="flex items-center space-x-2 bg-gray-100 dark:bg-gray-700 px-3 py-2 rounded-full">
