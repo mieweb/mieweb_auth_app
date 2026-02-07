@@ -79,7 +79,7 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notific
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center z-50" onClick={onClose}>
       <div 
-        className="bg-white dark:bg-gray-800 rounded-t-3xl p-6 w-full mx-0 max-h-[85vh] flex flex-col"
+        className="bg-white dark:bg-gray-800 rounded-t-3xl p-6 w-full mx-0 max-h-[85vh] flex flex-col overflow-y-auto"
         role="dialog"
         aria-modal="true"
         aria-labelledby="actions-modal-title"
