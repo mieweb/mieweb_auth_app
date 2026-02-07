@@ -32,8 +32,8 @@ export const formatDateTime = (isoString) => {
     // Convert to milliseconds if needed
     if (typeof createdAt === 'string' || typeof createdAt === 'object') {
       createdAtMs = new Date(createdAt).getTime();
-    } else if (typeof createdAt === 'number' && createdAt < 1e12) {
-      // If it's a Unix timestamp in seconds, convert to milliseconds
+    } else if (typeof createdAt === 'number' && createdAt < 1e13) {
+      // If it's a Unix timestamp in seconds (< Sep 2286), convert to milliseconds
       createdAtMs = createdAt * 1000;
     }
     

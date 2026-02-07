@@ -599,13 +599,21 @@ describe("meteor-app", function () {
       const { NotificationHistory } = require("../utils/api/notificationHistory");
       const { isNotificationExpired } = require("../utils/utils");
       const { TIMEOUT_DURATION_MS } = require("../utils/constants");
+      
+      let testUserIds = [];
 
       beforeEach(async function () {
         await NotificationHistory.removeAsync({});
+        testUserIds = [];
       });
 
       afterEach(async function () {
         await NotificationHistory.removeAsync({});
+        // Clean up all test users
+        for (const userId of testUserIds) {
+          await Meteor.users.removeAsync({ _id: userId });
+        }
+        testUserIds = [];
       });
 
       it("should identify expired notification", function () {
@@ -633,6 +641,7 @@ describe("meteor-app", function () {
 
       it("should reject action on expired notification", async function () {
         const userId = 'test-user-' + Random.id();
+        testUserIds.push(userId); // Track for cleanup
         
         // Create a user
         await Accounts.createUserAsync({
@@ -670,13 +679,11 @@ describe("meteor-app", function () {
         // Verify notification was marked as timeout
         const updatedNotification = await NotificationHistory.findOneAsync({ _id: notification._id });
         assert.strictEqual(updatedNotification.status, 'timeout', "Should mark notification as timeout");
-
-        // Cleanup
-        await Meteor.users.removeAsync({ _id: userId });
       });
 
       it("should allow action on non-expired notification", async function () {
         const userId = 'test-user-' + Random.id();
+        testUserIds.push(userId); // Track for cleanup
         
         // Create a user
         await Accounts.createUserAsync({
@@ -707,9 +714,6 @@ describe("meteor-app", function () {
         // Verify notification was updated with action
         const updatedNotification = await NotificationHistory.findOneAsync({ _id: notification._id });
         assert.strictEqual(updatedNotification.status, 'approve', "Should update notification with approve status");
-
-        // Cleanup
-        await Meteor.users.removeAsync({ _id: userId });
       });
     });
   }
