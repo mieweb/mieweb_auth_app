@@ -150,5 +150,10 @@ app-release-final.apk
 
 # Development and testing files
 debug-multi-instance.js
+set-env-mieauth.sh
+set-env.sh
+
+# Generated build info
+public/buildInfo.json
 set-env-*.sh
 set-env.sh
