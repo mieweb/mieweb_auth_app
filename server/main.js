@@ -61,7 +61,7 @@ const saveUserNotificationHistory = async (notification) => {
  */
 const sendSyncNotificationToDevices = async (userId, notificationId, action) => {
   try {
-    const fcmTokens = await Meteor.callAsync('deviceDetails.getFCMTokenByUserId', userId);
+    const fcmTokens = await Meteor.callAsync('deviceDetails.getApprovedFCMTokensByUserId', userId);
     if (!fcmTokens || fcmTokens.length === 0) return;
 
     const syncData = {
@@ -202,23 +202,6 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
       
       console.log(`Processing notification for user: ${username}`);
       
-      // Get FCM tokens
-      const fcmTokens = await new Promise((resolve, reject) => {
-        Meteor.call("deviceDetails.getFCMTokenByUsername", username, (error, result) => {
-          if (error) {
-            console.error("Error getting FCM tokens:", error);
-            reject(error);
-          } else {
-            console.log("FCM tokens found:", result?.length || 0);
-            resolve(result);
-          }
-        });
-      });
-      
-      if (!fcmTokens || fcmTokens.length === 0) {
-        throw new Error(`No FCM tokens found for username: ${username}`);
-      }
-      
       // Get user document
       const userDoc = await DeviceDetails.findOneAsync({ username });
       if (!userDoc) {
@@ -229,10 +212,40 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
         throw new Error(`No devices found for user: ${username}`);
       }
       
-      // Find the primary device, or fallback to first approved device, or first device
-      const primaryDevice = userDoc.devices.find(d => d.isPrimary === true) 
-        || userDoc.devices.find(d => d.deviceRegistrationStatus === 'approved')
-        || userDoc.devices[0];
+      // Check if the user has any approved devices
+      const approvedDevices = userDoc.devices.filter(
+        d => d.deviceRegistrationStatus === 'approved'
+      );
+      
+      if (approvedDevices.length === 0) {
+        // Determine if all devices are pending or rejected
+        const hasPending = userDoc.devices.some(d => d.deviceRegistrationStatus === 'pending');
+        const errorMessage = hasPending
+          ? `Cannot send notification: device registration for user '${username}' is still pending admin approval`
+          : `Cannot send notification: no approved devices found for user '${username}'`;
+        
+        console.warn(errorMessage);
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          success: false,
+          error: errorMessage,
+          reason: 'device_not_approved'
+        }));
+        return;
+      }
+      
+      // Get FCM tokens only from approved devices
+      const fcmTokens = approvedDevices.map(d => d.fcmToken).filter(Boolean);
+      
+      if (fcmTokens.length === 0) {
+        throw new Error(`No valid FCM tokens found for approved devices of user: ${username}`);
+      }
+      
+      console.log("Approved FCM tokens found:", fcmTokens.length);
+      
+      // Find the primary device among approved devices, or fallback to first approved device
+      const primaryDevice = approvedDevices.find(d => d.isPrimary === true) 
+        || approvedDevices[0];
       
       // Prepare notification data
       const notificationData = {
@@ -723,6 +736,18 @@ Meteor.methods({
     }
 
     const username = user.username;
+
+    // Check if the responding device is approved
+    if (respondingDeviceUUID) {
+      const userDeviceDoc = await DeviceDetails.findOneAsync({ userId });
+      if (userDeviceDoc && userDeviceDoc.devices) {
+        const respondingDevice = userDeviceDoc.devices.find(d => d.deviceUUID === respondingDeviceUUID);
+        if (respondingDevice && respondingDevice.deviceRegistrationStatus !== 'approved') {
+          console.warn(`Device ${respondingDeviceUUID} for user ${username} is not approved (status: ${respondingDevice.deviceRegistrationStatus}). Blocking notification response.`);
+          throw new Meteor.Error('device-not-approved', 'Your device registration is still pending admin approval. You cannot respond to notifications until your device is approved.');
+        }
+      }
+    }
 
     const targetNotification = await NotificationHistory.findOneAsync({
       userId,
