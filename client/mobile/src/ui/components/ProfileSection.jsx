@@ -41,6 +41,10 @@ export const ProfileSection = ({
             className="w-full px-4 py-2 rounded-xl border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900 transition-all"
             placeholder="Last Name"
           />
+          <p className="text-gray-700 dark:text-gray-300 flex items-center text-sm pt-2">
+            <Mail className="h-4 w-4 mr-2 text-blue-600 dark:text-blue-400" />
+            {profile.email}
+          </p>
           <div className="flex space-x-2 mt-3">
             <button
               onClick={handleProfileUpdate}

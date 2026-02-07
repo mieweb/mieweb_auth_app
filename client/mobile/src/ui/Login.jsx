@@ -219,7 +219,7 @@ export const LoginPage = ({ deviceDetails }) => {
 
         <form onSubmit={handleLogin} className="space-y-6">
           {error && (
-            <div className="flex items-center text-red-700 dark:text-red-300 text-sm text-center bg-red-100 dark:bg-red-900/30 p-4 rounded-xl border border-red-300 dark:border-red-800">
+            <div className="flex items-center text-red-700 dark:text-red-300 text-sm bg-red-100 dark:bg-red-900/30 p-4 rounded-xl border border-red-300 dark:border-red-800">
               <FiAlertCircle className="mr-2 flex-shrink-0" />
               {error}
             </div>
