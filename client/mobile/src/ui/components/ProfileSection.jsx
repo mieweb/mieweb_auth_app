@@ -3,6 +3,7 @@ import { Meteor } from 'meteor/meteor';
 import { Session } from 'meteor/session';
 import { User, Mail, Edit, ChevronDown, ExternalLink } from 'lucide-react';
 import SuccessToaster from '../Toasters/SuccessToaster';
+import { openExternal } from '../../../../../utils/openExternal';
 
 export const ProfileSection = ({
   profile,
@@ -159,15 +160,21 @@ const AppVersionInfo = () => {
         </div>
         <div className="flex items-center justify-between">
           <span className="text-gray-600 dark:text-gray-300">Build</span>
-          <a
-            href={commitUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            type="button"
+            onClick={() => {
+              const userConfirmed = window.confirm(
+                'You will be redirected to GitHub to view this commit.\n\nContinue?'
+              );
+              if (userConfirmed) {
+                openExternal(commitUrl);
+              }
+            }}
             className="font-mono text-sm font-medium text-indigo-600 dark:text-indigo-400 flex items-center gap-1"
           >
             {buildInfo.buildNumber}
             <ExternalLink className="h-3 w-3" />
-          </a>
+          </button>
         </div>
       </div>
     </CollapsibleSection>
