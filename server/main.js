@@ -10,8 +10,8 @@ import { NotificationHistory } from "../utils/api/notificationHistory.js"
 import { ApprovalTokens } from "../utils/api/approvalTokens";
 import { PendingResponses } from "../utils/api/pendingResponses.js";
 import "../utils/api/apiKeys.js"; // Import for side effects (Meteor methods registration)
-import { isValidToken } from "../utils/utils";
 import { APPROVAL_TOKEN_EXPIRY_MS } from "../utils/constants.js";
+import { isValidToken, isNotificationExpired, determineTokenErrorReason } from "../utils/utils";
 import { successTemplate, errorTemplate, rejectionTemplate, previouslyUsedTemplate } from './templates/email';
 import dotenv from 'dotenv';
 
@@ -376,11 +376,13 @@ WebApp.connectHandlers.use('/api/approve-user', async (req, res) => {
 
       res.end(previouslyUsedTemplate());
     } else {
-      // Invalid or expired token
+      // Determine the specific error reason
+      const errorReason = await determineTokenErrorReason(userId, token);
+
       res.writeHead(200, {
         'Content-Type': 'text/html'
       });
-      res.end(errorTemplate());
+      res.end(errorTemplate(errorReason));
     }
   }
 });
@@ -417,7 +419,7 @@ WebApp.connectHandlers.use('/api/reject-user', async (req, res) => {
       res.writeHead(500, {
         'Content-Type': 'text/html'
       });
-      res.end(errorTemplate());
+      res.end(errorTemplate('server_error'));
     }
   } else {
     // Check if token was previously used (same logic as approve route)
@@ -435,11 +437,13 @@ WebApp.connectHandlers.use('/api/reject-user', async (req, res) => {
 
       res.end(previouslyUsedTemplate());
     } else {
-      // Invalid or expired token
+      // Determine the specific error reason
+      const errorReason = await determineTokenErrorReason(userId, token);
+
       res.writeHead(200, {
         'Content-Type': 'text/html'
       });
-      res.end(errorTemplate());
+      res.end(errorTemplate(errorReason));
     }
   }
 });
@@ -721,6 +725,22 @@ Meteor.methods({
     if (!targetNotification) {
       console.log("Notification not found for given userId and notificationId");
       return { success: false, message: "Notification not found" };
+    }
+
+    // Check if notification has expired
+    if (isNotificationExpired(targetNotification.createdAt)) {
+      console.log(`Notification ${targetNotification.notificationId} has expired`);
+      
+      // Mark as timed out if still pending
+      if (targetNotification.status === 'pending') {
+        await NotificationHistory.updateAsync(
+          { _id: targetNotification._id },
+          { $set: { status: 'timeout', updatedAt: new Date() } }
+        );
+        console.log(`Expired notification ${targetNotification.notificationId} marked as timeout`);
+      }
+      
+      return { success: false, message: "Notification has expired" };
     }
 
     if (targetNotification.status !== 'pending') {

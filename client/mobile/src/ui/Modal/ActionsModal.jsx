@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Meteor } from 'meteor/meteor';
-import { CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 import { TIMEOUT_DURATION_MS } from '../../../../../utils/constants';
 
 const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notification }) => {
@@ -11,18 +11,16 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notific
 
     let createdAt = notification.createdAt;
 
-    // Convert to number if it's a string
     if (typeof createdAt === 'string' || typeof createdAt === 'object') {
       createdAt = new Date(createdAt).getTime();
     } else if (typeof createdAt === 'number' && createdAt < 1e12) {
-      // If it's a Unix timestamp in seconds, convert to milliseconds
       createdAt *= 1000;
     }
 
-    const remainingTime = Math.max(0, Math.floor((createdAt + TIMEOUT_DURATION_MS - Date.now()) / 1000));
-
-    return Math.max(0, remainingTime);
+    return Math.max(0, Math.floor((createdAt + TIMEOUT_DURATION_MS - Date.now()) / 1000));
   };
+
+  const timerProgress = timeLeft > 0 ? (timeLeft / (TIMEOUT_DURATION_MS / 1000)) : 0;
 
   useEffect(() => {
     let timer;
@@ -41,79 +39,162 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notific
       }
     };
 
+    const handleTimeout = async () => {
+      if (!notification?.notificationId) {
+        onTimeOut();
+        return;
+      }
+      
+      try {
+        // Mark the notification as timed out
+        await Meteor.callAsync(
+          'notificationHistory.updateStatus',
+          notification.notificationId,
+          'timeout'
+        );
+        console.log('Notification marked as timeout');
+      } catch (error) {
+        console.error('Failed to update notification status to timeout:', error);
+      }
+      
+      onTimeOut();
+    };
+
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+
     if (isOpen && notification) {
       const initialTime = calculateInitialTime();
-      console.log('Initial timer value:', initialTime);
 
       if (initialTime <= 0) {
-        onTimeOut();
+        handleTimeout();
         return;
       }
 
       setTimeLeft(initialTime);
 
-      // Countdown timer
       timer = setInterval(() => {
         setTimeLeft(prev => {
           if (prev <= 1) {
             clearInterval(timer);
-            onTimeOut();
+            handleTimeout();
             return 0;
           }
           return prev - 1;
         });
       }, 1000);
 
-      // Status checking
       statusCheckInterval = setInterval(checkStatus, 2000);
+      document.addEventListener('keydown', handleEscape);
     }
 
     return () => {
       clearInterval(timer);
       clearInterval(statusCheckInterval);
+      document.removeEventListener('keydown', handleEscape);
     };
   }, [isOpen, notification, onClose, onTimeOut]);
 
   if (!isOpen) return null;
 
+  // Circular timer
+  const radius = 18;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference * (1 - timerProgress);
+  const isUrgent = timeLeft <= 10;
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            Action Required
-          </h2>
-          <div className="flex items-center space-x-2">
-            <Clock className="h-5 w-5 text-gray-500" />
-            <span className="text-gray-500">{timeLeft}s</span>
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-end justify-center z-50" onClick={onClose}>
+      <div
+        className="bg-white dark:bg-[#1c1c1e] rounded-t-2xl w-full animate-slide-up"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="actions-modal-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Drag indicator */}
+        <div className="flex justify-center pt-2.5 pb-1">
+          <div className="w-9 h-1 rounded-full bg-gray-300 dark:bg-gray-600" />
+        </div>
+
+        {/* Header row */}
+        <div className="flex items-center justify-between px-5 pt-1 pb-4">
+          <div className="flex items-center space-x-3">
+            {/* Inline circular timer */}
+            <div className="relative flex items-center justify-center">
+              <svg width="40" height="40" viewBox="0 0 44 44" className="-rotate-90">
+                <circle cx="22" cy="22" r={radius} fill="none" strokeWidth="3"
+                  stroke="currentColor" className="text-gray-200 dark:text-gray-700" />
+                <circle cx="22" cy="22" r={radius} fill="none" strokeWidth="3"
+                  strokeLinecap="round" strokeDasharray={circumference}
+                  strokeDashoffset={strokeDashoffset} stroke="currentColor"
+                  className={`transition-all duration-1000 ease-linear ${
+                    isUrgent ? 'text-red-500' : 'text-blue-500 dark:text-blue-400'
+                  }`}
+                />
+              </svg>
+              <span className={`absolute text-xs font-semibold tabular-nums ${
+                isUrgent ? 'text-red-500' : 'text-gray-600 dark:text-gray-300'
+              }`}>
+                {timeLeft}
+              </span>
+            </div>
+            <div>
+              <h2 id="actions-modal-title" className="text-lg font-semibold text-gray-900 dark:text-white leading-tight">
+                Action Required
+              </h2>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                Confirm or deny this request
+              </p>
+            </div>
           </div>
-        </div>
-
-        <div className="space-y-4">
-          <button
-            onClick={onApprove}
-            className="w-full flex items-center justify-center space-x-2 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors"
+          <button onClick={onClose} aria-label="Close"
+            className="h-8 w-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-white/10 text-gray-400 dark:text-gray-500 active:bg-gray-200 dark:active:bg-white/20 transition-colors"
           >
-            <CheckCircle className="h-5 w-5" />
-            <span>Approve</span>
-          </button>
-
-          <button
-            onClick={onReject}
-            className="w-full flex items-center justify-center space-x-2 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors"
-          >
-            <XCircle className="h-5 w-5" />
-            <span>Reject</span>
-          </button>
-
-          <button
-            onClick={onClose}
-            className="w-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-          >
-            Close
+            <X className="h-4 w-4" />
           </button>
         </div>
+
+        {/* Action buttons */}
+        <div className="px-5 pb-2 space-y-2.5">
+          {/* Approve / Reject side-by-side */}
+          <div className="flex space-x-3">
+            <button onClick={onApprove}
+              className="flex-1 flex items-center justify-center space-x-2 bg-[#34c759] active:bg-[#2da44e] text-white py-4 rounded-xl active:scale-98 transition-all font-semibold text-base"
+            >
+              <Check className="h-5 w-5" strokeWidth={2.5} />
+              <span>Approve</span>
+            </button>
+            <button onClick={onReject}
+              className="flex-1 flex items-center justify-center space-x-2 bg-[#ff3b30] active:bg-[#d63027] text-white py-4 rounded-xl active:scale-98 transition-all font-semibold text-base"
+            >
+              <X className="h-5 w-5" strokeWidth={2.5} />
+              <span>Reject</span>
+            </button>
+          </div>
+
+          {/* Dismiss */}
+          <button onClick={onClose}
+            className="w-full text-center text-sm font-medium text-gray-400 dark:text-gray-500 py-3 active:text-gray-600 dark:active:text-gray-300 transition-colors"
+          >
+            Dismiss
+          </button>
+        </div>
+
+        {/* Safe-area spacer */}
+        <div style={{ height: 'env(safe-area-inset-bottom, 0.5rem)' }} />
       </div>
+
+      <style>{`
+        @keyframes slide-up {
+          from { transform: translateY(100%); }
+          to   { transform: translateY(0); }
+        }
+        .animate-slide-up {
+          animation: slide-up 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+        }
+      `}</style>
     </div>
   );
 };
