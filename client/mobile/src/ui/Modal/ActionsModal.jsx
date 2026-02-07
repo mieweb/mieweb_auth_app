@@ -3,7 +3,7 @@ import { Meteor } from 'meteor/meteor';
 import { Check, X } from 'lucide-react';
 import { TIMEOUT_DURATION_MS } from '../../../../../utils/constants';
 
-const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notification }) => {
+const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notification, isLoading, error }) => {
   const [timeLeft, setTimeLeft] = useState(0);
 
   const calculateInitialTime = () => {
@@ -158,16 +158,24 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notific
 
         {/* Action buttons */}
         <div className="px-5 pb-2 space-y-2.5">
+          {/* Error message */}
+          {error && (
+            <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
+              <p className="text-sm text-red-700 dark:text-red-300 text-center">{error}</p>
+            </div>
+          )}
           {/* Approve / Reject side-by-side */}
           <div className="flex space-x-3">
             <button onClick={onApprove}
-              className="flex-1 flex items-center justify-center space-x-2 bg-[#34c759] active:bg-[#2da44e] text-white py-4 rounded-xl active:scale-98 transition-all font-semibold text-base"
+              disabled={isLoading}
+              className="flex-1 flex items-center justify-center space-x-2 bg-[#34c759] active:bg-[#2da44e] text-white py-4 rounded-xl active:scale-98 transition-all font-semibold text-base disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Check className="h-5 w-5" strokeWidth={2.5} />
-              <span>Approve</span>
+              <span>{isLoading ? 'Processing...' : 'Approve'}</span>
             </button>
             <button onClick={onReject}
-              className="flex-1 flex items-center justify-center space-x-2 bg-[#ff3b30] active:bg-[#d63027] text-white py-4 rounded-xl active:scale-98 transition-all font-semibold text-base"
+              disabled={isLoading}
+              className="flex-1 flex items-center justify-center space-x-2 bg-[#ff3b30] active:bg-[#d63027] text-white py-4 rounded-xl active:scale-98 transition-all font-semibold text-base disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <X className="h-5 w-5" strokeWidth={2.5} />
               <span>Reject</span>
