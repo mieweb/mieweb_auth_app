@@ -74,5 +74,7 @@ App.configurePlugin('cordova-plugin-device', {
   version: '2.0.5',
 });
 
+App.configurePlugin('cordova-plugin-inappbrowser', {});
+
 App.addResourceFile('private/android/google-services.json', 'app/google-services.json', 'android');
 App.addResourceFile('private/ios/GoogleService-Info.plist', 'GoogleService-Info.plist', 'ios');

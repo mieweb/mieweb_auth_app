@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { openSupportLink } from '../../../../utils/openExternal';
 import { FiUser, FiMail, FiLock } from 'react-icons/fi';
 import { motion } from 'framer-motion';
 import { Meteor } from 'meteor/meteor';
@@ -322,6 +323,17 @@ export const RegistrationPage = ({ deviceDetails }) => {
           >
             {loading ? 'Creating Account...' : 'Create Account'}
           </motion.button>
+
+          <div className="text-center text-sm text-gray-600">
+            Need help?{' '}
+            <button
+              type="button"
+              onClick={() => openSupportLink()}
+              className="text-blue-600 hover:text-blue-800 font-medium"
+            >
+              Contact Support
+            </button>
+          </div>
         </form>
       </motion.div>
 

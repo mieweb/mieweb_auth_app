@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { openSupportLink } from '../../../../utils/openExternal';
 import { FiMail, FiLock, FiAlertCircle } from 'react-icons/fi';
 import { Meteor } from 'meteor/meteor';
 import { Session } from 'meteor/session';
@@ -313,6 +314,17 @@ export const LoginPage = ({ deviceDetails }) => {
               'Sign In'
             )}
           </button>
+
+          <div className="text-center text-sm text-gray-600">
+            Need help?{' '}
+            <button
+              type="button"
+              onClick={() => openSupportLink()}
+              className="text-blue-600 hover:text-blue-800 font-medium"
+            >
+              Contact Support
+            </button>
+          </div>
         </form>
       </div>
     </div>
