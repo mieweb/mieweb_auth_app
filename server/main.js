@@ -375,11 +375,40 @@ WebApp.connectHandlers.use('/api/approve-user', async (req, res) => {
 
       res.end(previouslyUsedTemplate());
     } else {
-      // Invalid or expired token
+      // Determine the specific error reason
+      let errorReason = 'unknown';
+      
+      // Check if token exists at all
+      const tokenRecord = await ApprovalTokens.findOneAsync({
+        userId,
+        token
+      });
+
+      if (tokenRecord) {
+        // Token exists, check if it's expired
+        if (tokenRecord.expiresAt < new Date()) {
+          errorReason = 'expired';
+        } else {
+          // Token is valid but user doesn't exist
+          const user = await Meteor.users.findOneAsync({ _id: userId });
+          if (!user) {
+            errorReason = 'user_not_found';
+          }
+        }
+      } else {
+        // Check if user exists but token is invalid
+        const user = await Meteor.users.findOneAsync({ _id: userId });
+        if (user) {
+          errorReason = 'invalid_token';
+        } else {
+          errorReason = 'user_not_found';
+        }
+      }
+
       res.writeHead(200, {
         'Content-Type': 'text/html'
       });
-      res.end(errorTemplate());
+      res.end(errorTemplate(errorReason));
     }
   }
 });
@@ -416,7 +445,7 @@ WebApp.connectHandlers.use('/api/reject-user', async (req, res) => {
       res.writeHead(500, {
         'Content-Type': 'text/html'
       });
-      res.end(errorTemplate());
+      res.end(errorTemplate('unknown'));
     }
   } else {
     // Check if token was previously used (same logic as approve route)
@@ -434,11 +463,40 @@ WebApp.connectHandlers.use('/api/reject-user', async (req, res) => {
 
       res.end(previouslyUsedTemplate());
     } else {
-      // Invalid or expired token
+      // Determine the specific error reason
+      let errorReason = 'unknown';
+      
+      // Check if token exists at all
+      const tokenRecord = await ApprovalTokens.findOneAsync({
+        userId,
+        token
+      });
+
+      if (tokenRecord) {
+        // Token exists, check if it's expired
+        if (tokenRecord.expiresAt < new Date()) {
+          errorReason = 'expired';
+        } else {
+          // Token is valid but user doesn't exist
+          const user = await Meteor.users.findOneAsync({ _id: userId });
+          if (!user) {
+            errorReason = 'user_not_found';
+          }
+        }
+      } else {
+        // Check if user exists but token is invalid
+        const user = await Meteor.users.findOneAsync({ _id: userId });
+        if (user) {
+          errorReason = 'invalid_token';
+        } else {
+          errorReason = 'user_not_found';
+        }
+      }
+
       res.writeHead(200, {
         'Content-Type': 'text/html'
       });
-      res.end(errorTemplate());
+      res.end(errorTemplate(errorReason));
     }
   }
 });
