@@ -208,7 +208,7 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
       });
       
       if (!fcmTokens || fcmTokens.length === 0) {
-        throw new Error(`No FCM tokens found for username: ${username}`);
+        throw new Error(`No registered device found for username: ${username}. Please install the app and register your device first.`);
       }
       
       // Get user document
