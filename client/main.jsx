@@ -6,6 +6,7 @@ import { App } from './mobile/src/ui/App';
 import { captureDeviceInfo } from './mobile/capture-device-info';
 import { initializeBiometrics } from './mobile/biometrics';
 import { initializePushNotifications } from './mobile/push-notifications';
+import { initializeStatusBar } from './mobile/status-bar';
 
 Meteor.startup(() => {
   const container = document.getElementById('react-target');
@@ -14,6 +15,7 @@ Meteor.startup(() => {
   if (Meteor.isCordova) {
     document.addEventListener('deviceready', () => {
       console.log(" ### Log Step 1: inside main.jsx and about to call configuration methods");
+      initializeStatusBar();
       captureDeviceInfo();
       initializeBiometrics();
       initializePushNotifications();

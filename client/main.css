@@ -1,3 +1,22 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Safe area insets for Android notches/cutouts and iOS */
+@layer base {
+  body {
+    /* Add padding for safe areas on devices with notches/cutouts */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+  
+  /* Ensure the root element also respects safe areas */
+  #react-target {
+    /* Fallback for browsers that don't support safe-area-inset */
+    min-height: 100vh;
+    /* Actual height accounting for safe areas (overrides fallback when supported) */
+    min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+}
