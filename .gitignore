@@ -1,3 +1,6 @@
+# Android App Bundles (local only — downloaded via VS Code)
+*.aab
+
 # Logs
 logs
 *.log
