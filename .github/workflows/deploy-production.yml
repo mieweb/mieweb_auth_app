@@ -255,6 +255,7 @@ jobs:
           echo "Signed AAB: ${SIGNED_AAB}"
 
       - name: Upload to Google Play Store
+        if: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON != '' }}
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
@@ -264,6 +265,12 @@ jobs:
           status: completed
           releaseName: "MIEAuth v${{ env.APP_VERSION }}"
           whatsNewDirectory: distribution/whatsnew
+
+      - name: Play Store upload skipped notice
+        if: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON == '' }}
+        run: |
+          echo "::notice::Play Store upload skipped — GOOGLE_PLAY_SERVICE_ACCOUNT_JSON secret not configured."
+          echo "Download the signed AAB from the GitHub Release and upload manually."
 
       - name: Upload AAB as Artifact
         uses: actions/upload-artifact@v4
