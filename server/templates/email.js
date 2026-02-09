@@ -205,3 +205,138 @@ export const previouslyUsedTemplate = () => `
         </body>
         </html>
       `;
+
+export const pinResetEmailTemplate = (resetLink, username) => `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Reset Your PIN</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    .container {
+      background-color: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .header h1 {
+      color: #4F46E5;
+      margin-bottom: 10px;
+    }
+    .content {
+      margin-bottom: 30px;
+    }
+    .button {
+      display: inline-block;
+      padding: 12px 30px;
+      background: linear-gradient(to right, #4F46E5, #3B82F6);
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: bold;
+      text-align: center;
+      margin: 20px 0;
+    }
+    .button:hover {
+      opacity: 0.9;
+    }
+    .footer {
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid #e0e0e0;
+      font-size: 14px;
+      color: #666;
+      text-align: center;
+    }
+    .warning {
+      background-color: #FEF3C7;
+      border-left: 4px solid #F59E0B;
+      padding: 15px;
+      margin: 20px 0;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Reset Your PIN</h1>
+    </div>
+    <div class="content">
+      <p>Hello ${username || 'User'},</p>
+      <p>We received a request to reset your PIN for MIEWeb Auth. Click the button below to set a new PIN:</p>
+      <div style="text-align: center;">
+        <a href="${resetLink}" class="button">Reset PIN</a>
+      </div>
+      <div class="warning">
+        <strong>⚠️ Security Notice:</strong>
+        <ul style="margin: 10px 0; padding-left: 20px;">
+          <li>This link will expire in 24 hours</li>
+          <li>If you didn't request this, please ignore this email</li>
+          <li>Your current PIN will remain active until you complete the reset</li>
+        </ul>
+      </div>
+      <p>For security reasons, this link can only be used once. If you need another reset link, please request a new one from the app.</p>
+    </div>
+    <div class="footer">
+      <p>This is an automated message from MIEWeb Auth.</p>
+      <p>If you have questions, please contact your system administrator.</p>
+    </div>
+  </div>
+</body>
+</html>
+`;
+
+export const pinResetSuccessTemplate = () => `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>PIN Reset Successful</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+      text-align: center;
+    }
+    .success-message {
+      background-color: #4CAF50;
+      color: white;
+      padding: 20px;
+      border-radius: 5px;
+      margin-top: 30px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 {
+      margin-bottom: 10px;
+    }
+    p {
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="success-message">
+    <h1>✓ PIN Reset Successful</h1>
+    <p>Your PIN has been successfully updated.</p>
+    <p>You can now use your new PIN to sign in to the app.</p>
+    <p>Please close this window and return to the app to continue.</p>
+  </div>
+</body>
+</html>
+`;

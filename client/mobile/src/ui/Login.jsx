@@ -75,6 +75,10 @@ export const LoginPage = ({ deviceDetails }) => {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [showPinForm, setShowPinForm] = useState(false);
+  const [showForgotPinModal, setShowForgotPinModal] = useState(false);
+  const [forgotPinEmail, setForgotPinEmail] = useState('');
+  const [resetEmailSent, setResetEmailSent] = useState(false);
+  const [sendingResetEmail, setSendingResetEmail] = useState(false);
   const navigate = useNavigate();
   const biometricTriggered = useRef(false);
 
@@ -212,6 +216,34 @@ export const LoginPage = ({ deviceDetails }) => {
     }
   };
 
+  // ── Forgot PIN handler ──────────────────────────────────────────────────
+  const handleForgotPin = async (e) => {
+    e.preventDefault();
+    
+    if (!forgotPinEmail || !forgotPinEmail.includes('@')) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
+    setSendingResetEmail(true);
+    setError('');
+
+    try {
+      await Meteor.callAsync('users.requestPinReset', forgotPinEmail);
+      setResetEmailSent(true);
+      // Auto-close modal after 3 seconds
+      setTimeout(() => {
+        setShowForgotPinModal(false);
+        setResetEmailSent(false);
+        setForgotPinEmail('');
+      }, 3000);
+    } catch (err) {
+      setError(err.reason || 'Failed to send reset email. Please try again.');
+    } finally {
+      setSendingResetEmail(false);
+    }
+  };
+
   // ── If biometric credentials exist and we haven't switched to PIN → show lock screen
   if (hasBiometricCredentials && !showPinForm) {
     return (
@@ -275,7 +307,16 @@ export const LoginPage = ({ deviceDetails }) => {
 
           {/* PIN field */}
           <div>
-            <label htmlFor="pin" className="block text-sm font-medium text-gray-700 mb-1">PIN</label>
+            <div className="flex items-center justify-between mb-1">
+              <label htmlFor="pin" className="block text-sm font-medium text-gray-700">PIN</label>
+              <button 
+                type="button"
+                onClick={() => setShowForgotPinModal(true)}
+                className="text-xs text-indigo-600 hover:text-indigo-800 hover:underline"
+              >
+                Forgot PIN?
+              </button>
+            </div>
             <div className="relative">
               <FiLock className="absolute top-3 left-3 text-gray-400" />
               <input
@@ -325,6 +366,93 @@ export const LoginPage = ({ deviceDetails }) => {
             <FingerprintIcon className="h-4 w-4" />
             Use Biometrics Instead
           </button>
+        )}
+
+        {/* Forgot PIN Modal */}
+        {showForgotPinModal && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+            onClick={() => !sendingResetEmail && !resetEmailSent && setShowForgotPinModal(false)}
+          >
+            <div 
+              className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Forgot Your PIN?</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Enter your email address and we'll send you a link to reset your PIN.
+              </p>
+
+              {resetEmailSent ? (
+                <div className="flex items-center gap-3 text-green-600 bg-green-50 border border-green-200 p-4 rounded-xl mb-4">
+                  <svg className="w-6 h-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className="text-sm">
+                    Reset link sent! Check your email and follow the instructions to reset your PIN.
+                  </span>
+                </div>
+              ) : (
+                <form onSubmit={handleForgotPin} className="space-y-4">
+                  {error && (
+                    <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 border border-red-100 p-3 rounded-xl">
+                      <FiAlertCircle className="shrink-0" />
+                      <span>{error}</span>
+                    </div>
+                  )}
+
+                  <div>
+                    <label htmlFor="resetEmail" className="block text-sm font-medium text-gray-700 mb-1">
+                      Email Address
+                    </label>
+                    <div className="relative">
+                      <FiMail className="absolute top-3 left-3 text-gray-400" />
+                      <input
+                        id="resetEmail"
+                        type="email"
+                        required
+                        value={forgotPinEmail}
+                        onChange={(e) => setForgotPinEmail(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-gray-50 transition"
+                        placeholder="Enter your email"
+                        disabled={sendingResetEmail}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowForgotPinModal(false);
+                        setError('');
+                        setForgotPinEmail('');
+                      }}
+                      disabled={sendingResetEmail}
+                      className="flex-1 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 transition disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={sendingResetEmail}
+                      className="flex-1 py-2.5 rounded-xl text-white font-medium bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 disabled:opacity-50 transition"
+                    >
+                      {sendingResetEmail ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          Sending...
+                        </span>
+                      ) : 'Send Reset Link'}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </div>
