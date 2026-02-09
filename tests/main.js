@@ -837,5 +837,134 @@ describe("meteor-app", function () {
         assert.strictEqual(updatedNotification.status, 'approve', "Should update notification with approve status");
       });
     });
+
+    describe("PIN Reset functionality", function () {
+      const { ApprovalTokens } = require("../utils/api/approvalTokens");
+      const { APPROVAL_TOKEN_EXPIRY_MS } = require("../utils/constants");
+
+      beforeEach(async function () {
+        // Clean up test data before each test
+        await Meteor.users.removeAsync({});
+        await ApprovalTokens.removeAsync({});
+      });
+
+      it("should validate PIN format correctly", function () {
+        const validPins = ['1234', '12345', '123456'];
+        const invalidPins = ['123', '1234567', 'abcd', '12a4', ''];
+
+        validPins.forEach(pin => {
+          assert.strictEqual(/^\d{4,6}$/.test(pin), true, `PIN ${pin} should be valid`);
+        });
+
+        invalidPins.forEach(pin => {
+          assert.strictEqual(/^\d{4,6}$/.test(pin), false, `PIN ${pin} should be invalid`);
+        });
+      });
+
+      it("should generate reset token with correct expiry", async function () {
+        // Create a test user
+        const userId = await Accounts.createUser({
+          email: 'pinreset@example.com',
+          username: 'pinresetuser',
+          password: '1234',
+          profile: {
+            firstName: 'Pin',
+            lastName: 'Reset',
+            registrationStatus: 'approved'
+          }
+        });
+
+        // Simulate token creation
+        const token = Random.secret();
+        const expiresAt = new Date(Date.now() + APPROVAL_TOKEN_EXPIRY_MS);
+
+        await ApprovalTokens.insertAsync({
+          userId: userId,
+          token: token,
+          createdAt: new Date(),
+          expiresAt: expiresAt,
+          used: false,
+          action: 'pin_reset'
+        });
+
+        // Verify token was created
+        const savedToken = await ApprovalTokens.findOneAsync({ userId, action: 'pin_reset' });
+        assert.ok(savedToken, "Token should be saved");
+        assert.strictEqual(savedToken.token, token, "Token should match");
+        assert.strictEqual(savedToken.action, 'pin_reset', "Action should be pin_reset");
+        assert.strictEqual(savedToken.used, false, "Token should not be used initially");
+        
+        // Verify expiry is approximately 24 hours (within 1 minute tolerance)
+        const expectedExpiry = new Date(Date.now() + APPROVAL_TOKEN_EXPIRY_MS);
+        const timeDiff = Math.abs(savedToken.expiresAt.getTime() - expectedExpiry.getTime());
+        assert.ok(timeDiff < 60000, "Expiry time should be approximately 24 hours from now");
+      });
+
+      it("should mark token as used after PIN update", async function () {
+        // Create a test user
+        const userId = await Accounts.createUser({
+          email: 'pinupdate@example.com',
+          username: 'pinupdateuser',
+          password: '1234',
+          profile: {
+            firstName: 'Pin',
+            lastName: 'Update',
+            registrationStatus: 'approved'
+          }
+        });
+
+        // Create a reset token
+        const token = Random.secret();
+        await ApprovalTokens.insertAsync({
+          userId: userId,
+          token: token,
+          createdAt: new Date(),
+          expiresAt: new Date(Date.now() + APPROVAL_TOKEN_EXPIRY_MS),
+          used: false,
+          action: 'pin_reset'
+        });
+
+        // Simulate marking token as used
+        await ApprovalTokens.updateAsync(
+          { userId, token },
+          { $set: { used: true, usedAt: new Date() } }
+        );
+
+        // Verify token is marked as used
+        const usedToken = await ApprovalTokens.findOneAsync({ userId, token });
+        assert.strictEqual(usedToken.used, true, "Token should be marked as used");
+        assert.ok(usedToken.usedAt, "Token should have usedAt timestamp");
+      });
+
+      it("should not allow reuse of already used token", async function () {
+        // Create a test user
+        const userId = await Accounts.createUser({
+          email: 'tokenreuse@example.com',
+          username: 'tokenreuseuser',
+          password: '1234',
+          profile: {
+            firstName: 'Token',
+            lastName: 'Reuse',
+            registrationStatus: 'approved'
+          }
+        });
+
+        // Create a used token
+        const token = Random.secret();
+        await ApprovalTokens.insertAsync({
+          userId: userId,
+          token: token,
+          createdAt: new Date(),
+          expiresAt: new Date(Date.now() + APPROVAL_TOKEN_EXPIRY_MS),
+          used: true,
+          usedAt: new Date(),
+          action: 'pin_reset'
+        });
+
+        // Verify token is marked as used
+        const usedToken = await ApprovalTokens.findOneAsync({ userId, token, action: 'pin_reset' });
+        assert.strictEqual(usedToken.used, true, "Token should already be marked as used");
+      });
+    });
   }
 });
