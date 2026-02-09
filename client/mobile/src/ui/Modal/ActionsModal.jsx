@@ -178,7 +178,7 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notific
         <div className="px-6 pb-6 space-y-2.5">
           <button onClick={onApprove}
             disabled={isLoading}
-            className="w-full flex items-center justify-center space-x-2 bg-indigo-600 active:bg-indigo-700 dark:bg-indigo-500 dark:active:bg-indigo-600 text-white py-[14px] rounded-[14px] active:scale-[0.98] transition-all font-semibold text-[15px] disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-indigo-600/20 dark:shadow-indigo-500/10"
+            className="w-full flex items-center justify-center space-x-2 bg-[#34c759] active:bg-[#2da44e] dark:bg-[#30b350] dark:active:bg-[#2a9d46] text-white py-[14px] rounded-[14px] active:scale-[0.98] transition-all font-semibold text-[15px] disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-green-600/20 dark:shadow-green-500/10"
           >
             <Check className="h-5 w-5" strokeWidth={2.5} />
             <span>{isLoading ? 'Processing...' : 'Approve'}</span>
@@ -186,7 +186,7 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notific
 
           <button onClick={onReject}
             disabled={isLoading}
-            className="w-full flex items-center justify-center space-x-2 bg-gray-100 dark:bg-white/[0.08] text-gray-700 dark:text-gray-300 py-[14px] rounded-[14px] active:scale-[0.98] active:bg-gray-200 dark:active:bg-white/[0.15] transition-all font-semibold text-[15px] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full flex items-center justify-center space-x-2 bg-[#ff3b30] active:bg-[#d63027] dark:bg-[#e8342a] dark:active:bg-[#c42d24] text-white py-[14px] rounded-[14px] active:scale-[0.98] transition-all font-semibold text-[15px] disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-red-600/20 dark:shadow-red-500/10"
           >
             <X className="h-5 w-5" strokeWidth={2.5} />
             <span>Deny</span>
