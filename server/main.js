@@ -12,7 +12,7 @@ import { PendingResponses } from "../utils/api/pendingResponses.js";
 import "../utils/api/apiKeys.js"; // Import for side effects (Meteor methods registration)
 import { APPROVAL_TOKEN_EXPIRY_MS } from "../utils/constants.js";
 import { isValidToken, isNotificationExpired, determineTokenErrorReason } from "../utils/utils";
-import { successTemplate, errorTemplate, rejectionTemplate, previouslyUsedTemplate } from './templates/email';
+import { successTemplate, errorTemplate, rejectionTemplate, previouslyUsedTemplate, pinResetEmailTemplate, pinResetSuccessTemplate } from './templates/email';
 import { INTERNAL_SERVER_SECRET } from './internalSecret.js';
 import dotenv from 'dotenv';
 
@@ -466,6 +466,302 @@ WebApp.connectHandlers.use('/api/reject-user', async (req, res) => {
       res.end(errorTemplate(errorReason));
     }
   }
+});
+
+// For PIN reset verification page
+WebApp.connectHandlers.use('/reset-pin', async (req, res) => {
+  const { userId, token } = req.query;
+
+  // Serve a simple HTML page for PIN reset
+  res.writeHead(200, { 'Content-Type': 'text/html' });
+  
+  // Simple HTML page with form to reset PIN
+  res.end(`
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Reset Your PIN</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 450px;
+      width: 100%;
+      padding: 40px;
+    }
+    h1 {
+      color: #4F46E5;
+      font-size: 28px;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+    .subtitle {
+      color: #6B7280;
+      text-align: center;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      color: #374151;
+      font-weight: 500;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+    input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #E5E7EB;
+      border-radius: 8px;
+      font-size: 16px;
+      transition: all 0.2s;
+    }
+    input:focus {
+      outline: none;
+      border-color: #4F46E5;
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    }
+    .hint {
+      color: #6B7280;
+      font-size: 12px;
+      margin-top: 5px;
+    }
+    button {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(to right, #4F46E5, #3B82F6);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(79, 70, 229, 0.3);
+    }
+    button:active {
+      transform: translateY(0);
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .error {
+      background: #FEE2E2;
+      border: 1px solid #FCA5A5;
+      color: #991B1B;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
+    .success {
+      background: #D1FAE5;
+      border: 1px solid #6EE7B7;
+      color: #065F46;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
+    .spinner {
+      display: none;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .loading .spinner {
+      display: block;
+    }
+    .loading .button-text {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Reset Your PIN</h1>
+    <p class="subtitle">Enter a new 4-6 digit PIN for your account</p>
+    
+    <div id="message"></div>
+    
+    <form id="resetForm">
+      <div class="form-group">
+        <label for="newPin">New PIN</label>
+        <input 
+          type="password" 
+          id="newPin" 
+          name="newPin" 
+          pattern="[0-9]*" 
+          inputmode="numeric"
+          minlength="4"
+          maxlength="6"
+          required 
+          placeholder="Enter new PIN"
+        />
+        <p class="hint">Must be 4-6 digits</p>
+      </div>
+      
+      <div class="form-group">
+        <label for="confirmPin">Confirm New PIN</label>
+        <input 
+          type="password" 
+          id="confirmPin" 
+          name="confirmPin" 
+          pattern="[0-9]*" 
+          inputmode="numeric"
+          minlength="4"
+          maxlength="6"
+          required 
+          placeholder="Re-enter new PIN"
+        />
+      </div>
+      
+      <button type="submit" id="submitBtn">
+        <span class="button-text">Reset PIN</span>
+        <div class="spinner"></div>
+      </button>
+    </form>
+  </div>
+
+  <script>
+    const form = document.getElementById('resetForm');
+    const messageDiv = document.getElementById('message');
+    const submitBtn = document.getElementById('submitBtn');
+    const userId = '${userId || ''}';
+    const token = '${token || ''}';
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const newPin = document.getElementById('newPin').value;
+      const confirmPin = document.getElementById('confirmPin').value;
+      
+      // Validate PINs match
+      if (newPin !== confirmPin) {
+        showMessage('PINs do not match. Please try again.', 'error');
+        return;
+      }
+      
+      // Validate PIN format
+      if (!/^\\d{4,6}$/.test(newPin)) {
+        showMessage('PIN must be 4-6 digits.', 'error');
+        return;
+      }
+
+      // Validate token and userId exist
+      if (!userId || !token) {
+        showMessage('Invalid reset link. Please request a new one.', 'error');
+        return;
+      }
+      
+      // Show loading state
+      submitBtn.disabled = true;
+      submitBtn.classList.add('loading');
+      messageDiv.innerHTML = '';
+      
+      try {
+        // Call Meteor method to update PIN
+        const response = await fetch('/api/update-pin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, token, newPin })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          showMessage('✓ PIN successfully reset! You can now close this window and sign in with your new PIN.', 'success');
+          form.style.display = 'none';
+        } else {
+          showMessage(result.error || 'Failed to reset PIN. Please try again.', 'error');
+          submitBtn.disabled = false;
+          submitBtn.classList.remove('loading');
+        }
+      } catch (error) {
+        showMessage('An error occurred. Please try again or request a new reset link.', 'error');
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('loading');
+      }
+    });
+    
+    function showMessage(text, type) {
+      messageDiv.className = type;
+      messageDiv.textContent = text;
+    }
+  </script>
+</body>
+</html>
+  `);
+});
+
+// API endpoint to handle PIN update
+WebApp.connectHandlers.use('/api/update-pin', async (req, res) => {
+  if (req.method !== 'POST') {
+    res.writeHead(405, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Method not allowed' }));
+    return;
+  }
+
+  let body = '';
+  req.on('data', chunk => {
+    body += chunk.toString();
+  });
+
+  req.on('end', async () => {
+    try {
+      const { userId, token, newPin } = JSON.parse(body);
+      
+      // Call the Meteor method to update PIN
+      const result = await Meteor.callAsync('users.updatePinWithToken', userId, token, newPin);
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+    } catch (error) {
+      console.error('Error updating PIN:', error);
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ 
+        success: false, 
+        error: error.reason || error.message || 'Failed to update PIN'
+      }));
+    }
+  });
+
+  req.on('error', (error) => {
+    console.error('Request error:', error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+  });
 });
 
 // Monitoring endpoint for pending responses
@@ -1524,6 +1820,148 @@ Meteor.methods({
     } catch (error) {
       console.error(`Error removing user ${userId}:`, error);
       throw new Meteor.Error('user-removal-failed', error.message);
+    }
+  },
+
+  /**
+   * Request PIN reset - sends email with reset link
+   * @param {String} email - User's email address
+   * @returns {Object} Result with success status
+   */
+  async 'users.requestPinReset'(email) {
+    check(email, String);
+
+    try {
+      // Find user by email (case-insensitive)
+      const user = await Meteor.users.findOneAsync({
+        'emails.address': { $regex: new RegExp(`^${email}$`, 'i') }
+      });
+
+      // For security, always return success even if user not found
+      // This prevents email enumeration attacks
+      if (!user) {
+        console.log(`PIN reset requested for non-existent email: ${email}`);
+        return { success: true, message: 'If the email exists, a reset link has been sent.' };
+      }
+
+      // Check if user account is active
+      if (user.profile?.accountStatus === 'rejected') {
+        console.log(`PIN reset denied for rejected account: ${email}`);
+        return { success: true, message: 'If the email exists, a reset link has been sent.' };
+      }
+
+      // Generate a secure reset token
+      const token = Random.secret();
+      const expiresAt = new Date(Date.now() + APPROVAL_TOKEN_EXPIRY_MS); // 24 hours
+
+      // Store the reset token
+      await ApprovalTokens.upsertAsync(
+        { userId: user._id, action: 'pin_reset' },
+        {
+          $set: {
+            token: token,
+            createdAt: new Date(),
+            expiresAt: expiresAt,
+            used: false,
+            action: 'pin_reset'
+          }
+        }
+      );
+
+      // Generate reset link
+      const baseUrl = process.env.ROOT_URL || Meteor.absoluteUrl();
+      const resetLink = `${baseUrl}reset-pin?userId=${user._id}&token=${token}`;
+
+      // Send email
+      const fromEmail = process.env.EMAIL_FROM;
+      if (!fromEmail) {
+        throw new Error("EMAIL_FROM is required for sending PIN reset emails");
+      }
+
+      await Email.sendAsync({
+        from: fromEmail,
+        to: user.emails[0].address,
+        subject: 'Reset Your PIN - MIEWeb Auth',
+        html: (await import('./templates/email.js')).pinResetEmailTemplate(resetLink, user.username)
+      });
+
+      console.log(`PIN reset email sent to: ${user.emails[0].address}`);
+      
+      return { success: true, message: 'If the email exists, a reset link has been sent.' };
+    } catch (error) {
+      console.error('Error requesting PIN reset:', error);
+      throw new Meteor.Error('pin-reset-request-failed', 'Failed to process PIN reset request');
+    }
+  },
+
+  /**
+   * Update user PIN after successful token validation
+   * @param {String} userId - User ID
+   * @param {String} token - Reset token
+   * @param {String} newPin - New PIN
+   * @returns {Object} Result with success status
+   */
+  async 'users.updatePinWithToken'(userId, token, newPin) {
+    check(userId, String);
+    check(token, String);
+    check(newPin, String);
+
+    // Validate new PIN format
+    if (!/^\d{4,6}$/.test(newPin)) {
+      throw new Meteor.Error('invalid-pin', 'PIN must be 4-6 digits');
+    }
+
+    try {
+      // Find the reset token
+      const tokenDoc = await ApprovalTokens.findOneAsync({
+        userId: userId,
+        token: token,
+        action: 'pin_reset'
+      });
+
+      if (!tokenDoc) {
+        throw new Meteor.Error('invalid-token', 'Invalid or expired reset token');
+      }
+
+      // Check if token is expired
+      if (new Date() > tokenDoc.expiresAt) {
+        throw new Meteor.Error('token-expired', 'Reset token has expired');
+      }
+
+      // Check if token was already used
+      if (tokenDoc.used) {
+        throw new Meteor.Error('token-used', 'Reset token has already been used');
+      }
+
+      // Find the user
+      const user = await Meteor.users.findOneAsync({ _id: userId });
+      if (!user) {
+        throw new Meteor.Error('user-not-found', 'User not found');
+      }
+
+      // Update the password (PIN)
+      await Accounts.setPasswordAsync(userId, newPin);
+
+      // Mark token as used
+      await ApprovalTokens.updateAsync(
+        { _id: tokenDoc._id },
+        {
+          $set: {
+            used: true,
+            usedAt: new Date()
+          }
+        }
+      );
+
+      console.log(`PIN successfully reset for user: ${user.username}`);
+      
+      return { success: true, message: 'PIN successfully updated' };
+    } catch (error) {
+      console.error('Error updating PIN:', error);
+      if (error instanceof Meteor.Error) {
+        throw error;
+      }
+      throw new Meteor.Error('pin-update-failed', 'Failed to update PIN');
     }
   }
 });
