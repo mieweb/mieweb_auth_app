@@ -135,6 +135,13 @@ jobs:
             echo "=== Generating build info ==="
             node generate-build-info.js
 
+            echo "=== Resetting Meteor local cache ==="
+            export PATH="$HOME/.meteor:$PATH"
+            meteor reset --allow-superuser
+
+            echo "=== Installing project dependencies ==="
+            meteor npm install --allow-superuser
+
             echo "=== Building Meteor server ==="
             BUILD_DIR="$HOME/Builds/Webserver-build-$(date +%m-%d-%Y-%H%M%S)"
             meteor build "${BUILD_DIR}" \
@@ -146,7 +153,10 @@ jobs:
             echo "=== Installing dependencies ==="
             cd "${BUILD_DIR}/bundle/programs/server"
             npm install
-            cd "${BUILD_DIR}"
+
+            echo "=== Installing bundle-level dependencies ==="
+            cd "${BUILD_DIR}/bundle"
+            npm install @babel/runtime
 
             echo "=== Updating symlink ==="
             ln -sfn "${BUILD_DIR}/bundle" "$HOME/Builds/current"
@@ -164,6 +174,13 @@ jobs:
               sudo journalctl -u mieauth --no-pager -n 50
               exit 1
             fi
+
+            echo "=== Cleaning up old builds (keeping latest 3) ==="
+            cd "$HOME/Builds"
+            ls -dt Webserver-build-* 2>/dev/null | tail -n +4 | while read old_build; do
+              echo "Removing old build: ${old_build}"
+              rm -rf "${old_build}"
+            done
           DEPLOY_SCRIPT
 
       - name: Verify Server Health (HTTP)
