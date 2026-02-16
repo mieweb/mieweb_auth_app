@@ -1,3 +1,6 @@
+# Android App Bundles (local only — downloaded via VS Code)
+*.aab
+
 # Logs
 logs
 *.log
@@ -157,6 +160,7 @@ set-env.sh
 public/buildInfo.json
 set-env-*.sh
 set-env.sh
+setup-dev-server.sh
 
 # Android App Bundles
 *.aab
