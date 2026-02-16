@@ -7,7 +7,8 @@ Web-based admin panel served at `ROOT_URL/admin`.
 Set the following LDAP env vars before starting the server:
 
 ```bash
-export LDAP_URL="ldap://ldap.cluster.mieweb.org"
+# Comma-separated for failover (tries ldap1 first, falls back to ldap2)
+export LDAP_URL="ldaps://ldap1.cluster.mieweb.org:636,ldaps://ldap2.cluster.mieweb.org:636"
 export LDAP_BASE_DN="dc=cluster,dc=mieweb,dc=org"
 export LDAP_USER_BASE_DN="ou=people,dc=cluster,dc=mieweb,dc=org"
 export LDAP_ADMIN_GROUP_DN="cn=tfa-admins,dc=cluster,dc=mieweb,dc=org"
@@ -18,7 +19,7 @@ export LDAP_REJECT_UNAUTHORIZED="false"
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `LDAP_URL` | Yes | LDAP server URL |
+| `LDAP_URL` | Yes | LDAP server URL(s). Comma-separated for failover (e.g. `ldaps://ldap1:636,ldaps://ldap2:636`) |
 | `LDAP_BASE_DN` | Yes | Base DN for the directory |
 | `LDAP_USER_BASE_DN` | Yes | DN under which user entries live (used to build `uid=<username>,<USER_BASE_DN>`) |
 | `LDAP_ADMIN_GROUP_DN` | Yes | DN of the group whose members are allowed admin access |

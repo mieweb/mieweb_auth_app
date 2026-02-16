@@ -5,7 +5,8 @@ import ldap from 'ldapjs';
  * Admin authentication via LDAP bind + group membership check.
  *
  * Env vars required:
- *   LDAP_URL              – LDAP server URL (e.g. ldap://ldap.cluster.mieweb.org)
+ *   LDAP_URL              – Comma-separated LDAP server URLs for failover
+ *                           (e.g. ldaps://ldap1.cluster.mieweb.org:636,ldaps://ldap2.cluster.mieweb.org:636)
  *   LDAP_BASE_DN          – Base DN (e.g. dc=cluster,dc=mieweb,dc=org)
  *   LDAP_USER_BASE_DN     – Where user entries live (e.g. ou=people,dc=cluster,dc=mieweb,dc=org)
  *   LDAP_ADMIN_GROUP_DN   – Group DN whose members may access the admin panel
@@ -14,9 +15,10 @@ import ldap from 'ldapjs';
  *
  * Flow:
  *   1. POST /api/admin/auth  { username, password }
- *      a. Bind as uid=<username>,<LDAP_USER_BASE_DN> with the supplied password
- *      b. Search LDAP_ADMIN_GROUP_DN for the memberUid (or custom attr) matching username
- *      c. If both succeed → create session token → { success, token, username }
+ *      a. Try each LDAP URL in order until one connects
+ *      b. Bind as uid=<username>,<LDAP_USER_BASE_DN> with the supplied password
+ *      c. Search LDAP_ADMIN_GROUP_DN for the memberUid (or custom attr) matching username
+ *      d. If both succeed → create session token → { success, token, username }
  *   2. All other /api/admin/* calls include  Authorization: Bearer <token>
  */
 
@@ -24,7 +26,9 @@ const LOG_PREFIX = '[AdminAuth/LDAP]';
 
 // ─── helpers to read LDAP env vars ──────────────────────────────
 const ldapConfig = () => ({
-  url:               process.env.LDAP_URL,
+  // Support comma-separated URLs for failover (e.g. "ldaps://ldap1:636,ldaps://ldap2:636")
+  urls:              (process.env.LDAP_URL || '').split(',').map(u => u.trim()).filter(Boolean),
+  url:               process.env.LDAP_URL,   // raw value for config-check logging
   baseDn:            process.env.LDAP_BASE_DN,
   userBaseDn:        process.env.LDAP_USER_BASE_DN,
   adminGroupDn:      process.env.LDAP_ADMIN_GROUP_DN,
@@ -93,47 +97,46 @@ const ldapErrorMessage = (err) => {
 };
 
 /**
- * Create an LDAP client, bind, execute a callback, then unbind.
+ * Create an LDAP client for a single URL, bind, execute a callback, then unbind.
  * Returns whatever the callback returns.
  */
-const withLdapClient = (bindDn, password, fn) => {
-  const cfg = ldapConfig();
+const tryLdapUrl = (url, bindDn, password, cfg, fn) => {
   return new Promise((resolve, reject) => {
     let settled = false;
     const settle = (action) => (...args) => {
       if (!settled) { settled = true; action(...args); }
     };
 
-    console.log(`${LOG_PREFIX} Creating LDAP client → ${cfg.url}`);
+    console.log(`${LOG_PREFIX} Creating LDAP client → ${url}`);
     const client = ldap.createClient({
-      url: cfg.url,
+      url,
       connectTimeout: 10000, // 10 s connect timeout
       timeout: 15000,        // 15 s operation timeout
       tlsOptions: { rejectUnauthorized: cfg.rejectUnauthorized },
     });
 
     client.on('error', (err) => {
-      console.error(`${LOG_PREFIX} LDAP client error: ${err.code || err.name} – ${err.message}`);
+      console.error(`${LOG_PREFIX} LDAP client error (${url}): ${err.code || err.name} – ${err.message}`);
       settle(reject)(err);
     });
 
     client.on('connectTimeout', () => {
-      console.error(`${LOG_PREFIX} LDAP connect timeout to ${cfg.url}`);
-      const err = new Error('LDAP server connection timed out');
+      console.error(`${LOG_PREFIX} LDAP connect timeout to ${url}`);
+      const err = new Error(`LDAP server connection timed out: ${url}`);
       err.name = 'ConnectionError';
       settle(reject)(err);
     });
 
-    console.log(`${LOG_PREFIX} Binding as "${bindDn}" …`);
+    console.log(`${LOG_PREFIX} Binding as "${bindDn}" on ${url} …`);
     client.bind(bindDn, password, async (err) => {
       if (err) {
         const tag = ldapErrorMessage(err);
-        console.error(`${LOG_PREFIX} Bind FAILED (${tag}): ${err.name} – ${err.message}`);
+        console.error(`${LOG_PREFIX} Bind FAILED on ${url} (${tag}): ${err.name} – ${err.message}`);
         client.unbind(() => {});
         return settle(reject)(err);
       }
 
-      console.log(`${LOG_PREFIX} Bind succeeded for "${bindDn}"`);
+      console.log(`${LOG_PREFIX} Bind succeeded for "${bindDn}" on ${url}`);
       try {
         const result = await fn(client, cfg);
         settle(resolve)(result);
@@ -144,6 +147,41 @@ const withLdapClient = (bindDn, password, fn) => {
       }
     });
   });
+};
+
+/**
+ * Create an LDAP client, bind, execute a callback, then unbind.
+ * Tries each configured LDAP URL in order (failover).
+ * Returns whatever the callback returns.
+ */
+const withLdapClient = async (bindDn, password, fn) => {
+  const cfg = ldapConfig();
+  const urls = cfg.urls;
+
+  if (urls.length === 0) {
+    const err = new Error('No LDAP URLs configured');
+    err.ldapTag = 'LDAP_NOT_CONFIGURED';
+    throw err;
+  }
+
+  let lastError;
+  for (const url of urls) {
+    try {
+      return await tryLdapUrl(url, bindDn, password, cfg, fn);
+    } catch (err) {
+      lastError = err;
+      const tag = ldapErrorMessage(err);
+      // Only failover on connection errors; auth errors mean the server was reached
+      const isConnectionError = tag === 'CONNECTION_FAILED';
+      if (!isConnectionError || urls.indexOf(url) === urls.length - 1) {
+        throw err;
+      }
+      console.warn(`${LOG_PREFIX} Connection to ${url} failed, trying next server…`);
+    }
+  }
+
+  // Should not reach here, but just in case
+  throw lastError;
 };
 
 /**
@@ -205,7 +243,7 @@ export const validateCredentials = async (username, password) => {
   }
 
   const cfg = ldapConfig();
-  if (!cfg.url || !cfg.userBaseDn || !cfg.adminGroupDn) {
+  if (cfg.urls.length === 0 || !cfg.userBaseDn || !cfg.adminGroupDn) {
     console.error(`${LOG_PREFIX} LDAP not configured – LDAP_URL=${cfg.url} LDAP_USER_BASE_DN=${cfg.userBaseDn} LDAP_ADMIN_GROUP_DN=${cfg.adminGroupDn}`);
     const err = new Error('LDAP is not configured on this server');
     err.ldapTag = 'LDAP_NOT_CONFIGURED';
