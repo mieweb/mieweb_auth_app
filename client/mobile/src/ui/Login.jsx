@@ -1,10 +1,72 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { openSupportLink } from '../../../../utils/openExternal';
 import { FiMail, FiLock, FiAlertCircle } from 'react-icons/fi';
 import { Meteor } from 'meteor/meteor';
 import { Session } from 'meteor/session';
-import { Fingerprint as FingerprintIcon } from 'lucide-react';
+import { Fingerprint as FingerprintIcon, KeyRound } from 'lucide-react';
 
+// ── Lock Screen (biometric auto-trigger) ────────────────────────────────────
+const LockScreen = ({ email, onBiometricSuccess, onShowPinFallback, error, isAuthenticating }) => {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-gray-50 to-indigo-50">
+      <div className="max-w-md w-full space-y-6 bg-white p-8 rounded-3xl shadow-xl border border-gray-100">
+        {/* Header */}
+        <div className="text-center space-y-3">
+          <div className="mx-auto w-14 h-14 bg-indigo-100 rounded-2xl flex items-center justify-center">
+            <FingerprintIcon className="h-7 w-7 text-indigo-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900">Welcome Back!</h2>
+          {email && (
+            <p className="text-sm text-gray-500">{email}</p>
+          )}
+        </div>
+
+        {/* Error */}
+        {error && (
+          <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 border border-red-100 p-3 rounded-xl">
+            <FiAlertCircle className="shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* Biometric button */}
+        <button
+          onClick={onBiometricSuccess}
+          disabled={isAuthenticating}
+          aria-label="Authenticate with biometrics"
+          className="w-full py-3 rounded-xl text-white font-medium bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 disabled:opacity-50 transition-all transform hover:scale-[1.01] active:scale-[0.99] shadow-lg shadow-indigo-200 flex items-center justify-center gap-2"
+        >
+          {isAuthenticating ? (
+            <span className="flex items-center justify-center gap-2">
+              <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              Authenticating…
+            </span>
+          ) : (
+            <>
+              <FingerprintIcon className="h-5 w-5" />
+              Unlock with Biometrics
+            </>
+          )}
+        </button>
+
+        {/* PIN fallback */}
+        <button
+          onClick={onShowPinFallback}
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-indigo-200 text-indigo-600 text-sm font-medium hover:bg-indigo-50 transition"
+        >
+          <KeyRound className="h-4 w-4" />
+          Use PIN Instead
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ── Main LoginPage ───────────────────────────────────────────────────────────
 export const LoginPage = ({ deviceDetails }) => {
   const [email, setEmail] = useState(() => localStorage.getItem('lastLoggedInEmail') || '');
   const [isReturningUser, setIsReturningUser] = useState(() => !!localStorage.getItem('lastLoggedInEmail'));
@@ -12,20 +74,20 @@ export const LoginPage = ({ deviceDetails }) => {
   const [error, setError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(false);
+  const [showPinForm, setShowPinForm] = useState(false);
   const navigate = useNavigate();
-  const isBiometricAvailable = true;
-  console.log(`biometrics in login page ${isBiometricAvailable}`);
+  const biometricTriggered = useRef(false);
 
+  // Determine if biometric credentials exist
+  const hasBiometricCredentials = !!localStorage.getItem('biometricUserId');
+
+  // ── Connection monitor ──────────────────────────────────────────────────
   useEffect(() => {
-    // Check for device details on component mount
-    if (!deviceDetails) {
-      console.warn('No device details available');
-    }
+    if (!deviceDetails) console.warn('No device details available');
 
-    // Check for Meteor connection
     const connectionCheck = setInterval(() => {
       if (!Meteor.status().connected) {
-        setError('Connection to server lost. Attempting to reconnect...');
+        setError('Connection to server lost. Reconnecting…');
       } else if (error.includes('Connection to server lost')) {
         setError('');
       }
@@ -34,35 +96,20 @@ export const LoginPage = ({ deviceDetails }) => {
     return () => clearInterval(connectionCheck);
   }, [deviceDetails, error]);
 
-  // Function to check registration status
+  // ── Registration check helper ───────────────────────────────────────────
   const checkRegistrationStatus = async (userId, emailAddress) => {
     setCheckingStatus(true);
-
     try {
-      console.log('### Log: Checking registration status for user');
-      const result = await Meteor.callAsync('users.checkRegistrationStatus', {
-        userId,
-        email: emailAddress
-      });
+      const result = await Meteor.callAsync('users.checkRegistrationStatus', { userId, email: emailAddress });
+      if (!result?.status) throw new Error('Failed to retrieve registration status');
 
-      console.log('### Log: Registration status result:', result);
-
-      if (!result || !result.status) {
-        throw new Error('Failed to retrieve registration status');
-      }
-
-      console.log(result)
       if (result.status !== 'approved') {
-        console.log('### Log: User registration is pending approval');
         setError('Your account is pending approval by an administrator.');
         navigate('/pending-registration');
         return false;
       }
-
-      console.log('### Log: User registration is approved');
       return true;
     } catch (err) {
-      console.error('### Log ERROR: Registration status check failed', err);
       setError(err.reason || err.message || 'Failed to verify account status');
       return false;
     } finally {
@@ -70,18 +117,12 @@ export const LoginPage = ({ deviceDetails }) => {
     }
   };
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-
-    // Validate device details
-    if (!deviceDetails) {
-      setError('Device information not available. Please refresh the page.');
-      return;
-    }
-
-    // Validate connection
-    if (!Meteor.status().connected) {
-      setError('Unable to connect to server. Please check your connection.');
+  // ── Biometric login (reusable) ──────────────────────────────────────────
+  const handleBiometricLogin = useCallback(async () => {
+    const biometricUserId = localStorage.getItem('biometricUserId');
+    if (!biometricUserId) {
+      // No credentials stored – fall back to PIN form
+      setShowPinForm(true);
       return;
     }
 
@@ -89,231 +130,202 @@ export const LoginPage = ({ deviceDetails }) => {
     setError('');
 
     try {
-      // First attempt login to get user credentials
-      let userId;
-      try {
-        await new Promise((resolve, reject) => {
-          Meteor.loginWithPassword(email, pin, (err) => {
-            if (err) {
-              console.error('Login Error:', err);
-              reject(err);
-            } else {
-              userId = Meteor.userId();
+      if (!window.Fingerprint) throw new Error('Biometric auth unavailable on this device.');
+
+      await new Promise((resolve, reject) => {
+        Fingerprint.loadBiometricSecret(
+          { description: 'Authenticate to unlock MieSecure', disableBackup: true },
+          async () => {
+            try {
+              const result = await Meteor.callAsync('users.loginWithBiometric', biometricUserId);
+              if (!result?._id) throw new Error('Biometric authentication failed');
+
+              const isApproved = await checkRegistrationStatus(result._id, result.email);
+              if (isApproved) {
+                Session.set('userProfile', { email: result.email, username: result.username, _id: result._id });
+                navigate('/dashboard');
+              }
               resolve();
+            } catch (err) {
+              reject(err);
             }
-          });
-        });
-      } catch (err) {
-        setError(err.reason || 'Login failed. Please try again.');
-        setIsLoggingIn(false);
-        return;
-      }
+          },
+          (err) => reject(err || new Error('Biometric authentication cancelled'))
+        );
+      });
+    } catch (err) {
+      console.error('Biometric login error:', err);
+      setError(err.message || 'Biometric login failed. Use PIN instead.');
+      // Don't auto-open PIN – let user decide
+    } finally {
+      setIsLoggingIn(false);
+    }
+  }, [navigate]);
 
-      // Now check registration status
+  // ── Auto-trigger biometrics on mount for returning users ────────────────
+  useEffect(() => {
+    if (biometricTriggered.current) return;
+    if (!hasBiometricCredentials) {
+      // No biometrics registered – go straight to PIN form
+      setShowPinForm(true);
+      return;
+    }
+
+    // Small delay so the lock screen renders first
+    const timer = setTimeout(() => {
+      biometricTriggered.current = true;
+      handleBiometricLogin();
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [hasBiometricCredentials, handleBiometricLogin]);
+
+  // ── PIN login ───────────────────────────────────────────────────────────
+  const handlePinLogin = async (e) => {
+    e.preventDefault();
+    if (!deviceDetails) { setError('Device info not available. Please refresh.'); return; }
+    if (!Meteor.status().connected) { setError('No connection. Please check your network.'); return; }
+
+    setIsLoggingIn(true);
+    setError('');
+
+    try {
+      let userId;
+      await new Promise((resolve, reject) => {
+        Meteor.loginWithPassword(email, pin, (err) => {
+          if (err) { reject(err); } else { userId = Meteor.userId(); resolve(); }
+        });
+      });
+
       const isApproved = await checkRegistrationStatus(userId, email);
-
       if (isApproved) {
-        // Set user profile in session and proceed to dashboard
-        Session.set('userProfile', {
-          email: email,
-          _id: userId
-        });
-
+        Session.set('userProfile', { email, _id: userId });
         localStorage.setItem('lastLoggedInEmail', email);
         navigate('/dashboard');
       } else {
-        // If not approved, logout the user since we don't want them to remain logged in
         Meteor.logout();
       }
     } catch (err) {
-      console.error('### Log ERROR during login flow:', err);
-      setError(err.reason || err.message || 'Login failed. Please try again.');
+      setError(err.reason || 'Login failed. Please try again.');
     } finally {
       setIsLoggingIn(false);
     }
   };
 
-  const handleBiometricLogin = async () => {
-    console.log("handle with biometric")
-    const biometricUserId = localStorage.getItem('biometricUserId');
-    console.log("biometric id", biometricUserId)
-    if (!biometricUserId) {
-      console.log("no biometric")
-      setError('No biometric credentials found. Please register first.');
-      navigate('/biometricModal');
-      return;
-    }
+  // ── If biometric credentials exist and we haven't switched to PIN → show lock screen
+  if (hasBiometricCredentials && !showPinForm) {
+    return (
+      <LockScreen
+        email={email}
+        error={error}
+        isAuthenticating={isLoggingIn || checkingStatus}
+        onBiometricSuccess={handleBiometricLogin}
+        onShowPinFallback={() => { setError(''); setShowPinForm(true); }}
+      />
+    );
+  }
 
-    console.log("yes biopmrtri")
-
-    setIsLoggingIn(true);
-    setError('');
-
-    try {
-      console.log("inside try")
-      if (Fingerprint) {
-        console.log("fingerprint")
-
-        await new Promise((resolve, reject) => {
-          Fingerprint.loadBiometricSecret(
-            {
-              description: 'Scan your fingerprint to login',
-              disableBackup: true,
-            },
-            async () => {
-              try {
-                // Use the retrieved secret to login
-                const result = await Meteor.callAsync('users.loginWithBiometric', biometricUserId);
-
-                if (!result || !result._id) {
-                  throw new Error('Biometric authentication failed');
-                }
-
-                // Check registration status
-                const isApproved = await checkRegistrationStatus(result._id, result.email);
-
-                console.log("is approved", isApproved)
-
-                if (isApproved) {
-                  // Set user profile in session
-                  Session.set('userProfile', {
-                    email: result.email,
-                    username: result.username,
-                    _id: result._id,
-                  });
-
-                  navigate('/dashboard');
-                }
-                resolve();
-              } catch (err) {
-                reject(err);
-              }
-            },
-            (err) => {
-              reject(err || new Error('Fingerprint authentication failed'));
-            }
-          );
-        });
-      } else {
-        throw new Error('Fingerprint authentication is not available.');
-      }
-    } catch (err) {
-      console.error('### Log ERROR during biometric login:', err);
-      setError(err.message || err.reason || 'Biometric login failed');
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
-
+  // ── PIN fallback form ──────────────────────────────────────────────────
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gray-50">
-      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-lg">
-        <div className="text-center">
-          <h2 className="text-3xl font-bold text-gray-900">
-            {isReturningUser ? 'Welcome Back!' : 'Welcome Back'}
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-gray-50 to-indigo-50">
+      <div className="max-w-md w-full space-y-6 bg-white p-8 rounded-3xl shadow-xl border border-gray-100">
+        {/* Header */}
+        <div className="text-center space-y-3">
+          <div className="mx-auto w-14 h-14 bg-indigo-100 rounded-2xl flex items-center justify-center">
+            <KeyRound className="h-7 w-7 text-indigo-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900">
+            {isReturningUser ? 'Welcome Back!' : 'Sign In'}
           </h2>
-          <p className="mt-2 text-gray-600">
-            {isReturningUser ? email : 'Sign in to your account'}
+          <p className="text-sm text-gray-500">
+            {isReturningUser ? email : 'Enter your credentials to continue'}
           </p>
         </div>
 
-        <form onSubmit={handleLogin} className="space-y-6">
+        <form onSubmit={handlePinLogin} className="space-y-5">
           {error && (
-            <div className="flex items-center text-red-600 text-sm text-center bg-red-100 p-3 rounded-lg">
-              <FiAlertCircle className="mr-2" />
-              {error}
+            <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 border border-red-100 p-3 rounded-xl">
+              <FiAlertCircle className="shrink-0" />
+              <span>{error}</span>
             </div>
           )}
 
+          {/* Email field */}
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-              Email
-            </label>
-            <div className="mt-1 relative">
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <div className="relative">
               <FiMail className="absolute top-3 left-3 text-gray-400" />
               <input
-                id="email"
-                type="email"
-                required
-                value={email}
+                id="email" type="email" required value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter your email"
-                autoComplete="email"
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-gray-50 transition"
+                placeholder="Enter your email" autoComplete="email"
                 disabled={isLoggingIn || checkingStatus}
               />
             </div>
             {isReturningUser && (
-              <button
-                type="button"
-                onClick={() => {
-                  localStorage.removeItem('lastLoggedInEmail');
-                  setEmail('');
-                  setIsReturningUser(false);
-                }}
-                className="text-sm text-blue-600 hover:underline mt-1"
+              <button type="button"
+                onClick={() => { localStorage.removeItem('lastLoggedInEmail'); setEmail(''); setIsReturningUser(false); }}
+                className="text-xs text-indigo-600 hover:underline mt-1"
               >
                 Not you? Use a different account
               </button>
             )}
           </div>
 
+          {/* PIN field */}
           <div>
-            <label htmlFor="pin" className="block text-sm font-medium text-gray-700">
-              PIN
-            </label>
-            <div className="mt-1 relative">
+            <label htmlFor="pin" className="block text-sm font-medium text-gray-700 mb-1">PIN</label>
+            <div className="relative">
               <FiLock className="absolute top-3 left-3 text-gray-400" />
               <input
-                id="pin"
-                type="password"
-                required
-                value={pin}
+                id="pin" type="password" required value={pin}
                 onChange={(e) => setPin(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter your PIN"
-                maxLength={6}
-                minLength={4}
-                pattern="[0-9]*"
-                inputMode="numeric"
-                autoComplete="current-password"
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-gray-50 transition"
+                placeholder="Enter your PIN" maxLength={6} minLength={4}
+                pattern="[0-9]*" inputMode="numeric" autoComplete="current-password"
                 disabled={isLoggingIn || checkingStatus}
               />
             </div>
           </div>
 
-          {isBiometricAvailable && (
-            <div className="flex justify-center">
-              <button
-                type="button"
-                onClick={handleBiometricLogin}
-                disabled={isLoggingIn || checkingStatus}
-                className="flex items-center space-x-2 py-2 px-4 rounded-xl text-white bg-green-600 hover:bg-green-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <FingerprintIcon />
-                <span>Login with Biometrics</span>
-              </button>
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={isLoggingIn || checkingStatus}
-            className="w-full py-3 px-4 rounded-xl text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 ease-in-out transform hover:scale-[1.02]"
+          {/* Submit */}
+          <button type="submit" disabled={isLoggingIn || checkingStatus}
+            className="w-full py-3 rounded-xl text-white font-medium bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 disabled:opacity-50 transition-all transform hover:scale-[1.01] active:scale-[0.99] shadow-lg shadow-indigo-200"
           >
             {isLoggingIn || checkingStatus ? (
-              <div className="flex items-center justify-center">
-                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              <span className="flex items-center justify-center gap-2">
+                <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>
-                {checkingStatus ? 'Verifying Account...' : 'Signing In...'}
-              </div>
-            ) : (
-              'Sign In'
-            )}
+                {checkingStatus ? 'Verifying…' : 'Signing In…'}
+              </span>
+            ) : 'Sign In with PIN'}
           </button>
+
+          <div className="text-center text-sm text-gray-600">
+            Need help?{' '}
+            <button
+              type="button"
+              onClick={() => openSupportLink()}
+              className="text-blue-600 hover:text-blue-800 font-medium"
+            >
+              Contact Support
+            </button>
+          </div>
         </form>
+
+        {/* Back to biometric if available */}
+        {hasBiometricCredentials && (
+          <button
+            onClick={() => { setError(''); setShowPinForm(false); biometricTriggered.current = false; }}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-indigo-200 text-indigo-600 text-sm font-medium hover:bg-indigo-50 transition"
+          >
+            <FingerprintIcon className="h-4 w-4" />
+            Use Biometrics Instead
+          </button>
+        )}
       </div>
     </div>
   );

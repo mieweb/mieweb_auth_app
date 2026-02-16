@@ -2,6 +2,7 @@ import admin from 'firebase-admin';
 import { Meteor } from 'meteor/meteor';
 import { DeviceDetails } from '../utils/api/deviceDetails.js';
 import { Email } from 'meteor/email';
+import { INTERNAL_SERVER_SECRET } from './internalSecret.js';
 
 import dotenv from 'dotenv';
 dotenv.config();
@@ -191,7 +192,10 @@ export const sendDeviceApprovalNotification = async (userId, newDeviceUUID) => {
     // Call internal HTTP API to send notification and wait for user response
     const response = await fetch(`${process.env.ROOT_URL}/send-notification`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Internal-Secret': INTERNAL_SERVER_SECRET
+      },
       body: JSON.stringify({
         username: userDeviceDoc.username,
         title,

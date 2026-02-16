@@ -276,6 +276,127 @@ describe("meteor-app", function () {
       });
     });
 
+    describe("Error Template with Specific Reasons", function () {
+      const { errorTemplate } = require("../server/templates/email");
+
+      it("should render expired token error message", function () {
+        const html = errorTemplate('expired');
+        
+        assert.ok(html.includes('Token Expired'), "Should show 'Token Expired' title");
+        assert.ok(html.includes('The approval token has expired'), "Should show expired message");
+        assert.ok(html.includes('Please request a new approval link'), "Should show details");
+      });
+
+      it("should render user not found error message", function () {
+        const html = errorTemplate('user_not_found');
+        
+        assert.ok(html.includes('User Not Found'), "Should show 'User Not Found' title");
+        assert.ok(html.includes('The user associated with this approval token was not found'), "Should show user not found message");
+        assert.ok(html.includes('user registered a new account'), "Should explain the reason");
+      });
+
+      it("should render invalid token error message", function () {
+        const html = errorTemplate('invalid_token');
+        
+        assert.ok(html.includes('Invalid Token'), "Should show 'Invalid Token' title");
+        assert.ok(html.includes('The approval token is invalid or does not exist'), "Should show invalid token message");
+      });
+
+      it("should render unknown error message for unrecognized reasons", function () {
+        const html = errorTemplate('some_unknown_reason');
+        
+        assert.ok(html.includes('Invalid Request'), "Should show default 'Invalid Request' title");
+        assert.ok(html.includes('This link is invalid or has expired'), "Should show default message");
+      });
+
+      it("should render unknown error message when no reason is provided", function () {
+        const html = errorTemplate();
+        
+        assert.ok(html.includes('Invalid Request'), "Should show default 'Invalid Request' title");
+        assert.ok(html.includes('This link is invalid or has expired'), "Should show default message");
+      });
+
+      it("should always include error styling", function () {
+        const html = errorTemplate('expired');
+        
+        assert.ok(html.includes('error-message'), "Should include error-message class");
+        assert.ok(html.includes('background-color: #f44336'), "Should include error background color");
+      });
+
+      it("should render server error message", function () {
+        const html = errorTemplate('server_error');
+        
+        assert.ok(html.includes('Internal Server Error'), "Should show 'Internal Server Error' title");
+        assert.ok(html.includes('An internal server error occurred'), "Should show server error message");
+        assert.ok(html.includes('try again later'), "Should suggest retrying");
+      });
+    });
+
+    describe("determineTokenErrorReason", function () {
+      const { ApprovalTokens } = require("../utils/api/approvalTokens");
+      const { determineTokenErrorReason } = require("../utils/utils");
+
+      const testUserId = 'test-user-error-reason';
+      const testToken = 'test-token-error-reason';
+
+      afterEach(async function () {
+        await ApprovalTokens.removeAsync({ userId: testUserId });
+        await Meteor.users.removeAsync({ _id: testUserId });
+      });
+
+      it("should return 'expired' when token exists but is expired", async function () {
+        await ApprovalTokens.insertAsync({
+          userId: testUserId,
+          token: testToken,
+          expiresAt: new Date(Date.now() - 1000), // expired 1 second ago
+          used: false
+        });
+
+        const reason = await determineTokenErrorReason(testUserId, testToken);
+        assert.strictEqual(reason, 'expired');
+      });
+
+      it("should return 'expired' when expiresAt equals current time (boundary)", async function () {
+        const now = new Date();
+        await ApprovalTokens.insertAsync({
+          userId: testUserId,
+          token: testToken,
+          expiresAt: now,
+          used: false
+        });
+
+        const reason = await determineTokenErrorReason(testUserId, testToken);
+        assert.strictEqual(reason, 'expired');
+      });
+
+      it("should return 'user_not_found' when token exists, not expired, but user missing", async function () {
+        await ApprovalTokens.insertAsync({
+          userId: testUserId,
+          token: testToken,
+          expiresAt: new Date(Date.now() + 60000), // expires in 1 minute
+          used: false
+        });
+        // No user inserted
+
+        const reason = await determineTokenErrorReason(testUserId, testToken);
+        assert.strictEqual(reason, 'user_not_found');
+      });
+
+      it("should return 'invalid_token' when token doesn't exist but user does", async function () {
+        await Meteor.users.insertAsync({ _id: testUserId, profile: {} });
+        // No token inserted
+
+        const reason = await determineTokenErrorReason(testUserId, testToken);
+        assert.strictEqual(reason, 'invalid_token');
+      });
+
+      it("should return 'user_not_found' when neither token nor user exist", async function () {
+        // No token or user inserted
+        const reason = await determineTokenErrorReason(testUserId, testToken);
+        assert.strictEqual(reason, 'user_not_found');
+      });
+    });
+
     describe("API Key Authentication", function () {
       const { ApiKeys, hashApiKey, verifyApiKey } = require("../utils/api/apiKeys");
       const crypto = require('crypto');
@@ -592,6 +713,128 @@ describe("meteor-app", function () {
         const notification = await NotificationHistory.findOneAsync({ _id: notificationId });
         
         assert.strictEqual(notification.clientId, clientId, "Should store provided clientId");
+      });
+    });
+
+    describe("Notification expiry checks", function () {
+      const { NotificationHistory } = require("../utils/api/notificationHistory");
+      const { isNotificationExpired } = require("../utils/utils");
+      const { TIMEOUT_DURATION_MS } = require("../utils/constants");
+      
+      let testUserIds = [];
+
+      beforeEach(async function () {
+        await NotificationHistory.removeAsync({});
+        testUserIds = [];
+      });
+
+      afterEach(async function () {
+        await NotificationHistory.removeAsync({});
+        // Clean up all test users
+        for (const userId of testUserIds) {
+          await Meteor.users.removeAsync({ _id: userId });
+        }
+        testUserIds = [];
+      });
+
+      it("should identify expired notification", function () {
+        const oldDate = new Date(Date.now() - TIMEOUT_DURATION_MS - 1000); // 1 second past expiry
+        const isExpired = isNotificationExpired(oldDate);
+        assert.strictEqual(isExpired, true, "Should identify expired notification");
+      });
+
+      it("should identify non-expired notification", function () {
+        const recentDate = new Date(Date.now() - 1000); // 1 second ago
+        const isExpired = isNotificationExpired(recentDate);
+        assert.strictEqual(isExpired, false, "Should identify non-expired notification");
+      });
+
+      it("should handle string timestamp", function () {
+        const oldDateString = new Date(Date.now() - TIMEOUT_DURATION_MS - 1000).toISOString();
+        const isExpired = isNotificationExpired(oldDateString);
+        assert.strictEqual(isExpired, true, "Should handle string timestamp");
+      });
+
+      it("should return true for null/undefined createdAt", function () {
+        assert.strictEqual(isNotificationExpired(null), true, "Should return true for null");
+        assert.strictEqual(isNotificationExpired(undefined), true, "Should return true for undefined");
+      });
+
+      it("should reject action on expired notification", async function () {
+        const userId = 'test-user-' + Random.id();
+        testUserIds.push(userId); // Track for cleanup
+        
+        // Create a user
+        await Accounts.createUserAsync({
+          username: userId,
+          email: `${userId}@example.com`,
+          password: 'testpass'
+        });
+
+        // Insert an expired notification
+        const notificationId = await Meteor.callAsync('notificationHistory.insert', {
+          userId: userId,
+          title: 'Test Expired Notification',
+          body: 'This notification is expired'
+        });
+
+        // Get the notification and manually set an old createdAt
+        const notification = await NotificationHistory.findOneAsync({ _id: notificationId });
+        const expiredDate = new Date(Date.now() - TIMEOUT_DURATION_MS - 1000);
+        await NotificationHistory.updateAsync(
+          { _id: notification._id },
+          { $set: { createdAt: expiredDate } }
+        );
+
+        // Try to handle response for expired notification
+        const result = await Meteor.callAsync(
+          'notifications.handleResponse',
+          userId,
+          'approve',
+          notification.notificationId
+        );
+
+        assert.strictEqual(result.success, false, "Should reject action on expired notification");
+        assert.strictEqual(result.message, "Notification has expired", "Should return correct error message");
+
+        // Verify notification was marked as timeout
+        const updatedNotification = await NotificationHistory.findOneAsync({ _id: notification._id });
+        assert.strictEqual(updatedNotification.status, 'timeout', "Should mark notification as timeout");
+      });
+
+      it("should allow action on non-expired notification", async function () {
+        const userId = 'test-user-' + Random.id();
+        testUserIds.push(userId); // Track for cleanup
+        
+        // Create a user
+        await Accounts.createUserAsync({
+          username: userId,
+          email: `${userId}@example.com`,
+          password: 'testpass'
+        });
+
+        // Insert a recent notification
+        const notificationId = await Meteor.callAsync('notificationHistory.insert', {
+          userId: userId,
+          title: 'Test Recent Notification',
+          body: 'This notification is recent'
+        });
+
+        const notification = await NotificationHistory.findOneAsync({ _id: notificationId });
+
+        // Try to handle response for non-expired notification
+        const result = await Meteor.callAsync(
+          'notifications.handleResponse',
+          userId,
+          'approve',
+          notification.notificationId
+        );
+
+        assert.strictEqual(result.success, true, "Should allow action on non-expired notification");
+
+        // Verify notification was updated with action
+        const updatedNotification = await NotificationHistory.findOneAsync({ _id: notification._id });
+        assert.strictEqual(updatedNotification.status, 'approve', "Should update notification with approve status");
       });
     });
   }

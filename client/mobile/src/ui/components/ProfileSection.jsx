@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { Meteor } from 'meteor/meteor';
 import { Session } from 'meteor/session';
-import { User, Mail, Edit } from 'lucide-react';
+import { User, Mail, Edit, ChevronDown, ExternalLink } from 'lucide-react';
 import SuccessToaster from '../Toasters/SuccessToaster';
+import { openExternal } from '../../../../../utils/openExternal';
 
 export const ProfileSection = ({
   profile,
@@ -91,10 +93,9 @@ export const ProfileSection = ({
         </div>
 
         <div className="space-y-4">
-          <div className="border-t dark:border-gray-700 pt-4">
-            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-              Device Information
-            </h3>
+          <AppVersionInfo />
+
+          <CollapsibleSection title="Device Information">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-gray-600 dark:text-gray-300">Model</span>
@@ -109,7 +110,7 @@ export const ProfileSection = ({
                 </span>
               </div>
             </div>
-          </div>
+          </CollapsibleSection>
 
           <div className="border-t dark:border-gray-700 pt-4">
             <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
@@ -123,6 +124,91 @@ export const ProfileSection = ({
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Displays app version and build number (last main branch commit).
+ * Only rendered inside Cordova (mobile apps), hidden on web.
+ */
+const AppVersionInfo = () => {
+  const [buildInfo, setBuildInfo] = useState(null);
+
+  useEffect(() => {
+    if (!Meteor.isCordova) return;
+
+    fetch('/buildInfo.json')
+      .then(res => res.json())
+      .then(data => setBuildInfo(data))
+      .catch(err => console.error('Failed to load build info:', err));
+  }, []);
+
+  if (!Meteor.isCordova || !buildInfo) return null;
+
+  const commitUrl = `https://github.com/mieweb/mieweb_auth_app/commit/${buildInfo.buildNumber}`;
+
+  return (
+    <CollapsibleSection title="App Info" defaultOpen={false}>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-gray-600 dark:text-gray-300">Version</span>
+          <span className="font-mono text-sm font-medium text-gray-900 dark:text-white">
+            {buildInfo.appVersion}
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-gray-600 dark:text-gray-300">Build</span>
+          <button
+            type="button"
+            onClick={() => {
+              const userConfirmed = window.confirm(
+                'You will be redirected to GitHub to view this commit.\n\nContinue?'
+              );
+              if (userConfirmed) {
+                openExternal(commitUrl);
+              }
+            }}
+            className="font-mono text-sm font-medium text-indigo-600 dark:text-indigo-400 flex items-center gap-1"
+          >
+            {buildInfo.buildNumber}
+            <ExternalLink className="h-3 w-3" />
+          </button>
+        </div>
+      </div>
+    </CollapsibleSection>
+  );
+};
+
+/**
+ * Reusable collapsible section with animated chevron.
+ */
+const CollapsibleSection = ({ title, defaultOpen = true, children }) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  return (
+    <div className="border-t dark:border-gray-700 pt-4">
+      <button
+        type="button"
+        onClick={() => setIsOpen(prev => !prev)}
+        className="flex items-center justify-between w-full text-left mb-2 focus:outline-none"
+      >
+        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
+          {title}
+        </h3>
+        <ChevronDown
+          className={`h-4 w-4 text-gray-400 dark:text-gray-500 transition-transform duration-200 ${
+            isOpen ? 'rotate-180' : ''
+          }`}
+        />
+      </button>
+      <div
+        className={`overflow-hidden transition-all duration-200 ease-in-out ${
+          isOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+        }`}
+      >
+        {children}
       </div>
     </div>
   );

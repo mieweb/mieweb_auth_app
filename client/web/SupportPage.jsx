@@ -1,10 +1,22 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Github } from 'lucide-react';
 import { Layout } from './components/Layout';
 
 export const SupportPage = () => {
   const GITHUB_REPO_URL = 'https://github.com/mieweb/mieweb_auth_app';
   const GITHUB_NEW_ISSUE_URL = `${GITHUB_REPO_URL}/issues/new`;
+  
+  const [buildInfo, setBuildInfo] = useState(null);
+  
+  useEffect(() => {
+    // Fetch build information
+    fetch('/buildInfo.json')
+      .then(response => response.json())
+      .then(data => setBuildInfo(data))
+      .catch(error => {
+        console.error('Error loading build info:', error);
+      });
+  }, []);
 
   return (
     <Layout>
@@ -64,6 +76,31 @@ export const SupportPage = () => {
                 Request Account Deletion →
               </a>
             </div>
+
+            {buildInfo && (
+              <div className="mt-8 pt-6 border-t border-gray-200">
+                <h3 className="text-sm font-medium text-gray-900 mb-4">App Information</h3>
+                <dl className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <dt className="text-gray-600">Version</dt>
+                    <dd className="font-mono text-gray-900">{buildInfo.appVersion}</dd>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <dt className="text-gray-600">Build Number</dt>
+                    <dd className="font-mono text-gray-900">
+                      <a
+                        href={`${GITHUB_REPO_URL}/commit/${buildInfo.buildNumber}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-800"
+                      >
+                        {buildInfo.buildNumber}
+                      </a>
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            )}
           </div>
         </div>
       </div>

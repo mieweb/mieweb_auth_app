@@ -1,0 +1,550 @@
+name: Deploy Production - Server, Android (Play Store) & iOS (TestFlight)
+
+# ─────────────────────────────────────────────────────────
+# Triggers when a release with tag 'v*' is created
+# (excludes dev-v* tags which use deploy-development.yml)
+# ─────────────────────────────────────────────────────────
+on:
+  release:
+    types: [created]
+
+permissions:
+  contents: write
+
+jobs:
+  # ─────────────────────────────────────────────
+  # Gate: Only run for v* tags (not dev-v*)
+  # ─────────────────────────────────────────────
+  check-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - name: Check tag pattern
+        id: check
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          if [[ "$TAG" == v* ]] && [[ "$TAG" != dev-v* ]]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Tag '${TAG}' matches production v* pattern — proceeding"
+          else
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "⏭️ Tag '${TAG}' does not match production pattern — skipping"
+          fi
+
+  # ─────────────────────────────────────────────
+  # Job 1: Prepare — extract version from tag, bump, outputs
+  # ─────────────────────────────────────────────
+  prepare:
+    needs: check-tag
+    if: needs.check-tag.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      app_version: ${{ steps.version.outputs.app_version }}
+      build_date: ${{ steps.version.outputs.build_date }}
+      tag_name: ${{ steps.version.outputs.tag_name }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Extract version from release tag
+        id: version
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          # Strip 'v' prefix to get version: v1.2.3 → 1.2.3
+          APP_VERSION="${TAG#v}"
+          BUILD_DATE=$(date +%m-%d-%Y)
+
+          echo "Tag: ${TAG}"
+          echo "Version: ${APP_VERSION}"
+          echo "Build date: ${BUILD_DATE}"
+
+          echo "app_version=${APP_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "build_date=${BUILD_DATE}" >> "$GITHUB_OUTPUT"
+          echo "tag_name=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Update version in mobile-config.js
+        run: |
+          CURRENT_VERSION=$(grep -oP "version:\s*['\"]\\K[^'\"]*" mobile-config.js | head -1)
+          NEW_VERSION="${{ steps.version.outputs.app_version }}"
+          sed -i "s/version: '${CURRENT_VERSION}'/version: '${NEW_VERSION}'/" mobile-config.js
+          echo "Updated version: ${CURRENT_VERSION} → ${NEW_VERSION}"
+          grep "version:" mobile-config.js
+
+      - name: Generate build info
+        run: node generate-build-info.js
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add mobile-config.js public/buildInfo.json
+          git commit -m "ci: bump version to ${{ steps.version.outputs.app_version }} [skip ci]" || echo "No changes to commit"
+          git push origin main || echo "Nothing to push"
+
+      - name: Upload workspace for downstream jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-code
+          include-hidden-files: true
+          path: |
+            .
+            !.meteor/local
+            !node_modules
+          retention-days: 1
+
+  # ─────────────────────────────────────────────
+  # Job 2: Deploy Server to Proxmox Container
+  # Runs in PARALLEL with Android & iOS
+  # ─────────────────────────────────────────────
+  deploy-server:
+    needs: prepare
+    runs-on: ubuntu-latest
+    # Run even if sibling jobs fail — only depends on prepare
+    if: ${{ !cancelled() && needs.prepare.result == 'success' }}
+    steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+
+      - name: Deploy to Proxmox Container
+        env:
+          APP_VERSION: ${{ needs.prepare.outputs.app_version }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no aabrol@mieauth-prod.os.mieweb.org << 'DEPLOY_SCRIPT'
+            set -e
+
+            echo "=== Pulling latest code ==="
+            cd ~/github/mieweb_auth_app
+            git fetch origin main
+            git checkout main
+            git reset --hard origin/main
+
+            echo "=== Generating build info ==="
+            node generate-build-info.js
+
+            echo "=== Resetting Meteor local cache ==="
+            export PATH="$HOME/.meteor:$PATH"
+            meteor reset --allow-superuser
+
+            echo "=== Installing project dependencies ==="
+            meteor npm install --allow-superuser
+
+            echo "=== Building Meteor server ==="
+            BUILD_DIR="$HOME/Builds/Webserver-build-$(date +%m-%d-%Y-%H%M%S)"
+            meteor build "${BUILD_DIR}" \
+              --directory \
+              --server-only \
+              --server=https://mieauth-prod.os.mieweb.org \
+              --allow-superuser
+
+            echo "=== Installing dependencies ==="
+            cd "${BUILD_DIR}/bundle/programs/server"
+            npm install
+
+            echo "=== Installing bundle-level dependencies ==="
+            cd "${BUILD_DIR}/bundle"
+            npm install @babel/runtime
+
+            echo "=== Updating symlink ==="
+            ln -sfn "${BUILD_DIR}/bundle" "$HOME/Builds/current"
+
+            echo "=== Restarting service ==="
+            sudo systemctl restart mieauth
+
+            echo "=== Health check ==="
+            sleep 10
+            if sudo systemctl is-active --quiet mieauth; then
+              echo "Server deployed and running successfully"
+              sudo systemctl status mieauth --no-pager
+            else
+              echo "Server failed to start"
+              sudo journalctl -u mieauth --no-pager -n 50
+              exit 1
+            fi
+
+            echo "=== Cleaning up old builds (keeping latest 3) ==="
+            cd "$HOME/Builds"
+            ls -dt Webserver-build-* 2>/dev/null | tail -n +4 | while read old_build; do
+              echo "Removing old build: ${old_build}"
+              rm -rf "${old_build}"
+            done
+          DEPLOY_SCRIPT
+
+      - name: Verify Server Health (HTTP)
+        run: |
+          for i in 1 2 3 4 5; do
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 https://mieauth-prod.os.mieweb.org || echo "000")
+            if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+              echo "Server responding with HTTP ${HTTP_STATUS}"
+              exit 0
+            fi
+            echo "Attempt ${i}: HTTP ${HTTP_STATUS}, retrying in 10s..."
+            sleep 10
+          done
+          echo "Warning: Server not responding after 5 attempts"
+          exit 1
+
+  # ─────────────────────────────────────────────
+  # Job 3: Build Android AAB → Sign → Play Store
+  # Runs in PARALLEL with Server & iOS
+  # ─────────────────────────────────────────────
+  build-and-publish-android:
+    needs: prepare
+    runs-on: ubuntu-latest
+    if: ${{ !cancelled() && needs.prepare.result == 'success' }}
+    env:
+      APP_VERSION: ${{ needs.prepare.outputs.app_version }}
+      BUILD_DATE: ${{ needs.prepare.outputs.build_date }}
+      TAG_NAME: ${{ needs.prepare.outputs.tag_name }}
+    steps:
+      - name: Download source
+        uses: actions/download-artifact@v4
+        with:
+          name: source-code
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Meteor
+        run: |
+          curl https://install.meteor.com/ | sh
+          echo "$HOME/.meteor" >> $GITHUB_PATH
+
+      - name: Install Dependencies
+        run: meteor npm install
+
+      - name: Decode google-services.json
+        run: |
+          mkdir -p private/android
+          echo "${{ secrets.FIREBASE_SERVICES_PROD }}" | base64 -d > private/android/google-services.json
+
+      - name: Create placeholder iOS plist for Cordova builder
+        run: |
+          mkdir -p private/ios
+          echo "${{ secrets.FIREBASE_IOS_PLIST_BASE64 }}" | base64 -d > private/ios/GoogleService-Info.plist
+
+      - name: Generate build info
+        run: node generate-build-info.js
+
+      # Android bundle ID must be 'com.mieweb.mieauth' (Play Store)
+      # while mobile-config.js defaults to 'org.mieweb.opensource' (iOS/server)
+      - name: Patch mobile-config.js for Android bundle ID
+        run: |
+          sed -i "s/id: 'org.mieweb.opensource'/id: 'com.mieweb.mieauth'/" mobile-config.js
+          echo "Patched bundle ID for Android:"
+          grep "id:" mobile-config.js
+
+      - name: Build Android AAB
+        run: |
+          meteor build ./android-build \
+            --platforms android \
+            --server=https://mieauth-prod.os.mieweb.org
+
+      - name: Decode Keystore
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > mieauth-release-key.jks
+
+      - name: Sign AAB
+        run: |
+          # Find the AAB file
+          UNSIGNED_AAB=$(find android-build -name "*.aab" -type f | head -1)
+          if [ -z "$UNSIGNED_AAB" ]; then
+            echo "ERROR: No AAB file found"
+            find android-build -type f
+            exit 1
+          fi
+          echo "Found AAB: ${UNSIGNED_AAB}"
+
+          # Sign with jarsigner
+          jarsigner -verbose \
+            -sigalg SHA256withRSA \
+            -digestalg SHA-256 \
+            -keystore mieauth-release-key.jks \
+            -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
+            -keypass "${{ secrets.ANDROID_KEY_PASSWORD }}" \
+            "$UNSIGNED_AAB" \
+            "${{ secrets.ANDROID_KEYSTORE_ALIAS }}"
+
+          # Verify
+          jarsigner -verify -verbose -certs "$UNSIGNED_AAB"
+
+          # Copy to final named file
+          SIGNED_AAB="Mieauth-v${APP_VERSION}_${BUILD_DATE}.aab"
+          cp "$UNSIGNED_AAB" "$SIGNED_AAB"
+          echo "SIGNED_AAB=${SIGNED_AAB}" >> $GITHUB_ENV
+          echo "Signed AAB: ${SIGNED_AAB}"
+
+      - name: Upload to Google Play Store
+        if: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON != '' }}
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.mieweb.mieauth
+          releaseFiles: ${{ env.SIGNED_AAB }}
+          track: internal
+          status: completed
+          releaseName: "MIEAuth v${{ env.APP_VERSION }}"
+          whatsNewDirectory: distribution/whatsnew
+
+      - name: Play Store upload skipped notice
+        if: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON == '' }}
+        run: |
+          echo "::notice::Play Store upload skipped — GOOGLE_PLAY_SERVICE_ACCOUNT_JSON secret not configured."
+          echo "Download the signed AAB from the GitHub Release and upload manually."
+
+      - name: Upload AAB as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-aab
+          path: ${{ env.SIGNED_AAB }}
+          retention-days: 90
+
+  # ─────────────────────────────────────────────
+  # Job 4: Build iOS → Archive → TestFlight
+  # Runs in PARALLEL with Server & Android
+  # ─────────────────────────────────────────────
+  build-and-publish-ios:
+    needs: prepare
+    runs-on: macos-latest
+    if: ${{ !cancelled() && needs.prepare.result == 'success' }}
+    env:
+      APP_VERSION: ${{ needs.prepare.outputs.app_version }}
+      TAG_NAME: ${{ needs.prepare.outputs.tag_name }}
+    steps:
+      - name: Download source
+        uses: actions/download-artifact@v4
+        with:
+          name: source-code
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Meteor
+        run: |
+          curl https://install.meteor.com/ | sh
+          echo "$HOME/.meteor" >> $GITHUB_PATH
+
+      - name: Install Dependencies
+        run: meteor npm install
+
+      - name: Decode GoogleService-Info.plist
+        run: |
+          mkdir -p private/ios
+          echo "${{ secrets.FIREBASE_IOS_PLIST_BASE64 }}" | base64 -d > private/ios/GoogleService-Info.plist
+
+      - name: Create placeholder Android google-services.json for Cordova builder
+        run: |
+          mkdir -p private/android
+          echo "${{ secrets.FIREBASE_SERVICES_PROD }}" | base64 -d > private/android/google-services.json
+
+      - name: Generate build info
+        run: node generate-build-info.js
+
+      # iOS uses default bundle id 'org.mieweb.opensource' — no patching needed
+
+      - name: Build iOS
+        run: |
+          meteor build ./ios-build \
+            --platforms ios \
+            --server=https://mieauth-prod.os.mieweb.org
+
+      - name: Install Apple Certificate & Provisioning Profile
+        env:
+          CERT_P12_BASE64: ${{ secrets.IOS_DIST_CERT_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+          PROV_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          # Create temporary keychain
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -hex 16)
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Import certificate
+          CERT_PATH=$RUNNER_TEMP/certificate.p12
+          echo "$CERT_P12_BASE64" | base64 --decode > "$CERT_PATH"
+          security import "$CERT_PATH" \
+            -P "$CERT_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
+
+          # Install provisioning profile
+          PROFILE_PATH=$RUNNER_TEMP/profile.mobileprovision
+          echo "$PROV_PROFILE_BASE64" | base64 --decode > "$PROFILE_PATH"
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          PROFILE_UUID=$(security cms -D -i "$PROFILE_PATH" | grep -A1 UUID | grep string | sed 's/.*<string>\(.*\)<\/string>/\1/')
+          cp "$PROFILE_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/${PROFILE_UUID}.mobileprovision
+
+          echo "KEYCHAIN_PATH=${KEYCHAIN_PATH}" >> $GITHUB_ENV
+          echo "PROFILE_UUID=${PROFILE_UUID}" >> $GITHUB_ENV
+
+      - name: Archive & Export iOS App
+        run: |
+          WORKSPACE_PATH=$(find ios-build -name "*.xcworkspace" -type d | head -1)
+          echo "Found workspace: ${WORKSPACE_PATH}"
+
+          # Install CocoaPods dependencies if Podfile exists
+          WORKSPACE_DIR=$(dirname "$WORKSPACE_PATH")
+          if [ -f "${WORKSPACE_DIR}/Podfile" ]; then
+            cd "$WORKSPACE_DIR"
+            pod install
+            cd -
+          fi
+
+          # Archive
+          xcodebuild archive \
+            -workspace "$WORKSPACE_PATH" \
+            -scheme MIEAuth \
+            -configuration Release \
+            -archivePath $RUNNER_TEMP/MIEAuth.xcarchive \
+            -allowProvisioningUpdates \
+            OTHER_CODE_SIGN_FLAGS="--keychain ${{ env.KEYCHAIN_PATH }}" \
+            CODE_SIGN_STYLE=Manual \
+            PROVISIONING_PROFILE_SPECIFIER="${{ env.PROFILE_UUID }}" | xcpretty || true
+
+          # Create export options plist
+          cat > $RUNNER_TEMP/ExportOptions.plist << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>app-store-connect</string>
+              <key>destination</key>
+              <string>upload</string>
+              <key>provisioningProfiles</key>
+              <dict>
+                  <key>org.mieweb.opensource</key>
+                  <string>${{ env.PROFILE_UUID }}</string>
+              </dict>
+          </dict>
+          </plist>
+          EOF
+
+          # Export
+          xcodebuild -exportArchive \
+            -archivePath $RUNNER_TEMP/MIEAuth.xcarchive \
+            -exportPath $RUNNER_TEMP/export \
+            -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist | xcpretty || true
+
+      - name: Upload to TestFlight
+        env:
+          API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          API_KEY_P8_BASE64: ${{ secrets.APPLE_API_KEY_P8_BASE64 }}
+        run: |
+          # Write the API key
+          mkdir -p ~/private_keys
+          echo "$API_KEY_P8_BASE64" | base64 --decode > ~/private_keys/AuthKey_${API_KEY_ID}.p8
+
+          # Find the IPA
+          IPA_PATH=$(find $RUNNER_TEMP/export -name "*.ipa" -type f | head -1)
+          echo "Uploading IPA: ${IPA_PATH}"
+
+          # Upload to TestFlight
+          xcrun altool --upload-app \
+            --type ios \
+            --file "$IPA_PATH" \
+            --apiKey "$API_KEY_ID" \
+            --apiIssuer "$API_ISSUER_ID"
+
+          echo "iOS app uploaded to TestFlight"
+
+      - name: Cleanup Keychain
+        if: always()
+        run: security delete-keychain ${{ env.KEYCHAIN_PATH }} || true
+
+  # ─────────────────────────────────────────────
+  # Job 5: Update GitHub Release with artifacts & status
+  # Runs after ALL jobs — reports even if one platform failed
+  # ─────────────────────────────────────────────
+  update-release:
+    needs: [prepare, deploy-server, build-and-publish-android, build-and-publish-ios]
+    runs-on: ubuntu-latest
+    if: ${{ always() && needs.prepare.result == 'success' }}
+    env:
+      APP_VERSION: ${{ needs.prepare.outputs.app_version }}
+      TAG_NAME: ${{ needs.prepare.outputs.tag_name }}
+      BUILD_DATE: ${{ needs.prepare.outputs.build_date }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Download Signed AAB (if available)
+        uses: actions/download-artifact@v4
+        with:
+          name: signed-aab
+        continue-on-error: true
+
+      - name: Determine job statuses
+        id: status
+        run: |
+          SERVER="${{ needs.deploy-server.result }}"
+          ANDROID="${{ needs.build-and-publish-android.result }}"
+          IOS="${{ needs.build-and-publish-ios.result }}"
+
+          STATUS_SERVER=$( [ "$SERVER" = "success" ] && echo "deployed" || echo "FAILED" )
+          STATUS_ANDROID=$( [ "$ANDROID" = "success" ] && echo "published" || echo "FAILED" )
+          STATUS_IOS=$( [ "$IOS" = "success" ] && echo "uploaded" || echo "FAILED" )
+
+          echo "server=${STATUS_SERVER}" >> "$GITHUB_OUTPUT"
+          echo "android=${STATUS_ANDROID}" >> "$GITHUB_OUTPUT"
+          echo "ios=${STATUS_IOS}" >> "$GITHUB_OUTPUT"
+
+      - name: Update GitHub Release with status
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG_NAME }}
+          name: "MIEAuth ${{ env.TAG_NAME }} (${{ env.BUILD_DATE }})"
+          body: |
+            ## MIEAuth Release ${{ env.TAG_NAME }}
+
+            **Build Date:** ${{ env.BUILD_DATE }}
+            **Version:** ${{ env.APP_VERSION }}
+
+            ### Deployment Status:
+            - Server: **${{ steps.status.outputs.server }}** (`mieauth-prod.os.mieweb.org`)
+            - Android AAB → Play Store: **${{ steps.status.outputs.android }}**
+            - iOS → TestFlight: **${{ steps.status.outputs.ios }}**
+
+            ---
+            *Automated release from CI/CD pipeline*
+          files: |
+            Mieauth-v${{ env.APP_VERSION }}_${{ env.BUILD_DATE }}.aab
+          fail_on_unmatched_files: false
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
