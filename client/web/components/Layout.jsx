@@ -26,6 +26,7 @@ export const Layout = ({ children }) => {
             {/* Desktop Navigation */}
             <nav className="hidden md:flex space-x-8">
               <Link to="/" className={isActive('/')}>Home</Link>
+              <Link to="/faq" className={isActive('/faq')}>FAQ</Link>
               <Link to="/test-notification" className={isActive('/test-notification')}>Test it now</Link>
               <Link to="/privacy-policy" className={isActive('/privacy-policy')}>Privacy Policy</Link>
               <Link to="/support" className={isActive('/support')}>Support</Link>
@@ -53,6 +54,13 @@ export const Layout = ({ children }) => {
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Home
+              </Link>
+              <Link 
+                to="/faq" 
+                className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                FAQ
               </Link>
               <Link 
                 to="/test-notification" 
@@ -101,6 +109,7 @@ export const Layout = ({ children }) => {
             <div>
               <h3 className="text-sm font-semibold text-gray-400 tracking-wider uppercase mb-4">Resources</h3>
               <ul className="space-y-3">
+                <li><Link to="/faq" className="text-base text-gray-300 hover:text-white">FAQ</Link></li>
                 <li><Link to="/privacy-policy" className="text-base text-gray-300 hover:text-white">Privacy Policy</Link></li>
                 <li><Link to="/support" className="text-base text-gray-300 hover:text-white">Support</Link></li>
                 <li><a href="https://github.com/mieweb/mieweb_auth_app" target="_blank" rel="noopener noreferrer" className="text-base text-gray-300 hover:text-white">GitHub</a></li>
