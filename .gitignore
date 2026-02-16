@@ -161,3 +161,6 @@ public/buildInfo.json
 set-env-*.sh
 set-env.sh
 setup-dev-server.sh
+
+# Android App Bundles
+*.aab
