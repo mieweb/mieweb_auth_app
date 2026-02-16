@@ -139,7 +139,7 @@ jobs:
 
             echo "=== Installing dependencies ==="
             cd "${BUILD_DIR}/bundle/programs/server"
-            npm install --production
+            npm install
             cd "${BUILD_DIR}"
 
             echo "=== Updating symlink ==="
