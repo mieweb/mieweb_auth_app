@@ -60,7 +60,7 @@ WebApp.connectHandlers.use('/api/admin/auth', async (req, res) => {
     const TAG_MAP = {
       INVALID_CREDENTIALS:  { status: 401, msg: 'Invalid username or password' },
       USER_NOT_FOUND:       { status: 401, msg: 'Invalid username or password' },
-      NOT_IN_GROUP:         { status: 403, msg: 'Access denied — your account is not in the admin group' },
+      NOT_IN_GROUP:         { status: 401, msg: 'Invalid username or password' },  // normalised to prevent admin-group enumeration
       CONNECTION_FAILED:    { status: 503, msg: 'Cannot reach the authentication server. Please try again later.' },
       LDAP_NOT_CONFIGURED:  { status: 500, msg: 'Authentication is not configured on this server. Contact the system administrator.' },
       MISSING_INPUT:        { status: 400, msg: 'Username and password are required' },
@@ -70,7 +70,7 @@ WebApp.connectHandlers.use('/api/admin/auth', async (req, res) => {
     const tag = err.ldapTag || 'UNKNOWN';
     const mapped = TAG_MAP[tag] || { status: 401, msg: 'Authentication failed. Please check your credentials and try again.' };
 
-    console.error(`[AdminApi] Login failed for user: [${tag}] ${err.message}`);
+    console.error(`[AdminApi] Login failed for user "${username}": [${tag}] ${err.message}`);
     sendJson(res, mapped.status, { error: mapped.msg });
   }
 });

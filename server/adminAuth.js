@@ -91,6 +91,21 @@ export const destroySession = (token) => {
   sessions.delete(token);
 };
 
+// Periodically purge expired sessions to prevent memory leaks
+setInterval(() => {
+  const now = Date.now();
+  let purged = 0;
+  for (const [token, session] of sessions) {
+    if (now - session.createdAt > SESSION_TTL_MS) {
+      sessions.delete(token);
+      purged++;
+    }
+  }
+  if (purged > 0) {
+    console.log(`${LOG_PREFIX} Purged ${purged} expired session(s) (remaining: ${sessions.size})`);
+  }
+}, 60 * 60 * 1000); // every hour
+
 // ─── LDAP helpers ───────────────────────────────────────────────
 
 /** Escape special characters in a value used inside an LDAP filter to prevent injection */
@@ -153,6 +168,8 @@ const tryLdapUrlAnonymous = (url, cfg, fn) => {
 
     // Anonymous bind (empty DN + empty password)
     client.bind('', '', async (err) => {
+      // Track whether the anonymous bind actually succeeded
+      const anonBindOk = !err;
       if (err) {
         console.warn(`${LOG_PREFIX} Anonymous bind not supported on ${url}, trying unauthenticated search…`);
       }
@@ -161,6 +178,10 @@ const tryLdapUrlAnonymous = (url, cfg, fn) => {
         const result = await fn(client, cfg);
         settle(resolve)(result);
       } catch (e) {
+        // Log whether the anonymous bind succeeded to help diagnose search failures
+        if (!anonBindOk) {
+          console.warn(`${LOG_PREFIX} Search failed after anonymous bind was rejected on ${url} — the failure may be due to insufficient access rather than a missing entry`);
+        }
         settle(reject)(e);
       } finally {
         client.unbind(() => {});
