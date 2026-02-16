@@ -116,8 +116,8 @@ Meteor.methods({
   'notificationHistory.getByStatus': function (status) {
     check(status, String);
 
-    if (!['pending', 'accepted', 'rejected'].includes(status)) {
-      throw new Meteor.Error('invalid-status', 'Status must be pending, accepted, or rejected');
+    if (!['pending', 'approved', 'rejected', 'timeout'].includes(status)) {
+      throw new Meteor.Error('invalid-status', 'Status must be pending, approved, rejected, or timeout');
     }
 
     return NotificationHistory.find({ status }).fetch();
