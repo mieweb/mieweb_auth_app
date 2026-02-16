@@ -95,6 +95,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: source-code
+          include-hidden-files: true
           path: |
             .
             !.meteor/local
