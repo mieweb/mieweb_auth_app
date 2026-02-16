@@ -173,8 +173,6 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
       // Check if authentication is required
       const forceAuth = process.env.SEND_NOTIFICATION_FORCE_AUTH === 'true';
       let clientId = 'unspecified';
-      
-      if (forceAuth) {
 
       // Internal server-to-server calls are trusted (e.g. device approval notifications)
       const internalSecret = req.headers['x-internal-secret'];
@@ -307,13 +305,13 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
       }
       
       // Get FCM tokens only from approved devices
-      const fcmTokens = approvedDevices.map(d => d.fcmToken).filter(Boolean);
+      const approvedFcmTokens = approvedDevices.map(d => d.fcmToken).filter(Boolean);
       
-      if (fcmTokens.length === 0) {
+      if (approvedFcmTokens.length === 0) {
         throw new Error(`No valid FCM tokens found for approved devices of user: ${username}`);
       }
       
-      console.log("Approved FCM tokens found:", fcmTokens.length);
+      console.log("Approved FCM tokens found:", approvedFcmTokens.length);
       
       // Find the primary device among approved devices, or fallback to first approved device
       const primaryDevice = approvedDevices.find(d => d.isPrimary === true) 
@@ -337,12 +335,12 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
         timestamp: new Date().toISOString()
       };
       
-      console.log("Sending notifications to", fcmTokens.length, "devices");
+      console.log("Sending notifications to", approvedFcmTokens.length, "devices");
       
       // Send notifications
-      const notificationPromises = fcmTokens.map(async (fcmToken, index) => {
+      const notificationPromises = approvedFcmTokens.map(async (fcmToken, index) => {
         try {
-          console.log(`Sending notification ${index + 1}/${fcmTokens.length}`);
+          console.log(`Sending notification ${index + 1}/${approvedFcmTokens.length}`);
           return await sendNotification(fcmToken, title, messageBody, notificationData);
         } catch (error) {
           console.error(`Error sending to token ${fcmToken}:`, error);
