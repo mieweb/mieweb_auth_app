@@ -3,7 +3,7 @@ import { WebApp } from 'meteor/webapp';
 import { ApiKeys } from '../utils/api/apiKeys';
 import { DeviceDetails } from '../utils/api/deviceDetails';
 import { EmailLog } from '../utils/api/emailLog';
-import { requireAdminAuth, validateCredentials, createSession, destroySession, parseJsonBody, sendJson } from './adminAuth';
+import { requireAdminAuth, validateCredentials, createSession, destroySession, parseJsonBody, sendJson, getPublicKey, decryptPassword } from './adminAuth';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -16,6 +16,14 @@ const setCors = (res) => {
   Object.entries(CORS_HEADERS).forEach(([k, v]) => res.setHeader(k, v));
 };
 
+// ─── Public key endpoint (for client-side password encryption) ───
+WebApp.connectHandlers.use('/api/admin/pubkey', (req, res) => {
+  setCors(res);
+  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+  if (req.method !== 'GET') return sendJson(res, 405, { error: 'Method not allowed' });
+  sendJson(res, 200, { publicKey: getPublicKey() });
+});
+
 // ─── Login: LDAP bind + group check → session token ──────────────
 WebApp.connectHandlers.use('/api/admin/auth', async (req, res) => {
   setCors(res);
@@ -23,7 +31,22 @@ WebApp.connectHandlers.use('/api/admin/auth', async (req, res) => {
   if (req.method !== 'POST') return sendJson(res, 405, { error: 'Method not allowed' });
 
   try {
-    const { username, password } = await parseJsonBody(req);
+    const body = await parseJsonBody(req);
+    const username = body.username;
+
+    // Support both encrypted and plaintext passwords
+    let password;
+    if (body.encryptedPassword) {
+      try {
+        password = decryptPassword(body.encryptedPassword);
+      } catch (decryptErr) {
+        console.error('[AdminApi] Password decryption failed:', decryptErr.message);
+        return sendJson(res, 400, { error: 'Failed to decrypt credentials. Please refresh and try again.' });
+      }
+    } else {
+      password = body.password;
+    }
+
     if (!username || !password) return sendJson(res, 400, { error: 'Username and password are required' });
 
     // validateCredentials does LDAP bind + group membership check

@@ -76,16 +76,31 @@ const LoginPage = ({ onLogin }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Encrypt password with server's RSA public key so it never appears in plaintext in the network tab
+  const encryptPassword = async (plaintext) => {
+    const res = await fetch('/api/admin/pubkey');
+    const { publicKey: pem } = await res.json();
+    // Convert PEM to binary DER for Web Crypto
+    const pemBody = pem.replace(/-----[A-Z ]+-----/g, '').replace(/\\s/g, '');
+    const der = Uint8Array.from(atob(pemBody), c => c.charCodeAt(0));
+    const key = await crypto.subtle.importKey('spki', der, { name: 'RSA-OAEP', hash: 'SHA-256' }, false, ['encrypt']);
+    const encoded = new TextEncoder().encode(plaintext);
+    const encrypted = await crypto.subtle.encrypt({ name: 'RSA-OAEP' }, key, encoded);
+    return btoa(String.fromCharCode(...new Uint8Array(encrypted)));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!username.trim() || !password) return;
     setLoading(true);
     setError('');
     try {
+      const encryptedPassword = await encryptPassword(password);
+
       const response = await fetch('/api/admin/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: username.trim(), password })
+        body: JSON.stringify({ username: username.trim(), encryptedPassword })
       });
 
       let res;
