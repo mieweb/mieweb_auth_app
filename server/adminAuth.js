@@ -24,6 +24,27 @@ import ldap from 'ldapjs';
 
 const LOG_PREFIX = '[AdminAuth/LDAP]';
 
+// ─── RSA key pair for encrypting credentials in transit ─────────
+// Generated once at server startup; lives only in memory.
+const { publicKey: RSA_PUBLIC_KEY, privateKey: RSA_PRIVATE_KEY } = crypto.generateKeyPairSync('rsa', {
+  modulusLength: 2048,
+  publicKeyEncoding:  { type: 'spki',  format: 'pem' },
+  privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+});
+console.log(`${LOG_PREFIX} RSA key pair generated for credential encryption`);
+
+/** Return the PEM-encoded public key (for the client to encrypt passwords) */
+export const getPublicKey = () => RSA_PUBLIC_KEY;
+
+/** Decrypt a Base64-encoded RSA-OAEP ciphertext using the server's private key */
+export const decryptPassword = (encryptedBase64) => {
+  const buffer = Buffer.from(encryptedBase64, 'base64');
+  return crypto.privateDecrypt(
+    { key: RSA_PRIVATE_KEY, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, oaepHash: 'sha256' },
+    buffer
+  ).toString('utf8');
+};
+
 // ─── helpers to read LDAP env vars ──────────────────────────────
 const ldapConfig = () => ({
   // Support comma-separated URLs for failover (e.g. "ldaps://ldap1:636,ldaps://ldap2:636")
