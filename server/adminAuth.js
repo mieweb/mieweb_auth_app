@@ -16,8 +16,9 @@ import ldap from 'ldapjs';
  * Flow:
  *   1. POST /api/admin/auth  { username, password }
  *      a. Try each LDAP URL in order until one connects
- *      b. Bind as uid=<username>,<LDAP_USER_BASE_DN> with the supplied password
- *      c. Search LDAP_ADMIN_GROUP_DN for the memberUid (or custom attr) matching username
+ *      b. Anonymous search: verify user is a member of LDAP_ADMIN_GROUP_DN
+ *         (rejects non-admins before triggering any MFA / push notifications)
+ *      c. Bind as uid=<username>,<LDAP_USER_BASE_DN> with the supplied password
  *      d. If both succeed → create session token → { success, token, username }
  *   2. All other /api/admin/* calls include  Authorization: Bearer <token>
  */
@@ -118,6 +119,57 @@ const ldapErrorMessage = (err) => {
 };
 
 /**
+ * Create an LDAP client for a single URL WITHOUT binding (anonymous),
+ * execute a callback, then disconnect.
+ * Used for pre-auth checks (e.g. group membership) that should not
+ * trigger authentication side-effects like push notifications.
+ */
+const tryLdapUrlAnonymous = (url, cfg, fn) => {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const settle = (action) => (...args) => {
+      if (!settled) { settled = true; action(...args); }
+    };
+
+    console.log(`${LOG_PREFIX} Creating anonymous LDAP client → ${url}`);
+    const client = ldap.createClient({
+      url,
+      connectTimeout: 10000,
+      timeout: 15000,
+      tlsOptions: { rejectUnauthorized: cfg.rejectUnauthorized },
+    });
+
+    client.on('error', (err) => {
+      console.error(`${LOG_PREFIX} LDAP client error (${url}): ${err.code || err.name} – ${err.message}`);
+      settle(reject)(err);
+    });
+
+    client.on('connectTimeout', () => {
+      console.error(`${LOG_PREFIX} LDAP connect timeout to ${url}`);
+      const err = new Error(`LDAP server connection timed out: ${url}`);
+      err.name = 'ConnectionError';
+      settle(reject)(err);
+    });
+
+    // Anonymous bind (empty DN + empty password)
+    client.bind('', '', async (err) => {
+      if (err) {
+        console.warn(`${LOG_PREFIX} Anonymous bind not supported on ${url}, trying unauthenticated search…`);
+      }
+
+      try {
+        const result = await fn(client, cfg);
+        settle(resolve)(result);
+      } catch (e) {
+        settle(reject)(e);
+      } finally {
+        client.unbind(() => {});
+      }
+    });
+  });
+};
+
+/**
  * Create an LDAP client for a single URL, bind, execute a callback, then unbind.
  * Returns whatever the callback returns.
  */
@@ -206,6 +258,39 @@ const withLdapClient = async (bindDn, password, fn) => {
 };
 
 /**
+ * Run a callback against an anonymous LDAP connection (no user bind).
+ * Tries each configured LDAP URL in order (failover).
+ * Used for pre-authentication checks like group membership.
+ */
+const withAnonymousLdap = async (fn) => {
+  const cfg = ldapConfig();
+  const urls = cfg.urls;
+
+  if (urls.length === 0) {
+    const err = new Error('No LDAP URLs configured');
+    err.ldapTag = 'LDAP_NOT_CONFIGURED';
+    throw err;
+  }
+
+  let lastError;
+  for (const url of urls) {
+    try {
+      return await tryLdapUrlAnonymous(url, cfg, fn);
+    } catch (err) {
+      lastError = err;
+      const tag = ldapErrorMessage(err);
+      const isConnectionError = tag === 'CONNECTION_FAILED';
+      if (!isConnectionError || urls.indexOf(url) === urls.length - 1) {
+        throw err;
+      }
+      console.warn(`${LOG_PREFIX} Anonymous connection to ${url} failed, trying next server…`);
+    }
+  }
+
+  throw lastError;
+};
+
+/**
  * Search LDAP for a single entry and return its object (or null).
  */
 const ldapSearchOne = (client, baseDn, filter, scope = 'sub') =>
@@ -285,15 +370,23 @@ export const validateCredentials = async (username, password) => {
   console.log(`${LOG_PREFIX} Admin group: ${cfg.adminGroupDn}`);
 
   try {
-    // 1. Bind as the user (validates password)
-    await withLdapClient(userDn, password, async (client) => {
-      // 2. Check group membership while we have an authenticated connection
-      const isMember = await isGroupMember(client, cfg, username);
-      if (!isMember) {
-        const groupErr = new Error('User is not a member of the admin group');
-        groupErr.ldapTag = 'NOT_IN_GROUP';
-        throw groupErr;
-      }
+    // 1. Check group membership FIRST (anonymous search) — reject non-admins
+    //    before binding as the user, which may trigger push notifications.
+    console.log(`${LOG_PREFIX} Pre-auth: checking group membership via anonymous search`);
+    const isMember = await withAnonymousLdap(async (client) => {
+      return isGroupMember(client, cfg, username);
+    });
+    if (!isMember) {
+      const groupErr = new Error('User is not a member of the admin group');
+      groupErr.ldapTag = 'NOT_IN_GROUP';
+      throw groupErr;
+    }
+
+    // 2. User is in the admin group — now bind as them to validate password.
+    //    This is the step that may trigger push notifications / MFA.
+    console.log(`${LOG_PREFIX} Group membership confirmed, proceeding with credential verification`);
+    await withLdapClient(userDn, password, async () => {
+      // Bind succeeded — password is valid, nothing else to do
     });
   } catch (err) {
     // Normalise the error with a tag if it doesn't already have one
