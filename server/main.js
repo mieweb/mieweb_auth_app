@@ -12,8 +12,6 @@ import { PendingResponses } from "../utils/api/pendingResponses.js";
 import { EmailLog, createEmailLog } from "../utils/api/emailLog.js";
 import "../utils/api/apiKeys.js"; // Import for side effects (Meteor methods registration)
 import "./adminApi"; // Admin REST API endpoints
-import { isValidToken } from "../utils/utils";
-import { successTemplate, errorTemplate, rejectionTemplate, previouslyUsedTemplate } from './templates/email';
 import { adminPageTemplate } from './templates/admin';
 import { APPROVAL_TOKEN_EXPIRY_MS } from "../utils/constants.js";
 import { isValidToken, isNotificationExpired, determineTokenErrorReason } from "../utils/utils";
