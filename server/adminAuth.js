@@ -217,9 +217,17 @@ const ldapSearchOne = (client, baseDn, filter, scope = 'sub') =>
         return reject(err);
       }
       let entry = null;
+      // When scope=base, only the exact base DN entry should be returned.
+      // Guard against LDAP referrals or server quirks that return unrelated entries.
+      const expectedDn = scope === 'base' ? baseDn.toLowerCase() : null;
       searchRes.on('searchEntry', (e) => {
+        const dn = (e.objectName || e.dn || '').toString();
+        console.log(`${LOG_PREFIX} Search found entry: ${dn}`);
+        if (expectedDn && dn.toLowerCase() !== expectedDn) {
+          console.warn(`${LOG_PREFIX} Ignoring unexpected entry "${dn}" (expected "${baseDn}" for scope=base)`);
+          return;
+        }
         entry = e;
-        console.log(`${LOG_PREFIX} Search found entry: ${e.objectName || e.dn}`);
       });
       searchRes.on('error', (searchErr) => {
         console.error(`${LOG_PREFIX} Search stream error: ${searchErr.name} – ${searchErr.message}`);
