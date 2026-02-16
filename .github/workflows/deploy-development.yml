@@ -233,6 +233,11 @@ jobs:
           mkdir -p private/android
           echo "${{ secrets.FIREBASE_SERVICES_PROD }}" | base64 -d > private/android/google-services.json
 
+      - name: Create placeholder iOS plist for Cordova builder
+        run: |
+          mkdir -p private/ios
+          echo "${{ secrets.FIREBASE_IOS_PLIST_BASE64 }}" | base64 -d > private/ios/GoogleService-Info.plist
+
       - name: Generate build info
         run: node generate-build-info.js
 
@@ -333,6 +338,11 @@ jobs:
         run: |
           mkdir -p private/ios
           echo "${{ secrets.FIREBASE_IOS_PLIST_BASE64 }}" | base64 -d > private/ios/GoogleService-Info.plist
+
+      - name: Create placeholder Android google-services.json for Cordova builder
+        run: |
+          mkdir -p private/android
+          echo "${{ secrets.FIREBASE_SERVICES_PROD }}" | base64 -d > private/android/google-services.json
 
       - name: Generate build info
         run: node generate-build-info.js
