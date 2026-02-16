@@ -139,6 +139,7 @@ jobs:
             BUILD_DIR="$HOME/Builds/Webserver-build-$(date +%m-%d-%Y-%H%M%S)"
             meteor build "${BUILD_DIR}" \
               --directory \
+              --server-only \
               --server=https://mieauth-prod.os.mieweb.org \
               --allow-superuser
 
