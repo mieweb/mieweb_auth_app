@@ -160,3 +160,4 @@ set-env.sh
 public/buildInfo.json
 set-env-*.sh
 set-env.sh
+setup-dev-server.sh

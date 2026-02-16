@@ -1,8 +1,8 @@
-name: Deploy Production - Server, Android (Play Store) & iOS (TestFlight)
+name: Deploy Development - Server, Android & iOS (Dev)
 
 # ─────────────────────────────────────────────────────────
-# Triggers when a release with tag 'v*' is created
-# (excludes dev-v* tags which use deploy-development.yml)
+# Triggers when a release with tag 'dev-v*' is created
+# e.g., dev-v1.2.3 from the development branch
 # ─────────────────────────────────────────────────────────
 on:
   release:
@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   # ─────────────────────────────────────────────
-  # Gate: Only run for v* tags (not dev-v*)
+  # Gate: Only run for dev-v* tags
   # ─────────────────────────────────────────────
   check-tag:
     runs-on: ubuntu-latest
@@ -24,16 +24,16 @@ jobs:
         id: check
         run: |
           TAG="${{ github.event.release.tag_name }}"
-          if [[ "$TAG" == v* ]] && [[ "$TAG" != dev-v* ]]; then
+          if [[ "$TAG" == dev-v* ]]; then
             echo "should_run=true" >> "$GITHUB_OUTPUT"
-            echo "✅ Tag '${TAG}' matches production v* pattern — proceeding"
+            echo "✅ Tag '${TAG}' matches dev-v* pattern — proceeding"
           else
             echo "should_run=false" >> "$GITHUB_OUTPUT"
-            echo "⏭️ Tag '${TAG}' does not match production pattern — skipping"
+            echo "⏭️ Tag '${TAG}' does not match dev-v* — skipping"
           fi
 
   # ─────────────────────────────────────────────
-  # Job 1: Prepare — extract version from tag, bump, outputs
+  # Job 1: Prepare — extract version from tag
   # ─────────────────────────────────────────────
   prepare:
     needs: check-tag
@@ -47,7 +47,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: development
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -56,12 +56,12 @@ jobs:
         with:
           node-version: 20
 
-      - name: Extract version from release tag
+      - name: Extract version from tag
         id: version
         run: |
           TAG="${{ github.event.release.tag_name }}"
-          # Strip 'v' prefix to get version: v1.2.3 → 1.2.3
-          APP_VERSION="${TAG#v}"
+          # Strip 'dev-v' prefix to get version: dev-v1.2.3 → 1.2.3
+          APP_VERSION="${TAG#dev-v}"
           BUILD_DATE=$(date +%m-%d-%Y)
 
           echo "Tag: ${TAG}"
@@ -83,18 +83,10 @@ jobs:
       - name: Generate build info
         run: node generate-build-info.js
 
-      - name: Commit version bump
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add mobile-config.js public/buildInfo.json
-          git commit -m "ci: bump version to ${{ steps.version.outputs.app_version }} [skip ci]" || echo "No changes to commit"
-          git push origin main || echo "Nothing to push"
-
       - name: Upload workspace for downstream jobs
         uses: actions/upload-artifact@v4
         with:
-          name: source-code
+          name: dev-source-code
           path: |
             .
             !.meteor/local
@@ -102,43 +94,45 @@ jobs:
           retention-days: 1
 
   # ─────────────────────────────────────────────
-  # Job 2: Deploy Server to Proxmox Container
+  # Job 2: Deploy Server to Dev Proxmox Container
   # Runs in PARALLEL with Android & iOS
   # ─────────────────────────────────────────────
   deploy-server:
     needs: prepare
     runs-on: ubuntu-latest
-    # Run even if sibling jobs fail — only depends on prepare
     if: ${{ !cancelled() && needs.prepare.result == 'success' }}
     steps:
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          echo "${{ secrets.DEV_DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          echo "${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          echo "${{ secrets.DEV_DEPLOY_SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
 
-      - name: Deploy to Proxmox Container
+      - name: Deploy to Dev Container
         env:
           APP_VERSION: ${{ needs.prepare.outputs.app_version }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no aabrol@mieauth-prod.os.mieweb.org << 'DEPLOY_SCRIPT'
+          ssh -i ~/.ssh/deploy_key -p 2010 -o StrictHostKeyChecking=no aabrol@mieauth-dev.os.mieweb.org << 'DEPLOY_SCRIPT'
             set -e
 
-            echo "=== Pulling latest code ==="
+            echo "=== Pulling latest code (development branch) ==="
             cd ~/github/mieweb_auth_app
-            git fetch origin main
-            git checkout main
-            git reset --hard origin/main
+            git fetch origin development
+            git checkout development
+            git reset --hard origin/development
 
             echo "=== Generating build info ==="
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
             node generate-build-info.js
 
             echo "=== Building Meteor server ==="
+            export PATH="$HOME/.meteor:$PATH"
             BUILD_DIR="$HOME/Builds/Webserver-build-$(date +%m-%d-%Y-%H%M%S)"
             meteor build "${BUILD_DIR}" \
               --directory \
-              --server=https://mieauth-prod.os.mieweb.org \
+              --server=https://mieauth-dev.os.mieweb.org \
               --allow-superuser
 
             echo "=== Installing dependencies ==="
@@ -155,10 +149,10 @@ jobs:
             echo "=== Health check ==="
             sleep 10
             if sudo systemctl is-active --quiet mieauth; then
-              echo "Server deployed and running successfully"
+              echo "Dev server deployed and running successfully"
               sudo systemctl status mieauth --no-pager
             else
-              echo "Server failed to start"
+              echo "Dev server failed to start"
               sudo journalctl -u mieauth --no-pager -n 50
               exit 1
             fi
@@ -167,22 +161,23 @@ jobs:
       - name: Verify Server Health (HTTP)
         run: |
           for i in 1 2 3 4 5; do
-            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 https://mieauth-prod.os.mieweb.org || echo "000")
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 https://mieauth-dev.os.mieweb.org || echo "000")
             if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
-              echo "Server responding with HTTP ${HTTP_STATUS}"
+              echo "Dev server responding with HTTP ${HTTP_STATUS}"
               exit 0
             fi
             echo "Attempt ${i}: HTTP ${HTTP_STATUS}, retrying in 10s..."
             sleep 10
           done
-          echo "Warning: Server not responding after 5 attempts"
+          echo "Warning: Dev server not responding after 5 attempts"
           exit 1
 
   # ─────────────────────────────────────────────
-  # Job 3: Build Android AAB → Sign → Play Store
+  # Job 3: Build Android AAB → Sign → Artifact
   # Runs in PARALLEL with Server & iOS
+  # Uses dev package name: com.mieweb.mieauth.dev
   # ─────────────────────────────────────────────
-  build-and-publish-android:
+  build-android-dev:
     needs: prepare
     runs-on: ubuntu-latest
     if: ${{ !cancelled() && needs.prepare.result == 'success' }}
@@ -194,7 +189,7 @@ jobs:
       - name: Download source
         uses: actions/download-artifact@v4
         with:
-          name: source-code
+          name: dev-source-code
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -223,19 +218,19 @@ jobs:
       - name: Generate build info
         run: node generate-build-info.js
 
-      # Android bundle ID must be 'com.mieweb.mieauth' (Play Store)
-      # while mobile-config.js defaults to 'org.mieweb.opensource' (iOS/server)
-      - name: Patch mobile-config.js for Android bundle ID
+      # Dev Android uses 'com.mieweb.mieauth.dev' to separate from production
+      - name: Patch mobile-config.js for Dev Android bundle ID
         run: |
-          sed -i "s/id: 'org.mieweb.opensource'/id: 'com.mieweb.mieauth'/" mobile-config.js
-          echo "Patched bundle ID for Android:"
-          grep "id:" mobile-config.js
+          sed -i "s/id: 'org.mieweb.opensource'/id: 'com.mieweb.mieauth.dev'/" mobile-config.js
+          sed -i "s/name: 'MIEAuth'/name: 'MIEAuth Dev'/" mobile-config.js
+          echo "Patched bundle ID and app name for Dev Android:"
+          grep -E "id:|name:" mobile-config.js
 
       - name: Build Android AAB
         run: |
           meteor build ./android-build \
             --platforms android \
-            --server=https://mieauth-prod.os.mieweb.org
+            --server=https://mieauth-dev.os.mieweb.org
 
       - name: Decode Keystore
         run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > mieauth-release-key.jks
@@ -265,41 +260,32 @@ jobs:
           jarsigner -verify -verbose -certs "$UNSIGNED_AAB"
 
           # Copy to final named file
-          SIGNED_AAB="Mieauth-v${APP_VERSION}_${BUILD_DATE}.aab"
+          SIGNED_AAB="Mieauth-DEV-v${APP_VERSION}_${BUILD_DATE}.aab"
           cp "$UNSIGNED_AAB" "$SIGNED_AAB"
           echo "SIGNED_AAB=${SIGNED_AAB}" >> $GITHUB_ENV
           echo "Signed AAB: ${SIGNED_AAB}"
 
-      - name: Upload to Google Play Store
-        if: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON != '' }}
-        uses: r0adkll/upload-google-play@v1
-        with:
-          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
-          packageName: com.mieweb.mieauth
-          releaseFiles: ${{ env.SIGNED_AAB }}
-          track: internal
-          status: completed
-          releaseName: "MIEAuth v${{ env.APP_VERSION }}"
-          whatsNewDirectory: distribution/whatsnew
-
-      - name: Play Store upload skipped notice
-        if: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON == '' }}
+      # Play Store upload skipped for dev — manual sideload or add secret later
+      - name: Play Store upload notice
         run: |
-          echo "::notice::Play Store upload skipped — GOOGLE_PLAY_SERVICE_ACCOUNT_JSON secret not configured."
-          echo "Download the signed AAB from the GitHub Release and upload manually."
+          echo "::notice::Dev build — Play Store upload skipped."
+          echo "Download the signed AAB from the GitHub Release for manual testing."
+          echo "To enable auto-upload, register 'com.mieweb.mieauth.dev' on Play Console"
+          echo "and add GOOGLE_PLAY_DEV_SERVICE_ACCOUNT_JSON secret."
 
       - name: Upload AAB as Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: signed-aab
+          name: dev-signed-aab
           path: ${{ env.SIGNED_AAB }}
           retention-days: 90
 
   # ─────────────────────────────────────────────
   # Job 4: Build iOS → Archive → TestFlight
   # Runs in PARALLEL with Server & Android
+  # Same bundle ID (org.mieweb.opensource), dev server target
   # ─────────────────────────────────────────────
-  build-and-publish-ios:
+  build-ios-dev:
     needs: prepare
     runs-on: macos-latest
     if: ${{ !cancelled() && needs.prepare.result == 'success' }}
@@ -310,7 +296,7 @@ jobs:
       - name: Download source
         uses: actions/download-artifact@v4
         with:
-          name: source-code
+          name: dev-source-code
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -333,13 +319,13 @@ jobs:
       - name: Generate build info
         run: node generate-build-info.js
 
-      # iOS uses default bundle id 'org.mieweb.opensource' — no patching needed
-
+      # iOS uses default bundle id 'org.mieweb.opensource' — same for dev
+      # The --server flag points to dev server
       - name: Build iOS
         run: |
           meteor build ./ios-build \
             --platforms ios \
-            --server=https://mieauth-prod.os.mieweb.org
+            --server=https://mieauth-dev.os.mieweb.org
 
       - name: Install Apple Certificate & Provisioning Profile
         env:
@@ -447,7 +433,7 @@ jobs:
             --apiKey "$API_KEY_ID" \
             --apiIssuer "$API_ISSUER_ID"
 
-          echo "iOS app uploaded to TestFlight"
+          echo "iOS dev build uploaded to TestFlight"
 
       - name: Cleanup Keychain
         if: always()
@@ -458,7 +444,7 @@ jobs:
   # Runs after ALL jobs — reports even if one platform failed
   # ─────────────────────────────────────────────
   update-release:
-    needs: [prepare, deploy-server, build-and-publish-android, build-and-publish-ios]
+    needs: [prepare, deploy-server, build-android-dev, build-ios-dev]
     runs-on: ubuntu-latest
     if: ${{ always() && needs.prepare.result == 'success' }}
     env:
@@ -469,24 +455,24 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: development
 
       - name: Download Signed AAB (if available)
         uses: actions/download-artifact@v4
         with:
-          name: signed-aab
+          name: dev-signed-aab
         continue-on-error: true
 
       - name: Determine job statuses
         id: status
         run: |
           SERVER="${{ needs.deploy-server.result }}"
-          ANDROID="${{ needs.build-and-publish-android.result }}"
-          IOS="${{ needs.build-and-publish-ios.result }}"
+          ANDROID="${{ needs.build-android-dev.result }}"
+          IOS="${{ needs.build-ios-dev.result }}"
 
-          STATUS_SERVER=$( [ "$SERVER" = "success" ] && echo "deployed" || echo "FAILED" )
-          STATUS_ANDROID=$( [ "$ANDROID" = "success" ] && echo "published" || echo "FAILED" )
-          STATUS_IOS=$( [ "$IOS" = "success" ] && echo "uploaded" || echo "FAILED" )
+          STATUS_SERVER=$( [ "$SERVER" = "success" ] && echo "✅ deployed" || echo "❌ FAILED" )
+          STATUS_ANDROID=$( [ "$ANDROID" = "success" ] && echo "✅ built" || echo "❌ FAILED" )
+          STATUS_IOS=$( [ "$IOS" = "success" ] && echo "✅ uploaded" || echo "❌ FAILED" )
 
           echo "server=${STATUS_SERVER}" >> "$GITHUB_OUTPUT"
           echo "android=${STATUS_ANDROID}" >> "$GITHUB_OUTPUT"
@@ -496,26 +482,23 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG_NAME }}
-          name: "MIEAuth ${{ env.TAG_NAME }} (${{ env.BUILD_DATE }})"
+          name: "MIEAuth DEV ${{ env.TAG_NAME }} (${{ env.BUILD_DATE }})"
           body: |
-            ## MIEAuth Release ${{ env.TAG_NAME }}
+            ## MIEAuth DEV Release ${{ env.TAG_NAME }}
 
             **Build Date:** ${{ env.BUILD_DATE }}
             **Version:** ${{ env.APP_VERSION }}
+            **Environment:** Development (`mieauth-dev.os.mieweb.org`)
 
             ### Deployment Status:
-            - Server: **${{ steps.status.outputs.server }}** (`mieauth-prod.os.mieweb.org`)
-            - Android AAB → Play Store: **${{ steps.status.outputs.android }}**
-            - iOS → TestFlight: **${{ steps.status.outputs.ios }}**
+            - Server: ${{ steps.status.outputs.server }} (`mieauth-dev.os.mieweb.org`)
+            - Android AAB (dev): ${{ steps.status.outputs.android }} (`com.mieweb.mieauth.dev`)
+            - iOS → TestFlight: ${{ steps.status.outputs.ios }}
 
             ---
-            *Automated release from CI/CD pipeline*
+            *Automated dev release from CI/CD pipeline (branch: development)*
           files: |
-            Mieauth-v${{ env.APP_VERSION }}_${{ env.BUILD_DATE }}.aab
+            Mieauth-DEV-v${{ env.APP_VERSION }}_${{ env.BUILD_DATE }}.aab
           fail_on_unmatched_files: false
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
