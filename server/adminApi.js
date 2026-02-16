@@ -16,7 +16,7 @@ const setCors = (res) => {
   Object.entries(CORS_HEADERS).forEach(([k, v]) => res.setHeader(k, v));
 };
 
-// ─── Login: username + password → session token ───────────────────
+// ─── Login: LDAP bind + group check → session token ──────────────
 WebApp.connectHandlers.use('/api/admin/auth', async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
@@ -24,17 +24,31 @@ WebApp.connectHandlers.use('/api/admin/auth', async (req, res) => {
 
   try {
     const { username, password } = await parseJsonBody(req);
-    if (!username || !password) return sendJson(res, 400, { error: 'username and password required' });
+    if (!username || !password) return sendJson(res, 400, { error: 'Username and password are required' });
 
-    if (!validateCredentials(username, password)) {
-      return sendJson(res, 401, { error: 'Invalid credentials' });
-    }
+    // validateCredentials does LDAP bind + group membership check
+    // Throws with err.ldapTag on failure
+    await validateCredentials(username, password);
 
     const token = createSession(username);
     sendJson(res, 200, { success: true, token, username });
   } catch (err) {
-    console.error('Admin auth error:', err);
-    sendJson(res, 500, { error: 'Authentication failed' });
+    // Map tagged LDAP errors to user-friendly messages + appropriate HTTP status
+    const TAG_MAP = {
+      INVALID_CREDENTIALS:  { status: 401, msg: 'Invalid username or password' },
+      USER_NOT_FOUND:       { status: 401, msg: 'Invalid username or password' },
+      NOT_IN_GROUP:         { status: 403, msg: 'Access denied — your account is not in the admin group' },
+      CONNECTION_FAILED:    { status: 503, msg: 'Cannot reach the authentication server. Please try again later.' },
+      LDAP_NOT_CONFIGURED:  { status: 500, msg: 'Authentication is not configured on this server. Contact the system administrator.' },
+      MISSING_INPUT:        { status: 400, msg: 'Username and password are required' },
+      INSUFFICIENT_ACCESS:  { status: 403, msg: 'Your LDAP account does not have sufficient access rights' },
+    };
+
+    const tag = err.ldapTag || 'UNKNOWN';
+    const mapped = TAG_MAP[tag] || { status: 401, msg: 'Authentication failed. Please check your credentials and try again.' };
+
+    console.error(`[AdminApi] Login failed for user: [${tag}] ${err.message}`);
+    sendJson(res, mapped.status, { error: mapped.msg });
   }
 });
 

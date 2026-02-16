@@ -4,20 +4,36 @@ Web-based admin panel served at `ROOT_URL/admin`.
 
 ## Setup
 
-Set two env vars before starting the server:
+Set the following LDAP env vars before starting the server:
 
 ```bash
-export ADMIN_USERNAME=admin
-export ADMIN_PASSWORD=<strong-password>
+export LDAP_URL="ldap://ldap.cluster.mieweb.org"
+export LDAP_BASE_DN="dc=cluster,dc=mieweb,dc=org"
+export LDAP_USER_BASE_DN="ou=people,dc=cluster,dc=mieweb,dc=org"
+export LDAP_ADMIN_GROUP_DN="cn=tfa-admins,dc=cluster,dc=mieweb,dc=org"
+# optional – defaults to "memberUid"
+# export LDAP_GROUP_MEMBER_ATTR="memberUid"
+export LDAP_REJECT_UNAUTHORIZED="false"
 ```
 
-No database seeding required — credentials live entirely in env vars.
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `LDAP_URL` | Yes | LDAP server URL |
+| `LDAP_BASE_DN` | Yes | Base DN for the directory |
+| `LDAP_USER_BASE_DN` | Yes | DN under which user entries live (used to build `uid=<username>,<USER_BASE_DN>`) |
+| `LDAP_ADMIN_GROUP_DN` | Yes | DN of the group whose members are allowed admin access |
+| `LDAP_GROUP_MEMBER_ATTR` | No | Attribute on the group entry that lists members (default: `memberUid`) |
+| `LDAP_REJECT_UNAUTHORIZED` | No | Set to `"false"` to skip TLS certificate validation (default: `"true"`) |
+
+No database seeding required — admin access is determined by LDAP group membership.
 
 ## Authentication
 
-1. Open `/admin` in a browser → login with username + password.
-2. Server returns a Bearer session token (8 h TTL, in-memory).
-3. All subsequent API calls include `Authorization: Bearer <token>`.
+1. Open `/admin` in a browser → login with your LDAP username + password.
+2. Server performs an LDAP bind as `uid=<username>,<LDAP_USER_BASE_DN>` to validate the password.
+3. Server searches `LDAP_ADMIN_GROUP_DN` to verify the user is a member of the admin group.
+4. On success, returns a Bearer session token (8 h TTL, in-memory).
+5. All subsequent API calls include `Authorization: Bearer <token>`.
 
 ## Dashboard Tabs
 
@@ -69,7 +85,7 @@ All endpoints require `Authorization: Bearer <token>` except login.
 
 | File | Purpose |
 |------|---------|
-| `server/adminAuth.js` | Credential validation, session store, middleware |
+| `server/adminAuth.js` | LDAP bind + group membership check, session store, middleware |
 | `server/adminApi.js` | All REST endpoints |
 | `server/templates/admin.js` | Self-contained React SPA (served as HTML) |
 | `utils/api/emailLog.js` | `EmailLog` Mongo collection |

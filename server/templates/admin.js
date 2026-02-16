@@ -1,7 +1,7 @@
 /**
  * Admin UI HTML template - self-contained single-page admin dashboard
  * Served at ROOT_URL/admin, uses React via CDN (no bundler dependency)
- * Authenticates via username/password against /api/admin/auth
+ * Authenticates via LDAP credentials against /api/admin/auth
  */
 export const adminPageTemplate = () => `<!DOCTYPE html>
 <html lang="en">
@@ -82,19 +82,25 @@ const LoginPage = ({ onLogin }) => {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/admin/auth', {
+      const response = await fetch('/api/admin/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: username.trim(), password })
-      }).then(r => r.json());
-      if (res.success) {
+      });
+
+      let res;
+      try { res = await response.json(); }
+      catch { res = { error: 'Unexpected server response' }; }
+
+      if (response.ok && res.success) {
         sessionStorage.setItem('adminToken', res.token);
         onLogin(res.username);
       } else {
-        setError(res.error || 'Invalid credentials');
+        setError(res.error || 'Authentication failed');
       }
-    } catch {
-      setError('Connection failed');
+    } catch (err) {
+      console.error('Login error:', err);
+      setError('Unable to connect to the server. Check your network and try again.');
     }
     setLoading(false);
   };
@@ -107,7 +113,7 @@ const LoginPage = ({ onLogin }) => {
             <svg className="w-7 h-7 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
           </div>
           <h1 className="text-xl font-bold text-gray-900">Admin Login</h1>
-          <p className="text-sm text-gray-500 mt-1">Sign in with your admin credentials</p>
+          <p className="text-sm text-gray-500 mt-1">Sign in with your LDAP credentials</p>
         </div>
         <input
           type="text"
@@ -126,7 +132,11 @@ const LoginPage = ({ onLogin }) => {
           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm"
           autoComplete="current-password"
         />
-        {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            <p className="text-red-600 text-sm text-center">{error}</p>
+          </div>
+        )}
         <button
           type="submit"
           disabled={loading || !username.trim() || !password}
