@@ -74,7 +74,7 @@ jobs:
 
       - name: Update version in mobile-config.js
         run: |
-          CURRENT_VERSION=$(grep -oP "version:\s*['\"]\\K[^'\"]*" mobile-config.js)
+          CURRENT_VERSION=$(grep -oP "version:\s*['\"]\\K[^'\"]*" mobile-config.js | head -1)
           NEW_VERSION="${{ steps.version.outputs.app_version }}"
           sed -i "s/version: '${CURRENT_VERSION}'/version: '${NEW_VERSION}'/" mobile-config.js
           echo "Updated version: ${CURRENT_VERSION} → ${NEW_VERSION}"
