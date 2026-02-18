@@ -7,13 +7,21 @@ import { INTERNAL_SERVER_SECRET } from './internalSecret.js';
 import dotenv from 'dotenv';
 dotenv.config();
 
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+let firebaseInitialized = false;
 
-
-// Initialize Firebase Admin SDK
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
+if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+  try {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+    firebaseInitialized = true;
+  } catch (e) {
+    console.warn('[firebase] Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:', e.message);
+  }
+} else {
+  console.warn('[firebase] FIREBASE_SERVICE_ACCOUNT_JSON env var is not set – push notifications will be unavailable.');
+}
 
 /**
  * Sends a push notification to a specific device
@@ -25,6 +33,10 @@ admin.initializeApp({
  * @returns {string} Notification message ID
  */
 export const sendNotification = async (fcmToken, title, body, data = {}) => {
+  if (!firebaseInitialized) {
+    console.warn('[firebase] Firebase is not initialized – skipping push notification.');
+    return null;
+  }
   try {
     console.log("Sending notification to token:", fcmToken);
     console.log("Notification data:", { title, body, data });

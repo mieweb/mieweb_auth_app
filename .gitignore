@@ -160,3 +160,9 @@ set-env.sh
 
 # Android App Bundles
 *.aab
+
+# Meteor Modern-Tools build context directories
+_build
+*/build-assets
+*/build-chunks
+.rsdoctor

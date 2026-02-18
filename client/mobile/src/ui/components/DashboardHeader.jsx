@@ -4,11 +4,11 @@ import {
   Moon,
   Sun,
   RotateCcw,
-  BellRing,
   Shield,
   HelpCircle,
 } from 'lucide-react';
 import { openSupportLink } from '../../../../../utils/openExternal';
+import { Button } from '@mieweb/ui';
 
 export const DashboardHeader = ({
   title = "My Dashboard",
@@ -24,47 +24,50 @@ export const DashboardHeader = ({
           <div className="flex items-center space-x-3">
             <Shield className="h-8 w-8 text-indigo-600 dark:text-indigo-400" />
             <h1 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              {/* <BellRing className="h-5 w-5 text-blue-600 dark:text-blue-400" /> */}
               {title}
             </h1>
           </div>
           <div className="flex items-center space-x-2">
-            <button
+            <Button
               onClick={onRefresh}
-              title="Refresh"
-              className="flex items-center justify-center p-2 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+              variant="ghost"
+              size="icon"
               aria-label="Refresh"
+              title="Refresh"
             >
-              <RotateCcw className="h-4 w-4 text-gray-600 dark:text-gray-300" />
-            </button>
-            <button
+              <RotateCcw className="h-4 w-4" />
+            </Button>
+            <Button
               onClick={toggleDarkMode}
-              title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
-              className="flex items-center justify-center p-2 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+              variant="ghost"
+              size="icon"
               aria-label="Toggle Night Mode"
+              title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
             >
               {isDarkMode ? (
                 <Sun className="h-4 w-4 text-yellow-400" />
               ) : (
-                <Moon className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                <Moon className="h-4 w-4" />
               )}
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => openSupportLink()}
-              title="Support"
-              className="flex items-center justify-center p-2 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+              variant="ghost"
+              size="icon"
               aria-label="Support"
+              title="Support"
             >
-              <HelpCircle className="h-4 w-4 text-gray-600 dark:text-gray-300" />
-            </button>
-            <button
+              <HelpCircle className="h-4 w-4" />
+            </Button>
+            <Button
               onClick={onLogout}
-              title="Logout"
-              className="flex items-center justify-center p-2 rounded-full bg-red-500 text-white hover:bg-red-600 transition"
+              variant="danger"
+              size="icon"
               aria-label="Logout"
+              title="Logout"
             >
               <LogOut className="h-4 w-4" />
-            </button>
+            </Button>
           </div>
         </div>
       </div>

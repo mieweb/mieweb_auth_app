@@ -4,7 +4,7 @@ import { LoginPage } from '../Login';
 import { RegistrationPage } from '../Registration';
 import { WelcomePage } from '../Welcome';
 import { LandingPage } from '../LandingPage';
-import { BiometricRegistrationModal } from '../Modal/BiometricRegistrationModal';
+import BiometricRegistrationModal from '../Modal/BiometricRegistrationModal';
 import PendingRegistrationPage from '../PendingRegistrationPage';
 import { WebNotificationPage } from '../../../../WebNotificationPage';
 import { WebLandingPage } from '../../../../web/WebLandingPage';

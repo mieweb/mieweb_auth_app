@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { openSupportLink } from '../../../../utils/openExternal';
-import { FiMail, FiLock, FiAlertCircle } from 'react-icons/fi';
 import { Meteor } from 'meteor/meteor';
 import { Session } from 'meteor/session';
-import { Fingerprint as FingerprintIcon, KeyRound } from 'lucide-react';
+import { Fingerprint as FingerprintIcon, KeyRound, Mail, Lock, AlertCircle } from 'lucide-react';
+import { Input, Button, Alert, AlertDescription } from '@mieweb/ui';
 
 // ── Lock Screen (biometric auto-trigger) ────────────────────────────────────
 const LockScreen = ({ email, onBiometricSuccess, onShowPinFallback, error, isAuthenticating }) => {
@@ -24,43 +24,33 @@ const LockScreen = ({ email, onBiometricSuccess, onShowPinFallback, error, isAut
 
         {/* Error */}
         {error && (
-          <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 border border-red-100 p-3 rounded-xl">
-            <FiAlertCircle className="shrink-0" />
-            <span>{error}</span>
-          </div>
+          <Alert variant="danger" icon={<AlertCircle className="h-4 w-4" />}>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
 
         {/* Biometric button */}
-        <button
+        <Button
           onClick={onBiometricSuccess}
           disabled={isAuthenticating}
           aria-label="Authenticate with biometrics"
-          className="w-full py-3 rounded-xl text-white font-medium bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 disabled:opacity-50 transition-all transform hover:scale-[1.01] active:scale-[0.99] shadow-lg shadow-indigo-200 flex items-center justify-center gap-2"
+          fullWidth
+          isLoading={isAuthenticating}
+          loadingText="Authenticating…"
+          leftIcon={<FingerprintIcon className="h-5 w-5" />}
         >
-          {isAuthenticating ? (
-            <span className="flex items-center justify-center gap-2">
-              <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
-              Authenticating…
-            </span>
-          ) : (
-            <>
-              <FingerprintIcon className="h-5 w-5" />
-              Unlock with Biometrics
-            </>
-          )}
-        </button>
+          Unlock with Biometrics
+        </Button>
 
         {/* PIN fallback */}
-        <button
+        <Button
           onClick={onShowPinFallback}
-          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-indigo-200 text-indigo-600 text-sm font-medium hover:bg-indigo-50 transition"
+          variant="outline"
+          fullWidth
+          leftIcon={<KeyRound className="h-4 w-4" />}
         >
-          <KeyRound className="h-4 w-4" />
           Use PIN Instead
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -244,87 +234,84 @@ export const LoginPage = ({ deviceDetails }) => {
 
         <form onSubmit={handlePinLogin} className="space-y-5">
           {error && (
-            <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 border border-red-100 p-3 rounded-xl">
-              <FiAlertCircle className="shrink-0" />
-              <span>{error}</span>
-            </div>
+            <Alert variant="danger" icon={<AlertCircle className="h-4 w-4" />}>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
 
           {/* Email field */}
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <div className="relative">
-              <FiMail className="absolute top-3 left-3 text-gray-400" />
-              <input
-                id="email" type="email" required value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-gray-50 transition"
-                placeholder="Enter your email" autoComplete="email"
-                disabled={isLoggingIn || checkingStatus}
-              />
-            </div>
+            <Input
+              id="email"
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              label="Email"
+              placeholder="Enter your email"
+              autoComplete="email"
+              disabled={isLoggingIn || checkingStatus}
+            />
             {isReturningUser && (
-              <button type="button"
+              <Button variant="link" size="sm"
+                type="button"
                 onClick={() => { localStorage.removeItem('lastLoggedInEmail'); setEmail(''); setIsReturningUser(false); }}
-                className="text-xs text-indigo-600 hover:underline mt-1"
               >
                 Not you? Use a different account
-              </button>
+              </Button>
             )}
           </div>
 
           {/* PIN field */}
-          <div>
-            <label htmlFor="pin" className="block text-sm font-medium text-gray-700 mb-1">PIN</label>
-            <div className="relative">
-              <FiLock className="absolute top-3 left-3 text-gray-400" />
-              <input
-                id="pin" type="password" required value={pin}
-                onChange={(e) => setPin(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-gray-50 transition"
-                placeholder="Enter your PIN" maxLength={6} minLength={4}
-                pattern="[0-9]*" inputMode="numeric" autoComplete="current-password"
-                disabled={isLoggingIn || checkingStatus}
-              />
-            </div>
-          </div>
+          <Input
+            id="pin"
+            type="password"
+            required
+            value={pin}
+            onChange={(e) => setPin(e.target.value)}
+            label="PIN"
+            placeholder="Enter your PIN"
+            maxLength={6}
+            minLength={4}
+            pattern="[0-9]*"
+            inputMode="numeric"
+            autoComplete="current-password"
+            disabled={isLoggingIn || checkingStatus}
+          />
 
           {/* Submit */}
-          <button type="submit" disabled={isLoggingIn || checkingStatus}
-            className="w-full py-3 rounded-xl text-white font-medium bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 disabled:opacity-50 transition-all transform hover:scale-[1.01] active:scale-[0.99] shadow-lg shadow-indigo-200"
+          <Button
+            type="submit"
+            disabled={isLoggingIn || checkingStatus}
+            fullWidth
+            isLoading={isLoggingIn || checkingStatus}
+            loadingText={checkingStatus ? 'Verifying…' : 'Signing In…'}
           >
-            {isLoggingIn || checkingStatus ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-                {checkingStatus ? 'Verifying…' : 'Signing In…'}
-              </span>
-            ) : 'Sign In with PIN'}
-          </button>
+            Sign In with PIN
+          </Button>
 
           <div className="text-center text-sm text-gray-600">
             Need help?{' '}
-            <button
+            <Button
+              variant="link"
               type="button"
               onClick={() => openSupportLink()}
-              className="text-blue-600 hover:text-blue-800 font-medium"
             >
               Contact Support
-            </button>
+            </Button>
           </div>
         </form>
 
         {/* Back to biometric if available */}
         {hasBiometricCredentials && (
-          <button
+          <Button
             onClick={() => { setError(''); setShowPinForm(false); biometricTriggered.current = false; }}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-indigo-200 text-indigo-600 text-sm font-medium hover:bg-indigo-50 transition"
+            variant="outline"
+            fullWidth
+            leftIcon={<FingerprintIcon className="h-4 w-4" />}
           >
-            <FingerprintIcon className="h-4 w-4" />
             Use Biometrics Instead
-          </button>
+          </Button>
         )}
       </div>
     </div>

@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { openSupportLink } from '../../../../utils/openExternal';
-import { FiUser, FiMail, FiLock } from 'react-icons/fi';
+import { User, Mail, Lock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Meteor } from 'meteor/meteor';
 import { Session } from 'meteor/session';
 import BiometricRegistrationModal from './Modal/BiometricRegistrationModal';
 import { Random } from 'meteor/random';
+import { Input, Button, Alert, AlertDescription } from '@mieweb/ui';
 
 export const RegistrationPage = ({ deviceDetails }) => {
   const [formData, setFormData] = useState({
@@ -30,14 +31,14 @@ export const RegistrationPage = ({ deviceDetails }) => {
   }, []);
 
   const inputFields = useMemo(() => [
-    { name: 'email', icon: FiMail, type: 'email', placeholder: 'Enter your email' },
-    { name: 'username', icon: FiUser, type: 'text', placeholder: 'Enter your username', autoCapitalize: 'none' },
-    { name: 'firstName', icon: FiUser, type: 'text', placeholder: 'First Name' },
-    { name: 'lastName', icon: FiUser, type: 'text', placeholder: 'Last Name' },
+    { name: 'email', type: 'email', label: 'Email', placeholder: 'Enter your email' },
+    { name: 'username', type: 'text', label: 'Username', placeholder: 'Enter your username', autoCapitalize: 'none' },
+    { name: 'firstName', type: 'text', label: 'First Name', placeholder: 'First Name' },
+    { name: 'lastName', type: 'text', label: 'Last Name', placeholder: 'Last Name' },
     { 
       name: 'pin', 
-      icon: FiLock, 
       type: 'password', 
+      label: 'PIN',
       placeholder: 'Create a PIN (4-6 digits)',
       minLength: "4",
       maxLength: "6",
@@ -223,7 +224,7 @@ export const RegistrationPage = ({ deviceDetails }) => {
             </motion.h2>
             <div className="flex justify-center">
               <div className="animate-pulse w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center">
-                <FiUser className="text-3xl text-blue-500" />
+                <User className="text-3xl text-blue-500" />
               </div>
             </div>
             <p className="text-gray-600">
@@ -234,14 +235,12 @@ export const RegistrationPage = ({ deviceDetails }) => {
             </p>
           </div>
 
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+          <Button
             onClick={goToLogin}
-            className="w-full py-3 px-4 rounded-xl text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 transition-colors"
+            fullWidth
           >
             Back to Login
-          </motion.button>
+          </Button>
         </motion.div>
       </motion.div>
     );
@@ -272,9 +271,9 @@ export const RegistrationPage = ({ deviceDetails }) => {
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
-            <span className="block sm:inline">{error}</span>
-          </div>
+          <Alert variant="danger">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -287,52 +286,46 @@ export const RegistrationPage = ({ deviceDetails }) => {
                 transition={{ delay: index * 0.1 }}
                 className={field.name === 'email' ? 'md:col-span-2' : ''}
               >
-                <label className="text-sm font-medium text-gray-700">
-                  {field.name.charAt(0).toUpperCase() + field.name.slice(1)}
-                </label>
-                <div className="mt-1 relative">
-                  <field.icon className="absolute top-3 left-3 text-gray-400" />
-                  <input
-                    name={field.name}
-                    type={field.type}
-                    placeholder={field.placeholder}
-                    required
-                    value={formData[field.name]}
-                    onChange={e => setFormData(prev => ({
-                      ...prev,
-                      [e.target.name]: e.target.value
-                    }))}
-                    className="w-full pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500"
-                    pattern={field.pattern}
-                    inputMode={field.inputMode}
-                    minLength={field.minLength}
-                    maxLength={field.maxLength}
-                    autoCapitalize={field.autoCapitalize}
-                  />
-                </div>
+                <Input
+                  name={field.name}
+                  type={field.type}
+                  placeholder={field.placeholder}
+                  required
+                  value={formData[field.name]}
+                  onChange={e => setFormData(prev => ({
+                    ...prev,
+                    [e.target.name]: e.target.value
+                  }))}
+                  label={field.label}
+                  pattern={field.pattern}
+                  inputMode={field.inputMode}
+                  minLength={field.minLength}
+                  maxLength={field.maxLength}
+                  autoCapitalize={field.autoCapitalize}
+                />
               </motion.div>
             ))}
           </div>
 
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+          <Button
             type="submit"
             disabled={loading}
-            className="w-full py-3 px-4 rounded-xl text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 transition-colors"
+            fullWidth
+            isLoading={loading}
+            loadingText="Creating Account..."
           >
-            {loading ? 'Creating Account...' : 'Create Account'}
-          </motion.button>
+            Create Account
+          </Button>
 
           <div className="text-center text-sm text-gray-600">
             Need help?{' '}
-            <button
+            <Button
+              variant="link"
               type="button"
               onClick={() => openSupportLink()}
-              className="text-blue-600 hover:text-blue-800 font-medium"
             >
               Contact Support
-            </button>
+            </Button>
           </div>
         </form>
       </motion.div>

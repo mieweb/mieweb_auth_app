@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Meteor } from 'meteor/meteor';
 import { Check, X } from 'lucide-react';
 import { TIMEOUT_DURATION_MS } from '../../../../../utils/constants';
+import { Button, Alert, AlertDescription } from '@mieweb/ui';
 
 const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notification, isLoading, error }) => {
   const [timeLeft, setTimeLeft] = useState(0);
@@ -149,45 +150,48 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notific
               </p>
             </div>
           </div>
-          <button onClick={onClose} aria-label="Close"
-            className="h-8 w-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-white/10 text-gray-400 dark:text-gray-500 active:bg-gray-200 dark:active:bg-white/20 transition-colors"
-          >
+          <Button onClick={onClose} aria-label="Close" variant="ghost" size="icon">
             <X className="h-4 w-4" />
-          </button>
+          </Button>
         </div>
 
         {/* Action buttons */}
         <div className="px-5 pb-2 space-y-2.5">
           {/* Error message */}
           {error && (
-            <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
-              <p className="text-sm text-red-700 dark:text-red-300 text-center">{error}</p>
-            </div>
+            <Alert variant="danger">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
           {/* Approve / Reject side-by-side */}
           <div className="flex space-x-3">
-            <button onClick={onApprove}
+            <Button onClick={onApprove}
               disabled={isLoading}
-              className="flex-1 flex items-center justify-center space-x-2 bg-[#34c759] active:bg-[#2da44e] text-white py-4 rounded-xl active:scale-98 transition-all font-semibold text-base disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1"
+              leftIcon={<Check className="h-5 w-5" strokeWidth={2.5} />}
+              isLoading={isLoading}
+              loadingText="Processing..."
             >
-              <Check className="h-5 w-5" strokeWidth={2.5} />
-              <span>{isLoading ? 'Processing...' : 'Approve'}</span>
-            </button>
-            <button onClick={onReject}
+              Approve
+            </Button>
+            <Button onClick={onReject}
               disabled={isLoading}
-              className="flex-1 flex items-center justify-center space-x-2 bg-[#ff3b30] active:bg-[#d63027] text-white py-4 rounded-xl active:scale-98 transition-all font-semibold text-base disabled:opacity-50 disabled:cursor-not-allowed"
+              variant="danger"
+              className="flex-1"
+              leftIcon={<X className="h-5 w-5" strokeWidth={2.5} />}
             >
-              <X className="h-5 w-5" strokeWidth={2.5} />
-              <span>Reject</span>
-            </button>
+              Reject
+            </Button>
           </div>
 
           {/* Dismiss */}
-          <button onClick={onClose}
-            className="w-full text-center text-sm font-medium text-gray-400 dark:text-gray-500 py-3 active:text-gray-600 dark:active:text-gray-300 transition-colors"
+          <Button onClick={onClose}
+            variant="ghost"
+            fullWidth
+            size="sm"
           >
             Dismiss
-          </button>
+          </Button>
         </div>
 
         {/* Safe-area spacer */}

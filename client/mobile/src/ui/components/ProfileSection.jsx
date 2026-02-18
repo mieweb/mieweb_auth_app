@@ -4,6 +4,7 @@ import { Session } from 'meteor/session';
 import { User, Mail, Edit, ChevronDown, ExternalLink } from 'lucide-react';
 import SuccessToaster from '../Toasters/SuccessToaster';
 import { openExternal } from '../../../../../utils/openExternal';
+import { Card, CardContent, Input, Button, Avatar } from '@mieweb/ui';
 
 export const ProfileSection = ({
   profile,
@@ -27,48 +28,53 @@ export const ProfileSection = ({
     <div className="flex-1">
       {isEditing ? (
         <div className="space-y-2">
-          <input
+          <Input
             type="text"
             name="firstName"
             value={profile.firstName || ""}
             onChange={handleProfileChange}
-            className="w-full px-2 py-1 rounded border dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600"
             placeholder="First Name"
+            size="sm"
           />
-          <input
+          <Input
             type="text"
             name="lastName"
             value={profile.lastName || ""}
             onChange={handleProfileChange}
-            className="w-full px-2 py-1 rounded border dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600"
             placeholder="Last Name"
+            size="sm"
           />
           <div className="flex space-x-2 mt-2">
-            <button
+            <Button
               onClick={handleProfileUpdate}
               disabled={isSaving}
-              className="px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
+              size="sm"
+              isLoading={isSaving}
+              loadingText="Saving..."
             >
-              {isSaving ? "Saving..." : "Save"}
-            </button>
-            <button
+              Save
+            </Button>
+            <Button
               onClick={toggleEdit}
               disabled={isSaving}
-              className="px-3 py-1 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200"
+              variant="secondary"
+              size="sm"
             >
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center justify-between">
           {`${profile.firstName || "User"} ${profile.lastName || ""}`}
-          <button
+          <Button
             onClick={toggleEdit}
-            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
+            variant="ghost"
+            size="icon"
+            aria-label="Edit profile"
           >
             <Edit className="h-4 w-4 text-gray-500" />
-          </button>
+          </Button>
         </h2>
       )}
       <p className="text-gray-600 dark:text-gray-300 flex items-center">
@@ -80,17 +86,20 @@ export const ProfileSection = ({
 
   return (
     <div className="lg:col-span-1">
-      <div className="bg-white/80 backdrop-blur-sm dark:bg-gray-800/80 rounded-2xl shadow-lg p-6">
-        <SuccessToaster
-          message={successMessage}
-          onClose={() => setSuccessMessage("")}
-        />
-        <div className="flex items-center space-x-4 mb-6">
-          <div className="h-16 w-16 rounded-full bg-gradient-to-r from-indigo-500 to-blue-500 flex items-center justify-center">
-            <User className="h-8 w-8 text-white" />
+      <Card>
+        <CardContent>
+          <SuccessToaster
+            message={successMessage}
+            onClose={() => setSuccessMessage("")}
+          />
+          <div className="flex items-center space-x-4 mb-6">
+            <Avatar
+              name={`${profile.firstName || "User"} ${profile.lastName || ""}`}
+              size="lg"
+              fallback={<User className="h-8 w-8 text-white" />}
+            />
+            {renderProfileSection()}
           </div>
-          {renderProfileSection()}
-        </div>
 
         <div className="space-y-4">
           <AppVersionInfo />
@@ -124,7 +133,8 @@ export const ProfileSection = ({
             </div>
           </div>
         </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
@@ -160,8 +170,9 @@ const AppVersionInfo = () => {
         </div>
         <div className="flex items-center justify-between">
           <span className="text-gray-600 dark:text-gray-300">Build</span>
-          <button
-            type="button"
+          <Button
+            variant="link"
+            size="sm"
             onClick={() => {
               const userConfirmed = window.confirm(
                 'You will be redirected to GitHub to view this commit.\n\nContinue?'
@@ -170,11 +181,11 @@ const AppVersionInfo = () => {
                 openExternal(commitUrl);
               }
             }}
-            className="font-mono text-sm font-medium text-indigo-600 dark:text-indigo-400 flex items-center gap-1"
+            className="font-mono text-sm"
+            rightIcon={<ExternalLink className="h-3 w-3" />}
           >
             {buildInfo.buildNumber}
-            <ExternalLink className="h-3 w-3" />
-          </button>
+          </Button>
         </div>
       </div>
     </CollapsibleSection>
@@ -189,10 +200,11 @@ const CollapsibleSection = ({ title, defaultOpen = true, children }) => {
 
   return (
     <div className="border-t dark:border-gray-700 pt-4">
-      <button
-        type="button"
+      <Button
+        variant="ghost"
         onClick={() => setIsOpen(prev => !prev)}
-        className="flex items-center justify-between w-full text-left mb-2 focus:outline-none"
+        className="flex items-center justify-between w-full text-left mb-2"
+        aria-expanded={isOpen}
       >
         <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
           {title}
@@ -202,7 +214,7 @@ const CollapsibleSection = ({ title, defaultOpen = true, children }) => {
             isOpen ? 'rotate-180' : ''
           }`}
         />
-      </button>
+      </Button>
       <div
         className={`overflow-hidden transition-all duration-200 ease-in-out ${
           isOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
