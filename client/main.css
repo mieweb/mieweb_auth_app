@@ -5,3 +5,11 @@
 @source "../node_modules/@mieweb/ui/dist/**/*.{js,cjs}";
 
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* Hide SiteHeader auth buttons — this app has no login/signup */
+header .hidden.md\:block {
+  display: none !important;
+}
+.grid.grid-cols-2.gap-3:has(> button) {
+  display: none !important;
+}
