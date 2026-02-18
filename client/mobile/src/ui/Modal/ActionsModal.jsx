@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Meteor } from 'meteor/meteor';
-import { Check, X, ShieldCheck, Clock } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 import { TIMEOUT_DURATION_MS } from '../../../../../utils/constants';
+import { Button, Alert, AlertDescription } from '@mieweb/ui';
 
 const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notification, isLoading, error }) => {
   const [timeLeft, setTimeLeft] = useState(0);
@@ -20,8 +21,7 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notific
     return Math.max(0, Math.floor((createdAt + TIMEOUT_DURATION_MS - Date.now()) / 1000));
   };
 
-  const totalSeconds = TIMEOUT_DURATION_MS / 1000;
-  const timerProgress = timeLeft > 0 ? (timeLeft / totalSeconds) : 0;
+  const timerProgress = timeLeft > 0 ? (timeLeft / (TIMEOUT_DURATION_MS / 1000)) : 0;
 
   useEffect(() => {
     let timer;
@@ -47,6 +47,7 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notific
       }
       
       try {
+        // Mark the notification as timed out
         await Meteor.callAsync(
           'notificationHistory.updateStatus',
           notification.notificationId,
@@ -98,121 +99,112 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notific
 
   if (!isOpen) return null;
 
+  // Circular timer
+  const radius = 18;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference * (1 - timerProgress);
   const isUrgent = timeLeft <= 10;
 
-  const formatTime = (seconds) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return m > 0 ? `${m}:${String(s).padStart(2, '0')}` : `0:${String(s).padStart(2, '0')}`;
-  };
-
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-6" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-end justify-center z-50" onClick={onClose}>
       <div
-        className="bg-white dark:bg-[#1e1e20] rounded-3xl w-full max-w-[340px] shadow-2xl animate-modal-in"
+        className="bg-white dark:bg-[#1c1c1e] rounded-t-2xl w-full animate-slide-up"
         role="dialog"
         aria-modal="true"
         aria-labelledby="actions-modal-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-6 pt-8 pb-6">
-          {/* Icon */}
-          <div className="flex justify-center mb-5">
-            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${
-              isUrgent
-                ? 'bg-red-50 dark:bg-red-500/10'
-                : 'bg-indigo-50 dark:bg-indigo-500/10'
-            }`}>
-              <ShieldCheck className={`h-8 w-8 ${
-                isUrgent ? 'text-red-500 dark:text-red-400' : 'text-indigo-600 dark:text-indigo-400'
-              }`} />
-            </div>
-          </div>
+        {/* Drag indicator */}
+        <div className="flex justify-center pt-2.5 pb-1">
+          <div className="w-9 h-1 rounded-full bg-gray-300 dark:bg-gray-600" />
+        </div>
 
-          {/* Title */}
-          <h2 id="actions-modal-title" className="text-xl font-bold text-gray-900 dark:text-white text-center leading-snug">
-            {notification?.title || 'Verification Request'}
-          </h2>
-
-          {/* Body — only if present */}
-          {notification?.body && (
-            <p className="text-[13px] text-gray-500 dark:text-gray-400 mt-2 text-center leading-relaxed">
-              {notification.body}
-            </p>
-          )}
-
-          {/* Timer bar */}
-          <div className="mt-5">
-            <div className="flex items-center justify-between mb-1.5">
-              <div className="flex items-center space-x-1.5">
-                <Clock className={`h-3.5 w-3.5 ${isUrgent ? 'text-red-400' : 'text-gray-400 dark:text-gray-500'}`} />
-                <span className={`text-xs font-medium ${isUrgent ? 'text-red-500 dark:text-red-400' : 'text-gray-400 dark:text-gray-500'}`}>
-                  {isUrgent ? 'Expiring soon' : 'Expires in'}
-                </span>
-              </div>
-              <span className={`text-xs font-bold tabular-nums ${
-                isUrgent ? 'text-red-500 dark:text-red-400' : 'text-gray-600 dark:text-gray-300'
+        {/* Header row */}
+        <div className="flex items-center justify-between px-5 pt-1 pb-4">
+          <div className="flex items-center space-x-3">
+            {/* Inline circular timer */}
+            <div className="relative flex items-center justify-center">
+              <svg width="40" height="40" viewBox="0 0 44 44" className="-rotate-90">
+                <circle cx="22" cy="22" r={radius} fill="none" strokeWidth="3"
+                  stroke="currentColor" className="text-gray-200 dark:text-gray-700" />
+                <circle cx="22" cy="22" r={radius} fill="none" strokeWidth="3"
+                  strokeLinecap="round" strokeDasharray={circumference}
+                  strokeDashoffset={strokeDashoffset} stroke="currentColor"
+                  className={`transition-all duration-1000 ease-linear ${
+                    isUrgent ? 'text-red-500' : 'text-blue-500 dark:text-blue-400'
+                  }`}
+                />
+              </svg>
+              <span className={`absolute text-xs font-semibold tabular-nums ${
+                isUrgent ? 'text-red-500' : 'text-gray-600 dark:text-gray-300'
               }`}>
-                {formatTime(timeLeft)}
+                {timeLeft}
               </span>
             </div>
-            <div className="h-1.5 bg-gray-100 dark:bg-white/10 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-1000 ease-linear ${
-                  isUrgent ? 'bg-red-400' : 'bg-indigo-500 dark:bg-indigo-400'
-                }`}
-                style={{ width: `${timerProgress * 100}%` }}
-              />
+            <div>
+              <h2 id="actions-modal-title" className="text-lg font-semibold text-gray-900 dark:text-white leading-tight">
+                Action Required
+              </h2>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                Confirm or deny this request
+              </p>
             </div>
           </div>
+          <Button onClick={onClose} aria-label="Close" variant="ghost" size="icon">
+            <X className="h-4 w-4" />
+          </Button>
         </div>
 
-        {/* Error message */}
-        {error && (
-          <div className="mx-6 mb-3 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/50 rounded-xl px-4 py-2.5">
-            <p className="text-sm text-red-600 dark:text-red-400 text-center">{error}</p>
+        {/* Action buttons */}
+        <div className="px-5 pb-2 space-y-2.5">
+          {/* Error message */}
+          {error && (
+            <Alert variant="danger">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          {/* Approve / Reject side-by-side */}
+          <div className="flex space-x-3">
+            <Button onClick={onApprove}
+              disabled={isLoading}
+              className="flex-1"
+              leftIcon={<Check className="h-5 w-5" strokeWidth={2.5} />}
+              isLoading={isLoading}
+              loadingText="Processing..."
+            >
+              Approve
+            </Button>
+            <Button onClick={onReject}
+              disabled={isLoading}
+              variant="danger"
+              className="flex-1"
+              leftIcon={<X className="h-5 w-5" strokeWidth={2.5} />}
+            >
+              Reject
+            </Button>
           </div>
-        )}
 
-        {/* Actions */}
-        <div className="px-6 pb-6 space-y-2.5">
-          <button onClick={onApprove}
-            disabled={isLoading}
-            className="w-full flex items-center justify-center space-x-2 bg-[#34c759] active:bg-[#2da44e] dark:bg-[#30b350] dark:active:bg-[#2a9d46] text-white py-[14px] rounded-[14px] active:scale-[0.98] transition-all font-semibold text-[15px] disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-green-600/20 dark:shadow-green-500/10"
-          >
-            <Check className="h-5 w-5" strokeWidth={2.5} />
-            <span>{isLoading ? 'Processing...' : 'Approve'}</span>
-          </button>
-
-          <button onClick={onReject}
-            disabled={isLoading}
-            className="w-full flex items-center justify-center space-x-2 bg-[#ff3b30] active:bg-[#d63027] dark:bg-[#e8342a] dark:active:bg-[#c42d24] text-white py-[14px] rounded-[14px] active:scale-[0.98] transition-all font-semibold text-[15px] disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-red-600/20 dark:shadow-red-500/10"
-          >
-            <X className="h-5 w-5" strokeWidth={2.5} />
-            <span>Deny</span>
-          </button>
-
-          <button onClick={onClose}
-            className="w-full text-center text-[13px] font-medium text-gray-400 dark:text-gray-500 py-1.5 active:text-gray-600 dark:active:text-gray-300 transition-colors"
+          {/* Dismiss */}
+          <Button onClick={onClose}
+            variant="ghost"
+            fullWidth
+            size="sm"
           >
             Dismiss
-          </button>
+          </Button>
         </div>
+
+        {/* Safe-area spacer */}
+        <div style={{ height: 'env(safe-area-inset-bottom, 0.5rem)' }} />
       </div>
 
       <style>{`
-        @keyframes modal-in {
-          from {
-            opacity: 0;
-            transform: scale(0.95);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1);
-          }
+        @keyframes slide-up {
+          from { transform: translateY(100%); }
+          to   { transform: translateY(0); }
         }
-        .animate-modal-in {
-          animation: modal-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        .animate-slide-up {
+          animation: slide-up 0.28s cubic-bezier(0.32, 0.72, 0, 1);
         }
       `}</style>
     </div>

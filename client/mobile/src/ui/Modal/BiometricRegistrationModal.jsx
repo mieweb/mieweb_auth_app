@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Fingerprint as FingerprintIcon, XCircle, CheckCircle } from 'lucide-react';
+import { Modal, ModalBody, Button } from '@mieweb/ui';
 
 const BiometricRegistrationModal = ({ isOpen, onClose, userData, onComplete }) => {
   const [status, setStatus] = useState('processing');
@@ -69,8 +70,8 @@ const BiometricRegistrationModal = ({ isOpen, onClose, userData, onComplete }) =
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="bg-white rounded-lg shadow-lg w-11/12 max-w-md p-6 text-center">
+    <Modal open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }} size="sm">
+      <ModalBody className="text-center">
         {status === 'processing' && (
           <>
             <div className="flex justify-center mb-4">
@@ -116,22 +117,16 @@ const BiometricRegistrationModal = ({ isOpen, onClose, userData, onComplete }) =
             <p className="text-gray-600 mb-4">
               {errorMessage || 'Unable to register biometrics'}
             </p>
-            <button
-              className="w-full py-2 text-white bg-blue-500 rounded-lg hover:bg-blue-600"
-              onClick={handleRetry}
-            >
+            <Button onClick={handleRetry} fullWidth>
               Try Again
-            </button>
-            <button
-              className="w-full py-2 mt-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200"
-              onClick={handleSkip}
-            >
+            </Button>
+            <Button onClick={handleSkip} variant="secondary" fullWidth className="mt-2">
               Skip for Now
-            </button>
+            </Button>
           </>
         )}
-      </div>
-    </div>
+      </ModalBody>
+    </Modal>
   );
 };
 

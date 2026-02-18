@@ -1,16 +1,17 @@
 import React from 'react';
 import { Layout } from './components/Layout';
+import { Card, CardHeader, CardTitle, CardContent } from '@mieweb/ui';
 
 export const PrivacyPolicyPage = () => {
   return (
     <Layout>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-          <div className="px-4 py-5 sm:px-6">
-            <h1 className="text-2xl font-bold text-gray-900">Privacy Policy</h1>
+        <Card>
+          <CardHeader>
+            <CardTitle>Privacy Policy</CardTitle>
             <p className="mt-1 max-w-2xl text-sm text-gray-500">Last updated: {new Date().toLocaleDateString()}</p>
-          </div>
-          <div className="border-t border-gray-200 px-4 py-5 sm:p-6 space-y-8">
+          </CardHeader>
+          <CardContent className="space-y-8">
             
             <section>
               <h2 className="text-lg font-medium text-gray-900 mb-3">Overview</h2>
@@ -69,8 +70,8 @@ export const PrivacyPolicyPage = () => {
               </div>
             </section>
 
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
     </Layout>
   );
