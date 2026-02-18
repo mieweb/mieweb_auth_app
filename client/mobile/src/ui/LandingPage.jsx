@@ -94,7 +94,7 @@ export const LandingPage = () => {
   };
 
   return (
-    <div className={`min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 dark:from-gray-900 dark:to-gray-800`}>
+    <div className={`min-h-screen bg-background`}>
       <DashboardHeader
         title="MIEWeb Auth"
         isDarkMode={isDarkMode}
@@ -126,8 +126,8 @@ export const LandingPage = () => {
           {/* Right Column (Notifications) */}
           <div className="lg:col-span-2 space-y-6">
             <div className="flex items-center space-x-2 mx-2">
-              <Clock className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+              <Clock className="h-5 w-5 text-indigo-600" />
+              <h2 className="text-lg font-semibold text-foreground">
                 History
               </h2>
             </div>

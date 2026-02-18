@@ -9,16 +9,16 @@ import { Input, Button, Alert, AlertDescription } from '@mieweb/ui';
 // ── Lock Screen (biometric auto-trigger) ────────────────────────────────────
 const LockScreen = ({ email, onBiometricSuccess, onShowPinFallback, error, isAuthenticating }) => {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-gray-50 to-indigo-50">
-      <div className="max-w-md w-full space-y-6 bg-white p-8 rounded-3xl shadow-xl border border-gray-100">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
+      <div className="max-w-md w-full space-y-6 bg-card text-card-foreground p-8 rounded-3xl shadow-xl border border-border">
         {/* Header */}
         <div className="text-center space-y-3">
-          <div className="mx-auto w-14 h-14 bg-indigo-100 rounded-2xl flex items-center justify-center">
-            <FingerprintIcon className="h-7 w-7 text-indigo-600" />
+          <div className="mx-auto w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center">
+            <FingerprintIcon className="h-7 w-7 text-primary" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900">Welcome Back!</h2>
+          <h2 className="text-2xl font-bold text-foreground">Welcome Back!</h2>
           {email && (
-            <p className="text-sm text-gray-500">{email}</p>
+            <p className="text-sm text-muted-foreground">{email}</p>
           )}
         </div>
 
@@ -217,17 +217,17 @@ export const LoginPage = ({ deviceDetails }) => {
 
   // ── PIN fallback form ──────────────────────────────────────────────────
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-gray-50 to-indigo-50">
-      <div className="max-w-md w-full space-y-6 bg-white p-8 rounded-3xl shadow-xl border border-gray-100">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
+      <div className="max-w-md w-full space-y-6 bg-card text-card-foreground p-8 rounded-3xl shadow-xl border border-border">
         {/* Header */}
         <div className="text-center space-y-3">
-          <div className="mx-auto w-14 h-14 bg-indigo-100 rounded-2xl flex items-center justify-center">
-            <KeyRound className="h-7 w-7 text-indigo-600" />
+          <div className="mx-auto w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center">
+            <KeyRound className="h-7 w-7 text-primary" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900">
+          <h2 className="text-2xl font-bold text-foreground">
             {isReturningUser ? 'Welcome Back!' : 'Sign In'}
           </h2>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-muted-foreground">
             {isReturningUser ? email : 'Enter your credentials to continue'}
           </p>
         </div>
@@ -290,7 +290,7 @@ export const LoginPage = ({ deviceDetails }) => {
             Sign In with PIN
           </Button>
 
-          <div className="text-center text-sm text-gray-600">
+          <div className="text-center text-sm text-muted-foreground">
             Need help?{' '}
             <Button
               variant="link"

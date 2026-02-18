@@ -13,9 +13,11 @@ export const useDarkMode = () => {
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
+      document.documentElement.setAttribute('data-theme', 'dark');
       localStorage.setItem('darkMode', 'true');
     } else {
       document.documentElement.classList.remove('dark');
+      document.documentElement.setAttribute('data-theme', 'light');
       localStorage.setItem('darkMode', 'false');
     }
   }, [isDarkMode]);

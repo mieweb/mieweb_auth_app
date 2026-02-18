@@ -1,5 +1,5 @@
-@import "tailwindcss";
 @import "@mieweb/ui/styles.css";
+@import "tailwindcss";
 
 @source "../client/**/*.{js,jsx,ts,tsx}";
 @source "../node_modules/@mieweb/ui/dist/**/*.{js,cjs}";

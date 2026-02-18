@@ -12,17 +12,17 @@ export const DeviceSection = () => {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6">
-      <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">Device Information</h2>
+    <div className="bg-card text-card-foreground shadow-md rounded-lg p-6 mb-6">
+      <h2 className="text-xl font-semibold text-foreground mb-4">Device Information</h2>
       <div className="flex items-center space-x-3 mb-2">
-        <Smartphone className="text-blue-500 dark:text-blue-400" size={20} />
-        <span className="text-gray-700 dark:text-gray-300 font-medium">Model:</span>
-        <span className="text-gray-600 dark:text-gray-400">{deviceInfo.model}</span>
+        <Smartphone className="text-primary" size={20} />
+        <span className="text-foreground font-medium">Model:</span>
+        <span className="text-muted-foreground">{deviceInfo.model}</span>
       </div>
       <div className="flex items-center space-x-3">
-        <Smartphone className="text-blue-500 dark:text-blue-400" size={20} />
-        <span className="text-gray-700 dark:text-gray-300 font-medium">Platform:</span>
-        <span className="text-gray-600 dark:text-gray-400">{deviceInfo.platform}</span>
+        <Smartphone className="text-primary" size={20} />
+        <span className="text-foreground font-medium">Platform:</span>
+        <span className="text-muted-foreground">{deviceInfo.platform}</span>
       </div>
     </div>
   );

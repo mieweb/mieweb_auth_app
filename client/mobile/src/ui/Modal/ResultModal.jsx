@@ -53,7 +53,7 @@ const ResultModal = ({ isOpen, onClose }) => {
         onClick={(e) => e.stopPropagation()}
       >
         {/* Glass card */}
-        <div className="bg-white dark:bg-[#2c2c2e] rounded-3xl px-6 pt-8 pb-6 shadow-2xl shadow-black/10 dark:shadow-black/30">
+        <div className="bg-card rounded-3xl px-6 pt-8 pb-6 shadow-2xl">
           {/* Animated check circle with ring pulse */}
           <div className="flex justify-center mb-5">
             <div className="relative">
@@ -77,15 +77,15 @@ const ResultModal = ({ isOpen, onClose }) => {
             </div>
           </div>
 
-          <p className="text-[15px] font-semibold text-gray-900 dark:text-white">
+          <p className="text-[15px] font-semibold text-foreground">
             Authenticated
           </p>
-          <p className="text-[13px] text-gray-400 dark:text-gray-500 mt-1">
+          <p className="text-[13px] text-muted-foreground mt-1">
             Successfully verified
           </p>
 
           {/* Auto-dismiss progress bar */}
-          <div className="mt-5 h-0.5 w-full rounded-full bg-gray-200/60 dark:bg-white/10 overflow-hidden">
+          <div className="mt-5 h-0.5 w-full rounded-full bg-muted overflow-hidden">
             <div
               className={`h-full rounded-full bg-emerald-500/50 transition-all ease-linear ${
                 isVisible ? 'w-0' : 'w-full'
