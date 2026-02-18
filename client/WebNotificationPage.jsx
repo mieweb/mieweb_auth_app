@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Meteor } from 'meteor/meteor';
 import { Layout } from './web/components/Layout';
 import { Send, Bell, Smartphone, Info } from 'lucide-react';
-import { Input, Button, Alert, AlertTitle, AlertDescription, Card, CardContent, CardHeader, CardTitle, Spinner } from '@mieweb/ui';
+import { Input, Button, Alert, AlertTitle, AlertDescription, Card, CardContent, CardHeader, CardTitle } from '@mieweb/ui';
 
 export const WebNotificationPage = () => {
   const [formData, setFormData] = useState({

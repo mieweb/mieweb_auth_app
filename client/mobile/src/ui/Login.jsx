@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { openSupportLink } from '../../../../utils/openExternal';
 import { Meteor } from 'meteor/meteor';
 import { Session } from 'meteor/session';
-import { Fingerprint as FingerprintIcon, KeyRound, Mail, Lock, AlertCircle } from 'lucide-react';
+import { Fingerprint as FingerprintIcon, KeyRound, AlertCircle } from 'lucide-react';
 import { Input, Button, Alert, AlertDescription } from '@mieweb/ui';
 
 // ── Lock Screen (biometric auto-trigger) ────────────────────────────────────
