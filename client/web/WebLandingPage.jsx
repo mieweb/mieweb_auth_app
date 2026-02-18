@@ -254,7 +254,8 @@ export const WebLandingPage = () => {
               >
                 <a
                   href="https://apps.apple.com/us/app/mie-auth-open-source/id6756409072"
-                  className={buttonVariants({ size: 'lg' }) + ' bg-white hover:bg-gray-100 text-gray-900 font-semibold shadow-xl shadow-white/10 hover:shadow-white/20 transition-all duration-300 no-underline'}
+                  className={buttonVariants({ size: 'lg', variant: 'secondary' }) + ' bg-white hover:bg-gray-100 text-gray-900 font-semibold shadow-xl shadow-white/10 hover:shadow-white/20 transition-all duration-300 no-underline'}
+                  style={{ backgroundColor: 'white', color: '#111827' }}
                 >
                   <span className="shrink-0">
                     <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
@@ -269,7 +270,8 @@ export const WebLandingPage = () => {
 
                 <a
                   href="https://play.google.com/store/apps/details?id=com.mieweb.mieauth"
-                  className={buttonVariants({ size: 'lg' }) + ' bg-white hover:bg-gray-100 text-gray-900 font-semibold shadow-xl shadow-white/10 hover:shadow-white/20 transition-all duration-300 no-underline'}
+                  className={buttonVariants({ size: 'lg', variant: 'secondary' }) + ' bg-white hover:bg-gray-100 text-gray-900 font-semibold shadow-xl shadow-white/10 hover:shadow-white/20 transition-all duration-300 no-underline'}
+                  style={{ backgroundColor: 'white', color: '#111827' }}
                 >
                   <span className="shrink-0">
                     <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
@@ -571,7 +573,8 @@ export const WebLandingPage = () => {
           <motion.div variants={fadeUp} custom={2} className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
               href="https://apps.apple.com/us/app/mie-auth-open-source/id6756409072"
-              className={buttonVariants({ size: 'lg' }) + ' bg-white hover:bg-gray-100 text-gray-900 font-bold shadow-xl shadow-black/10 no-underline'}
+              className={buttonVariants({ size: 'lg', variant: 'secondary' }) + ' bg-white hover:bg-gray-100 text-gray-900 font-bold shadow-xl shadow-black/10 no-underline'}
+              style={{ backgroundColor: 'white', color: '#111827' }}
             >
               <span className="shrink-0">
                 <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
@@ -585,7 +588,8 @@ export const WebLandingPage = () => {
             </a>
             <a
               href="https://play.google.com/store/apps/details?id=com.mieweb.mieauth"
-              className={buttonVariants({ size: 'lg' }) + ' bg-white hover:bg-gray-100 text-gray-900 font-bold shadow-xl shadow-black/10 no-underline'}
+              className={buttonVariants({ size: 'lg', variant: 'secondary' }) + ' bg-white hover:bg-gray-100 text-gray-900 font-bold shadow-xl shadow-black/10 no-underline'}
+              style={{ backgroundColor: 'white', color: '#111827' }}
             >
               <span className="shrink-0">
                 <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
