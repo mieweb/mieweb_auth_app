@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Github } from 'lucide-react';
 import { Layout } from './components/Layout';
-import { Button, Card, CardHeader, CardTitle, CardContent } from '@mieweb/ui';
+import { Button, buttonVariants, Card, CardHeader, CardTitle, CardContent } from '@mieweb/ui';
 
 export const SupportPage = () => {
   const GITHUB_REPO_URL = 'https://github.com/mieweb/mieweb_auth_app';
@@ -35,15 +35,15 @@ export const SupportPage = () => {
                 Opening an issue helps us track progress and respond publicly. Please include steps to reproduce and any relevant screenshots.
               </p>
 
-              <Button
-                as="a"
+              <a
                 href={GITHUB_NEW_ISSUE_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                leftIcon={<Github className="w-5 h-5" />}
+                className={buttonVariants() + ' no-underline'}
               >
+                <span className="shrink-0"><Github className="w-5 h-5" /></span>
                 Open a GitHub Issue
-              </Button>
+              </a>
 
               <a
                 href={GITHUB_REPO_URL}
