@@ -38,6 +38,8 @@ export const Layout = ({ children }) => {
         }}
         links={links}
         variant="white"
+        showSignUp={false}
+        onLogin={null}
       />
 
       <main className="flex-grow">
