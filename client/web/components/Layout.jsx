@@ -1,10 +1,9 @@
 import React from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { SiteHeader, SiteFooter } from '@mieweb/ui';
 
 export const Layout = ({ children }) => {
   const location = useLocation();
-  const navigate = useNavigate();
 
   const links = [
     { label: 'Home', href: '/' },

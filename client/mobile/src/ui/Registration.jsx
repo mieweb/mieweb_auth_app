@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { openSupportLink } from '../../../../utils/openExternal';
-import { User, Mail, Lock } from 'lucide-react';
+import { User } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Meteor } from 'meteor/meteor';
 import { Session } from 'meteor/session';

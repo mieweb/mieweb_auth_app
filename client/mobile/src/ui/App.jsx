@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useDeviceRegistration } from './hooks/useDeviceRegistration';
 import { AppRoutes } from './components/AppRoutes';
 import { openSupportLink } from '../../../../utils/openExternal';
-import { Spinner, Button, Card, CardContent, Alert, AlertTitle, AlertDescription } from '@mieweb/ui';
+import { Spinner, Button, Card, CardContent } from '@mieweb/ui';
 
 const LoadingState = () => (
   <div className="flex flex-col items-center justify-center min-h-screen bg-white space-y-6">
