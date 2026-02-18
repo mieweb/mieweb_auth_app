@@ -11,7 +11,7 @@ const PendingRegistrationPage = () => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
       <Card className="max-w-md w-full">
         <CardContent className="text-center space-y-6">
           <h2 className="text-2xl font-bold">Registration Pending</h2>
@@ -48,15 +48,15 @@ const PendingRegistrationPage = () => {
             )}
           </div>
         
-          <p className="text-gray-700">{message}</p>
+          <p className="text-muted-foreground">{message}</p>
         
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-muted-foreground">
             {approvalType === 'admin' 
               ? 'An administrator will review your request shortly.' 
               : 'Your email verification is being processed.'}
           </p>
         
-          <div className="border-t border-gray-200 pt-4">
+          <div className="border-t border-border pt-4">
             <div className="flex flex-col space-y-3">
               <Button variant="link" as={Link} to="/login">
                 Return to Home
@@ -74,7 +74,7 @@ const PendingRegistrationPage = () => {
         </CardContent>
       </Card>
       
-      <div className="mt-8 text-sm text-gray-500">
+      <div className="mt-8 text-sm text-muted-foreground">
         <p>
           If you believe this is an error, please contact our support team.
         </p>

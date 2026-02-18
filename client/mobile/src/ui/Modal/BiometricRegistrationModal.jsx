@@ -75,14 +75,14 @@ const BiometricRegistrationModal = ({ isOpen, onClose, userData, onComplete }) =
         {status === 'processing' && (
           <>
             <div className="flex justify-center mb-4">
-              <div className="w-16 h-16 flex items-center justify-center bg-blue-100 rounded-full animate-pulse">
-                <FingerprintIcon className="h-10 w-10 text-blue-500" />
+              <div className="w-16 h-16 flex items-center justify-center bg-primary/10 rounded-full animate-pulse">
+                <FingerprintIcon className="h-10 w-10 text-primary" />
               </div>
             </div>
-            <h2 className="text-lg font-bold text-gray-800 mb-4">
+            <h2 className="text-lg font-bold text-foreground mb-4">
               Register Biometrics
             </h2>
-            <p className="text-gray-600">
+            <p className="text-muted-foreground">
               Follow your device's prompts to complete setup
             </p>
           </>
@@ -91,14 +91,14 @@ const BiometricRegistrationModal = ({ isOpen, onClose, userData, onComplete }) =
         {status === 'success' && (
           <>
             <div className="flex justify-center mb-4">
-              <div className="w-16 h-16 flex items-center justify-center bg-green-100 rounded-full">
+              <div className="w-16 h-16 flex items-center justify-center bg-green-500/15 rounded-full">
                 <CheckCircle className="h-10 w-10 text-green-500" />
               </div>
             </div>
-            <h2 className="text-lg font-bold text-gray-800 mb-4">
+            <h2 className="text-lg font-bold text-foreground mb-4">
               Biometric Login Enabled
             </h2>
-            <p className="text-gray-600">
+            <p className="text-muted-foreground">
               You can now log in using your biometrics
             </p>
           </>
@@ -107,14 +107,14 @@ const BiometricRegistrationModal = ({ isOpen, onClose, userData, onComplete }) =
         {status === 'error' && (
           <>
             <div className="flex justify-center mb-4">
-              <div className="w-16 h-16 flex items-center justify-center bg-red-100 rounded-full">
+              <div className="w-16 h-16 flex items-center justify-center bg-red-500/15 rounded-full">
                 <XCircle className="h-10 w-10 text-red-500" />
               </div>
             </div>
-            <h2 className="text-lg font-bold text-gray-800 mb-2">
+            <h2 className="text-lg font-bold text-foreground mb-2">
               Registration Failed
             </h2>
-            <p className="text-gray-600 mb-4">
+            <p className="text-muted-foreground mb-4">
               {errorMessage || 'Unable to register biometrics'}
             </p>
             <Button onClick={handleRetry} fullWidth>

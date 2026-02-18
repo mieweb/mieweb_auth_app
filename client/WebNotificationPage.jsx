@@ -135,16 +135,16 @@ export const WebNotificationPage = () => {
           <div className="lg:col-span-1 space-y-6">
             <Card>
               <CardContent>
-                <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
-                  <Info className="w-5 h-5 mr-2 text-blue-600" />
+                <h2 className="text-lg font-bold text-foreground mb-4 flex items-center">
+                  <Info className="w-5 h-5 mr-2 text-primary" />
                   MIEWeb Auth Test Instructions
                 </h2>
-                <p className="text-sm text-gray-600 mb-4">
+                <p className="text-sm text-muted-foreground mb-4">
                   Test your Auth app, a professional two-factor authentication app using push notifications.
                 </p>
                 
-                <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-2">What to Test</h3>
-                <ul className="text-sm text-gray-600 space-y-2 mb-6 list-disc pl-4">
+                <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-2">What to Test</h3>
+                <ul className="text-sm text-muted-foreground space-y-2 mb-6 list-disc pl-4">
                   <li>Push notification delivery and reliability</li>
                   <li>Login approval/denial flow</li>
                   <li>Device registration process</li>
@@ -153,8 +153,8 @@ export const WebNotificationPage = () => {
                   <li>Notification history tracking</li>
                 </ul>
 
-                <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-2">Known Issues</h3>
-                <ul className="text-sm text-gray-600 space-y-2 mb-6 list-disc pl-4">
+                <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-2">Known Issues</h3>
+                <ul className="text-sm text-muted-foreground space-y-2 mb-6 list-disc pl-4">
                   <li>Occasional notification delay in background mode</li>
                   <li>UI refinements in progress</li>
                 </ul>
@@ -163,11 +163,11 @@ export const WebNotificationPage = () => {
 
             <Card>
               <CardContent>
-                <h3 className="text-sm font-semibold text-gray-900 mb-2">Feedback</h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  Your feedback is crucial! Please report bugs or suggestions to <a href="mailto:devopsalerts@mieweb.com" className="text-blue-600 hover:underline">devopsalerts@mieweb.com</a>
+                <h3 className="text-sm font-semibold text-foreground mb-2">Feedback</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Your feedback is crucial! Please report bugs or suggestions to <a href="mailto:devopsalerts@mieweb.com" className="text-primary hover:underline">devopsalerts@mieweb.com</a>
                 </p>
-                <p className="text-sm text-gray-500 italic">
+                <p className="text-sm text-muted-foreground italic">
                   Thank you for helping us build a more secure authentication experience!
                 </p>
               </CardContent>
@@ -184,7 +184,7 @@ export const WebNotificationPage = () => {
                   </div>
                   <div>
                     <CardTitle>Test MIEWeb Auth</CardTitle>
-                    <p className="mt-1 text-sm text-gray-500">
+                    <p className="mt-1 text-sm text-muted-foreground">
                       Send a test push notification to your registered device.
                     </p>
                   </div>
@@ -303,14 +303,14 @@ export const WebNotificationPage = () => {
                     />
                   </div>
 
-                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                    <h4 className="text-sm font-medium text-gray-900 mb-2 flex items-center">
-                      <Smartphone className="w-4 h-4 mr-2 text-gray-500" />
+                  <div className="bg-muted rounded-lg p-4 border border-border">
+                    <h4 className="text-sm font-medium text-foreground mb-2 flex items-center">
+                      <Smartphone className="w-4 h-4 mr-2 text-muted-foreground" />
                       Preview
                     </h4>
-                    <div className="bg-white p-3 rounded border border-gray-200 shadow-sm">
-                      <p className="font-semibold text-gray-900">{formData.title || 'Notification Title'}</p>
-                      <p className="text-sm text-gray-600">{formData.body || 'Notification body text...'}</p>
+                    <div className="bg-card p-3 rounded border border-border shadow-sm">
+                      <p className="font-semibold text-foreground">{formData.title || 'Notification Title'}</p>
+                      <p className="text-sm text-muted-foreground">{formData.body || 'Notification body text...'}</p>
                     </div>
                   </div>
 

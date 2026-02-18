@@ -18,12 +18,12 @@ export const DashboardHeader = ({
   onLogout,
 }) => {
   return (
-    <header className="bg-white/80 backdrop-blur-sm dark:bg-gray-800/80 shadow-lg sticky top-0 z-10">
+    <header className="bg-card/80 backdrop-blur-sm shadow-lg sticky top-0 z-10">
       <div className="max-w-7xl mx-auto px-4 py-4">
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-3">
-            <Shield className="h-8 w-8 text-indigo-600 dark:text-indigo-400" />
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <Shield className="h-8 w-8 text-primary" />
+            <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
               {title}
             </h1>
           </div>

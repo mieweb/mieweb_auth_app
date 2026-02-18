@@ -12,7 +12,7 @@ export const NotificationList = ({ notifications, isLoading, error, onNotificati
 
   if (isLoading) {
     return (
-      <div className="text-center p-6 text-gray-500 dark:text-gray-400">
+      <div className="text-center p-6 text-muted-foreground">
         <Spinner size="md" />
         <p className="mt-2">Loading history...</p>
       </div>
@@ -29,7 +29,7 @@ export const NotificationList = ({ notifications, isLoading, error, onNotificati
 
   if (!notifications || notifications.length === 0) {
     return (
-      <div className="text-center p-8 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-lg mx-2 ">
+      <div className="text-center p-8 text-muted-foreground bg-muted/50 rounded-lg mx-2">
         No notification history found.
       </div>
     );
@@ -74,21 +74,21 @@ export const NotificationList = ({ notifications, isLoading, error, onNotificati
             <CardContent>
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+                  <h3 className="text-lg font-semibold text-foreground mb-1">
                     {notification.title}
                   </h3>
                   <div className="space-y-1">
-                    <p className="text-sm text-gray-600 dark:text-gray-300 flex items-center">
+                    <p className="text-sm text-muted-foreground flex items-center">
                       <Clock className="h-4 w-4 mr-2" />
                       {formatDateTime(notification.createdAt)}
                     </p>
-                    <p className="text-sm text-gray-600 dark:text-gray-300 flex items-center">
+                    <p className="text-sm text-muted-foreground flex items-center">
                       <Smartphone className="h-4 w-4 mr-2" />
                       {displayStatus === 'pending' || displayStatus === 'timeout' ? '—' : (notification.deviceModel || 'Unknown')}
                     </p>
                   </div>
                   {isClickable && (
-                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-2 font-medium">
+                    <p className="text-xs text-primary mt-2 font-medium">
                       Tap to approve or reject
                     </p>
                   )}

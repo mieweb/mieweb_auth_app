@@ -5,9 +5,9 @@ import { openSupportLink } from '../../../../utils/openExternal';
 import { Spinner, Button, Card, CardContent } from '@mieweb/ui';
 
 const LoadingState = () => (
-  <div className="flex flex-col items-center justify-center min-h-screen bg-white space-y-6">
+  <div className="flex flex-col items-center justify-center min-h-screen bg-background space-y-6">
     <Spinner size="xl" />
-    <p className="text-blue-700 font-medium text-lg text-center px-4">
+    <p className="text-primary font-medium text-lg text-center px-4">
     Checking Device Status ...
     </p>
   </div>
@@ -15,15 +15,15 @@ const LoadingState = () => (
 
 const ConnectionError = ({ onRetry }) => {
   return (
-  <div className="min-h-screen bg-gradient-to-br from-red-50 to-pink-50 flex items-center p-6">
+  <div className="min-h-screen bg-background flex items-center p-6">
     <Card className="max-w-xs mx-auto">
       <CardContent className="space-y-6">
         <div className="text-center space-y-3">
           <div className="text-red-500 text-5xl">⚠️</div>
-          <h1 className="text-2xl font-bold text-gray-800">Connection Issues</h1>
+          <h1 className="text-2xl font-bold text-foreground">Connection Issues</h1>
         </div>
 
-        <div className="space-y-4 text-gray-600">
+        <div className="space-y-4 text-muted-foreground">
           <div className="flex items-start gap-3">
             <div className="text-blue-500">1.</div>
             <p>Check your internet connection</p>
@@ -46,7 +46,7 @@ const ConnectionError = ({ onRetry }) => {
           ↻ Refresh Now
         </Button>
 
-        <div className="text-center text-sm text-gray-600">
+        <div className="text-center text-sm text-muted-foreground">
           <Button variant="link" onClick={() => openSupportLink()}>
             Contact Support
           </Button>
@@ -85,7 +85,7 @@ export const App = () => {
       ) : isLoading ? (
         <LoadingState />
       ) : (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
+        <div className="min-h-screen bg-background">
           <AppRoutes 
             isRegistered={boolRegisteredDevice} 
             deviceUuid={capturedDeviceUuid} 

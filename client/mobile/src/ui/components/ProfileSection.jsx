@@ -65,7 +65,7 @@ export const ProfileSection = ({
           </div>
         </div>
       ) : (
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center justify-between">
+        <h2 className="text-xl font-semibold text-foreground flex items-center justify-between">
           {`${profile.firstName || "User"} ${profile.lastName || ""}`}
           <Button
             onClick={toggleEdit}
@@ -77,7 +77,7 @@ export const ProfileSection = ({
           </Button>
         </h2>
       )}
-      <p className="text-gray-600 dark:text-gray-300 flex items-center">
+      <p className="text-muted-foreground flex items-center">
         <Mail className="h-4 w-4 mr-2" />
         {profile.email}
       </p>
@@ -107,27 +107,27 @@ export const ProfileSection = ({
           <CollapsibleSection title="Device Information">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-gray-600 dark:text-gray-300">Model</span>
-                <span className="font-medium text-gray-900 dark:text-white">
+                <span className="text-muted-foreground">Model</span>
+                <span className="font-medium text-foreground">
                   {deviceInfo.model}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-gray-600 dark:text-gray-300">Platform</span>
-                <span className="font-medium text-gray-900 dark:text-white">
+                <span className="text-muted-foreground">Platform</span>
+                <span className="font-medium text-foreground">
                   {deviceInfo.platform}
                 </span>
               </div>
             </div>
           </CollapsibleSection>
 
-          <div className="border-t dark:border-gray-700 pt-4">
-            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+          <div className="border-t border-border pt-4">
+            <h3 className="text-sm font-medium text-muted-foreground mb-2">
               Activity Summary
             </h3>
             <div className="space-y-2">
-              <div className="flex items-center justify-between dark:text-gray-300">
-                <span className="text-gray-600 dark:text-gray-300">Today's Activity</span>
+              <div className="flex items-center justify-between text-foreground">
+                <span className="text-muted-foreground">Today's Activity</span>
                 <span>{todaysActivityCount}</span>
               </div>
             </div>
@@ -163,13 +163,13 @@ const AppVersionInfo = () => {
     <CollapsibleSection title="App Info" defaultOpen={false}>
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-gray-600 dark:text-gray-300">Version</span>
-          <span className="font-mono text-sm font-medium text-gray-900 dark:text-white">
+          <span className="text-muted-foreground">Version</span>
+          <span className="font-mono text-sm font-medium text-foreground">
             {buildInfo.appVersion}
           </span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-gray-600 dark:text-gray-300">Build</span>
+          <span className="text-muted-foreground">Build</span>
           <Button
             variant="link"
             size="sm"
@@ -199,18 +199,18 @@ const CollapsibleSection = ({ title, defaultOpen = true, children }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className="border-t dark:border-gray-700 pt-4">
+    <div className="border-t border-border pt-4">
       <Button
         variant="ghost"
         onClick={() => setIsOpen(prev => !prev)}
         className="flex items-center justify-between w-full text-left mb-2"
         aria-expanded={isOpen}
       >
-        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
+        <h3 className="text-sm font-medium text-muted-foreground">
           {title}
         </h3>
         <ChevronDown
-          className={`h-4 w-4 text-gray-400 dark:text-gray-500 transition-transform duration-200 ${
+          className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${
             isOpen ? 'rotate-180' : ''
           }`}
         />

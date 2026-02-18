@@ -108,7 +108,7 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notific
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-end justify-center z-50" onClick={onClose}>
       <div
-        className="bg-white dark:bg-[#1c1c1e] rounded-t-2xl w-full animate-slide-up"
+        className="bg-card rounded-t-2xl w-full animate-slide-up"
         role="dialog"
         aria-modal="true"
         aria-labelledby="actions-modal-title"
@@ -116,7 +116,7 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notific
       >
         {/* Drag indicator */}
         <div className="flex justify-center pt-2.5 pb-1">
-          <div className="w-9 h-1 rounded-full bg-gray-300 dark:bg-gray-600" />
+          <div className="w-9 h-1 rounded-full bg-muted-foreground/30" />
         </div>
 
         {/* Header row */}
@@ -126,26 +126,26 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notific
             <div className="relative flex items-center justify-center">
               <svg width="40" height="40" viewBox="0 0 44 44" className="-rotate-90">
                 <circle cx="22" cy="22" r={radius} fill="none" strokeWidth="3"
-                  stroke="currentColor" className="text-gray-200 dark:text-gray-700" />
+                  stroke="currentColor" className="text-muted" />
                 <circle cx="22" cy="22" r={radius} fill="none" strokeWidth="3"
                   strokeLinecap="round" strokeDasharray={circumference}
                   strokeDashoffset={strokeDashoffset} stroke="currentColor"
                   className={`transition-all duration-1000 ease-linear ${
-                    isUrgent ? 'text-red-500' : 'text-blue-500 dark:text-blue-400'
+                    isUrgent ? 'text-red-500' : 'text-primary'
                   }`}
                 />
               </svg>
               <span className={`absolute text-xs font-semibold tabular-nums ${
-                isUrgent ? 'text-red-500' : 'text-gray-600 dark:text-gray-300'
+                isUrgent ? 'text-red-500' : 'text-muted-foreground'
               }`}>
                 {timeLeft}
               </span>
             </div>
             <div>
-              <h2 id="actions-modal-title" className="text-lg font-semibold text-gray-900 dark:text-white leading-tight">
+              <h2 id="actions-modal-title" className="text-lg font-semibold text-foreground leading-tight">
                 Action Required
               </h2>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 Confirm or deny this request
               </p>
             </div>

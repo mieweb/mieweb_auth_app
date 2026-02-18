@@ -212,25 +212,25 @@ export const RegistrationPage = ({ deviceDetails }) => {
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.2 }}
-          className="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-lg"
+          className="max-w-md w-full space-y-8 bg-card text-card-foreground p-8 rounded-2xl shadow-lg"
         >
           <div className="text-center space-y-4">
             <motion.h2 
               initial={{ y: -20 }}
               animate={{ y: 0 }}
-              className="text-3xl font-bold text-gray-900"
+              className="text-3xl font-bold text-foreground"
             >
               Registration Pending
             </motion.h2>
             <div className="flex justify-center">
-              <div className="animate-pulse w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center">
-                <User className="text-3xl text-blue-500" />
+              <div className="animate-pulse w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                <User className="text-3xl text-primary" />
               </div>
             </div>
-            <p className="text-gray-600">
+            <p className="text-muted-foreground">
               Since this is your first device registered with us, your account needs to be approved by an administrator.
             </p>
-            <p className="text-gray-600">
+            <p className="text-muted-foreground">
               You will receive a notification once your registration has been processed.
             </p>
           </div>
@@ -257,17 +257,17 @@ export const RegistrationPage = ({ deviceDetails }) => {
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.2 }}
-        className="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-lg"
+        className="max-w-md w-full space-y-8 bg-card text-card-foreground p-8 rounded-2xl shadow-lg"
       >
         <div className="text-center space-y-2">
           <motion.h2 
             initial={{ y: -20 }}
             animate={{ y: 0 }}
-            className="text-3xl font-bold text-gray-900"
+            className="text-3xl font-bold text-foreground"
           >
             Create Account
           </motion.h2>
-          <p className="text-gray-600">Join our community today</p>
+          <p className="text-muted-foreground">Join our community today</p>
         </div>
 
         {error && (
@@ -317,7 +317,7 @@ export const RegistrationPage = ({ deviceDetails }) => {
             Create Account
           </Button>
 
-          <div className="text-center text-sm text-gray-600">
+          <div className="text-center text-sm text-muted-foreground">
             Need help?{' '}
             <Button
               variant="link"
