@@ -228,11 +228,6 @@ jobs:
           curl https://install.meteor.com/ | sh
           echo "$HOME/.meteor" >> $GITHUB_PATH
 
-      - name: Configure git for private repos
-        run: |
-          git config --global url."https://x-access-token:${{ secrets.GH_PAT }}@github.com/".insteadOf "ssh://git@github.com/"
-          git config --global --add url."https://x-access-token:${{ secrets.GH_PAT }}@github.com/".insteadOf "git@github.com:"
-
       - name: Install Dependencies
         run: meteor npm install
 
@@ -341,11 +336,6 @@ jobs:
         run: |
           curl https://install.meteor.com/ | sh
           echo "$HOME/.meteor" >> $GITHUB_PATH
-
-      - name: Configure git for private repos
-        run: |
-          git config --global url."https://x-access-token:${{ secrets.GH_PAT }}@github.com/".insteadOf "ssh://git@github.com/"
-          git config --global --add url."https://x-access-token:${{ secrets.GH_PAT }}@github.com/".insteadOf "git@github.com:"
 
       - name: Install Dependencies
         run: meteor npm install
