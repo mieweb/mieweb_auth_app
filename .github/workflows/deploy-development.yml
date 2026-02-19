@@ -1,27 +1,12 @@
 name: Deploy Development - Server, Android & iOS (Dev)
 
 # ─────────────────────────────────────────────────────────
-# Triggers:
-#   1. Release created with tag 'dev-v*' → deploys SERVER only
-#   2. Manual dispatch → choose to build Android, iOS, or both
+# Triggers when a release with tag 'dev-v*' is created
+# Deploys server, builds Android & iOS in parallel
 # ─────────────────────────────────────────────────────────
 on:
   release:
     types: [created]
-  workflow_dispatch:
-    inputs:
-      build_android:
-        description: 'Build Android AAB'
-        type: boolean
-        default: false
-      build_ios:
-        description: 'Build iOS (TestFlight)'
-        type: boolean
-        default: false
-      release_tag:
-        description: 'Release tag to build from (e.g. dev-v1.1.0)'
-        type: string
-        required: true
 
 permissions:
   contents: write
@@ -34,35 +19,19 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       should_run: ${{ steps.check.outputs.should_run }}
-      build_android: ${{ steps.check.outputs.build_android }}
-      build_ios: ${{ steps.check.outputs.build_ios }}
       tag_name: ${{ steps.check.outputs.tag_name }}
     steps:
-      - name: Check tag pattern and build targets
+      - name: Check tag pattern
         id: check
         run: |
-          # Determine tag based on trigger type
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG="${{ inputs.release_tag }}"
-            BUILD_ANDROID="${{ inputs.build_android }}"
-            BUILD_IOS="${{ inputs.build_ios }}"
-          else
-            TAG="${{ github.event.release.tag_name }}"
-            BUILD_ANDROID="false"
-            BUILD_IOS="false"
-          fi
-
+          TAG="${{ github.event.release.tag_name }}"
           echo "tag_name=${TAG}" >> "$GITHUB_OUTPUT"
 
           if [[ "$TAG" == dev-v* ]]; then
             echo "should_run=true" >> "$GITHUB_OUTPUT"
-            echo "build_android=${BUILD_ANDROID}" >> "$GITHUB_OUTPUT"
-            echo "build_ios=${BUILD_IOS}" >> "$GITHUB_OUTPUT"
-            echo "✅ Tag '${TAG}' matches dev-v* — server: always, android: ${BUILD_ANDROID}, ios: ${BUILD_IOS}"
+            echo "✅ Tag '${TAG}' matches dev-v* — proceeding with server, Android & iOS"
           else
             echo "should_run=false" >> "$GITHUB_OUTPUT"
-            echo "build_android=false" >> "$GITHUB_OUTPUT"
-            echo "build_ios=false" >> "$GITHUB_OUTPUT"
             echo "⏭️ Tag '${TAG}' does not match dev-v* — skipping"
           fi
 
@@ -225,14 +194,14 @@ jobs:
           exit 1
 
   # ─────────────────────────────────────────────
-  # Job 3: Build Android AAB → Sign → Artifact
-  # Only runs on manual dispatch with build_android=true
-  # Uses dev package name: com.mieweb.mieauth.dev
+  # Job 3: Build Android AAB → Sign → Play Store (Beta)
+  # Runs in PARALLEL with Server & iOS
+  # Uses beta package name: org.mieweb.os.dev
   # ─────────────────────────────────────────────
   build-android-dev:
-    needs: [check-tag, prepare]
+    needs: prepare
     runs-on: ubuntu-latest
-    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.check-tag.outputs.build_android == 'true' }}
+    if: ${{ !cancelled() && needs.prepare.result == 'success' }}
     env:
       APP_VERSION: ${{ needs.prepare.outputs.app_version }}
       BUILD_DATE: ${{ needs.prepare.outputs.build_date }}
@@ -349,13 +318,13 @@ jobs:
 
   # ─────────────────────────────────────────────
   # Job 4: Build iOS → Archive → TestFlight
-  # Only runs on manual dispatch with build_ios=true
+  # Runs in PARALLEL with Server & Android
   # Same bundle ID (org.mieweb.opensource), dev server target
   # ─────────────────────────────────────────────
   build-ios-dev:
-    needs: [check-tag, prepare]
+    needs: prepare
     runs-on: macos-latest
-    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.check-tag.outputs.build_ios == 'true' }}
+    if: ${{ !cancelled() && needs.prepare.result == 'success' }}
     env:
       APP_VERSION: ${{ needs.prepare.outputs.app_version }}
       TAG_NAME: ${{ needs.prepare.outputs.tag_name }}
