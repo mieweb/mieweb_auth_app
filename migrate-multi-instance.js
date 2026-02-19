@@ -115,8 +115,6 @@ async function verifySetup(db) {
 async function showCollectionStats(db) {
   console.log("Collection statistics:");
 
-  const collection = db.collection("pendingResponses");
-
   try {
     const stats = await db.command({ collStats: "pendingResponses" });
     console.log(`📊 Documents: ${stats.count || 0}`);
