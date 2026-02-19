@@ -1,68 +1,70 @@
-import React, { useState, useEffect } from 'react';
-import { Fingerprint as FingerprintIcon, XCircle, CheckCircle } from 'lucide-react';
-import { Modal, ModalBody, Button } from '@mieweb/ui';
+import React, { useState, useEffect } from "react";
+import {
+  Fingerprint as FingerprintIcon,
+  XCircle,
+  CheckCircle,
+} from "lucide-react";
+import { Modal, ModalBody, Button } from "@mieweb/ui";
 
-const BiometricRegistrationModal = ({ isOpen, onClose, userData, onComplete }) => {
-  const [status, setStatus] = useState('processing');
-  const [errorMessage, setErrorMessage] = useState('');
+const BiometricRegistrationModal = ({
+  isOpen,
+  onClose,
+  userData,
+  onComplete,
+}) => {
+  const [status, setStatus] = useState("processing");
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     if (isOpen && userData?.biometricSecret) {
-      console.log('### Starting biometric registration');
       registerBiometrics();
     }
   }, [isOpen, userData]);
 
   const registerBiometrics = () => {
-    console.log('Starting biometric registration with:', userData);
-    
     if (!window.Fingerprint) {
-      console.error('Fingerprint plugin not available');
-      handleError('Biometric authentication not supported');
+      handleError("Biometric authentication not supported");
       return;
     }
 
     if (!userData?.biometricSecret) {
-      handleError('Missing biometric configuration');
+      handleError("Missing biometric configuration");
       return;
     }
 
-    window.Fingerprint.registerBiometricSecret({
-      description: "Secure login for your account",
-      secret: userData.biometricSecret,
-      invalidateOnEnrollment: true,
-      disableBackup: true,
-    }, 
-    () => handleSuccess(),
-    (error) => handleError(error.message));
+    window.Fingerprint.registerBiometricSecret(
+      {
+        description: "Secure login for your account",
+        secret: userData.biometricSecret,
+        invalidateOnEnrollment: true,
+        disableBackup: true,
+      },
+      () => handleSuccess(),
+      (error) => handleError(error.message),
+    );
   };
 
   const handleSuccess = () => {
-    console.log('Biometric registration successful');
-    setStatus('success');
-    localStorage.setItem('biometricsEnabled', 'true');
-    console.log("userData", userData, userData?.biometricSecret)
-    localStorage.setItem('biometricUserId', userData?.biometricSecret);
+    setStatus("success");
+    localStorage.setItem("biometricsEnabled", "true");
+    localStorage.setItem("biometricUserId", userData?.biometricSecret);
     setTimeout(() => {
       onClose();
       onComplete(true);
     }, 2000);
   };
 
-  const handleError = (message = 'Unknown error') => {
-    console.error('Biometric error:', message);
-    setStatus('error');
+  const handleError = (message = "Unknown error") => {
+    setStatus("error");
     setErrorMessage(message);
   };
 
   const handleRetry = () => {
-    console.log('Retrying biometric registration');
-    setStatus('processing');
+    setStatus("processing");
     registerBiometrics();
   };
 
   const handleSkip = () => {
-    console.log('Skipping biometric registration');
     onClose();
     onComplete(false);
   };
@@ -70,9 +72,15 @@ const BiometricRegistrationModal = ({ isOpen, onClose, userData, onComplete }) =
   if (!isOpen) return null;
 
   return (
-    <Modal open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }} size="sm">
+    <Modal
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      size="sm"
+    >
       <ModalBody className="text-center">
-        {status === 'processing' && (
+        {status === "processing" && (
           <>
             <div className="flex justify-center mb-4">
               <div className="w-16 h-16 flex items-center justify-center bg-primary/10 rounded-full animate-pulse">
@@ -88,7 +96,7 @@ const BiometricRegistrationModal = ({ isOpen, onClose, userData, onComplete }) =
           </>
         )}
 
-        {status === 'success' && (
+        {status === "success" && (
           <>
             <div className="flex justify-center mb-4">
               <div className="w-16 h-16 flex items-center justify-center bg-green-500/15 rounded-full">
@@ -104,7 +112,7 @@ const BiometricRegistrationModal = ({ isOpen, onClose, userData, onComplete }) =
           </>
         )}
 
-        {status === 'error' && (
+        {status === "error" && (
           <>
             <div className="flex justify-center mb-4">
               <div className="w-16 h-16 flex items-center justify-center bg-red-500/15 rounded-full">
@@ -115,12 +123,17 @@ const BiometricRegistrationModal = ({ isOpen, onClose, userData, onComplete }) =
               Registration Failed
             </h2>
             <p className="text-muted-foreground mb-4">
-              {errorMessage || 'Unable to register biometrics'}
+              {errorMessage || "Unable to register biometrics"}
             </p>
             <Button onClick={handleRetry} fullWidth>
               Try Again
             </Button>
-            <Button onClick={handleSkip} variant="secondary" fullWidth className="mt-2">
+            <Button
+              onClick={handleSkip}
+              variant="secondary"
+              fullWidth
+              className="mt-2"
+            >
               Skip for Now
             </Button>
           </>

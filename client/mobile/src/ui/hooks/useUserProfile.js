@@ -1,9 +1,7 @@
-import { useState, useEffect } from 'react';
-import { Meteor } from 'meteor/meteor';
-import { Session } from 'meteor/session';
-import { DeviceDetails } from '../../../../../utils/api/deviceDetails';
-
-
+import { useState, useEffect } from "react";
+import { Meteor } from "meteor/meteor";
+import { Session } from "meteor/session";
+import { DeviceDetails } from "../../../../../utils/api/deviceDetails";
 
 export const useUserProfile = () => {
   const initialProfile = Session.get("userProfile") || {};
@@ -24,7 +22,9 @@ export const useUserProfile = () => {
     const fetchUserDetails = async () => {
       if (!initialProfile._id) return;
       try {
-        const userDoc = await DeviceDetails.findOneAsync({ userId: initialProfile._id });
+        const userDoc = await DeviceDetails.findOneAsync({
+          userId: initialProfile._id,
+        });
         if (isMounted && userDoc) {
           setProfile({
             firstName: userDoc.firstName || "",
@@ -32,18 +32,17 @@ export const useUserProfile = () => {
             email: userDoc.email || "",
           });
         } else if (isMounted) {
-          console.log('User document not found for ID:', initialProfile._id);
+          setErrorMessage("User profile not found.");
         }
       } catch (error) {
         if (isMounted) {
-          console.error("Error fetching user details:", error);
           setErrorMessage("Failed to fetch profile.");
         }
       }
     };
 
     fetchUserDetails();
-    
+
     return () => {
       isMounted = false;
     };
@@ -82,7 +81,7 @@ export const useUserProfile = () => {
     }
   };
 
-  const toggleEdit = () => setIsEditing(prev => !prev);
+  const toggleEdit = () => setIsEditing((prev) => !prev);
 
   return {
     profile,
@@ -93,7 +92,7 @@ export const useUserProfile = () => {
     handleProfileChange,
     handleProfileUpdate,
     toggleEdit,
-    setSuccessMessage // Expose setter if needed externally (e.g., for Toaster)
+    setSuccessMessage, // Expose setter if needed externally (e.g., for Toaster)
   };
 };
 
@@ -133,4 +132,4 @@ Meteor.methods({
     }
   }
 });
-*/ 
+*/
