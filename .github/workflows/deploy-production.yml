@@ -440,9 +440,7 @@ jobs:
           <plist version="1.0">
           <dict>
               <key>method</key>
-              <string>app-store-connect</string>
-              <key>destination</key>
-              <string>upload</string>
+              <string>app-store</string>
               <key>provisioningProfiles</key>
               <dict>
                   <key>org.mieweb.opensource</key>
@@ -456,7 +454,7 @@ jobs:
           xcodebuild -exportArchive \
             -archivePath $RUNNER_TEMP/MIEAuth.xcarchive \
             -exportPath $RUNNER_TEMP/export \
-            -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist | xcpretty || true
+            -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist
 
       - name: Upload to TestFlight
         env:
