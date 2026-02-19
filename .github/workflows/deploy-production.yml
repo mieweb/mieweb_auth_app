@@ -401,16 +401,24 @@ jobs:
 
       - name: Archive & Export iOS App
         run: |
-          WORKSPACE_PATH=$(find ios-build -name "*.xcworkspace" -type d | head -1)
-          echo "Found workspace: ${WORKSPACE_PATH}"
+          set -euo pipefail
 
           # Install CocoaPods dependencies if Podfile exists
-          WORKSPACE_DIR=$(dirname "$WORKSPACE_PATH")
-          if [ -f "${WORKSPACE_DIR}/Podfile" ]; then
-            cd "$WORKSPACE_DIR"
+          PODFILE_PATH=$(find ios-build -name "Podfile" -type f | head -1)
+          if [ -n "$PODFILE_PATH" ]; then
+            PODFILE_DIR=$(dirname "$PODFILE_PATH")
+            echo "Found Podfile at: ${PODFILE_DIR}"
+            cd "$PODFILE_DIR"
             pod install
             cd -
           fi
+
+          # Find workspace - prefer CocoaPods-generated one (not inside .xcodeproj)
+          WORKSPACE_PATH=$(find ios-build -name "*.xcworkspace" -not -path "*/*.xcodeproj/*" -type d | head -1)
+          if [ -z "$WORKSPACE_PATH" ]; then
+            WORKSPACE_PATH=$(find ios-build -name "*.xcworkspace" -type d | head -1)
+          fi
+          echo "Found workspace: ${WORKSPACE_PATH}"
 
           # Archive
           xcodebuild archive \
@@ -423,7 +431,7 @@ jobs:
             OTHER_CODE_SIGN_FLAGS="--keychain ${{ env.KEYCHAIN_PATH }}" \
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM=${{ secrets.APPLE_TEAM_ID }} \
-            PROVISIONING_PROFILE_SPECIFIER="${{ env.PROFILE_UUID }}" | xcpretty || true
+            PROVISIONING_PROFILE_SPECIFIER="${{ env.PROFILE_UUID }}"
 
           # Create export options plist
           cat > $RUNNER_TEMP/ExportOptions.plist << EOF
