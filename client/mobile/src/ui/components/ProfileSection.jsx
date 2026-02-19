@@ -5,7 +5,6 @@ import {
   User,
   Mail,
   Edit,
-  ChevronDown,
   ExternalLink,
   Smartphone,
   Monitor,

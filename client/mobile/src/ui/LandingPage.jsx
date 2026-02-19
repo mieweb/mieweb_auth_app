@@ -12,7 +12,6 @@ import { useSessionTimeout } from "./hooks/useSessionTimeout";
 // Import Components
 import { DashboardHeader } from "./components/DashboardHeader";
 import { ProfileSection } from "./components/ProfileSection";
-import { NotificationFilters } from "./components/NotificationFilters";
 import { NotificationList } from "./components/NotificationList";
 import Pagination from "./Pagination/Pagination";
 import ActionsModal from "./Modal/ActionsModal";

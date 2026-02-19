@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import {
@@ -16,24 +16,6 @@ import {
   QrCode,
   ArrowLeft,
 } from "lucide-react";
-
-/**
- * Generate a smart redirect URL that detects the user's platform
- * and sends them to the right app store.
- * Uses a data-URI HTML page with JS user-agent sniffing so no server needed.
- */
-const useSmartRedirectUrl = () =>
-  useMemo(() => {
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Redirecting…</title><script>
-var ua=navigator.userAgent||"";
-if(/iPad|iPhone|iPod/.test(ua)||(/Mac/.test(ua)&&navigator.maxTouchPoints>1)){
-  location.replace(${JSON.stringify(APP_STORE_URL)});
-}else{
-  location.replace(${JSON.stringify(GOOGLE_PLAY_URL)});
-}
-</script></head><body style="font-family:system-ui;text-align:center;padding:3rem"><p>Redirecting to your app store…</p></body></html>`;
-    return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
-  }, []);
 
 /**
  * Renders a minimal QR code as an inline SVG.

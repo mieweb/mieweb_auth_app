@@ -20,7 +20,7 @@ import {
 import { Layout } from "./components/Layout";
 import { AppStoreButtons } from "./components/AppStoreButtons";
 import { usePageTitle } from "../hooks/usePageTitle";
-import { Card, CardContent, Button, buttonVariants } from "@mieweb/ui";
+import { Card, CardContent, buttonVariants } from "@mieweb/ui";
 import {
   motion,
   useInView,

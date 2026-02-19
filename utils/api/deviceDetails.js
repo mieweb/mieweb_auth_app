@@ -82,9 +82,6 @@ Meteor.methods({
       " ### Log Step 6.1 : Inside deviceDetails.js, generating app Id",
       JSON.stringify({ appId }),
     );
-    let isRequireAdminApproval,
-      isRequireSecondaryDeviceApproval = null;
-
     // Check if this is the first device
     if (data.isFirstDevice) {
       // First device registration for first time user
