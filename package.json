@@ -19,7 +19,7 @@
     "framer-motion": "^11.18.2",
     "get-port": "^7.1.0",
     "git-filter-repo": "^0.0.30",
-    "ldapjs": "https://github.com/mieweb/node-ldapjs",
+    "ldapjs": "git+https://github.com/mieweb/node-ldapjs.git",
     "lucide-react": "^0.469.0",
     "meteor-node-stubs": "^1.2.24",
     "react": "^18.2.0",
