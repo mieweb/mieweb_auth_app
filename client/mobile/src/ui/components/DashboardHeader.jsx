@@ -1,20 +1,12 @@
-import React from 'react';
-import {
-  LogOut,
-  Moon,
-  Sun,
-  RotateCcw,
-  Shield,
-  HelpCircle,
-} from 'lucide-react';
-import { openSupportLink } from '../../../../../utils/openExternal';
-import { Button } from '@mieweb/ui';
+import React from "react";
+import { LogOut, Moon, Sun, Shield, HelpCircle } from "lucide-react";
+import { openSupportLink } from "../../../../../utils/openExternal";
+import { Button } from "@mieweb/ui";
 
 export const DashboardHeader = ({
   title = "My Dashboard",
   isDarkMode,
   toggleDarkMode,
-  onRefresh,
   onLogout,
 }) => {
   return (
@@ -24,25 +16,18 @@ export const DashboardHeader = ({
           <div className="flex items-center space-x-3">
             <Shield className="h-8 w-8 text-primary" />
             <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
-              {title}
+              MIE Auth
             </h1>
           </div>
           <div className="flex items-center space-x-2">
-            <Button
-              onClick={onRefresh}
-              variant="ghost"
-              size="icon"
-              aria-label="Refresh"
-              title="Refresh"
-            >
-              <RotateCcw className="h-4 w-4" />
-            </Button>
             <Button
               onClick={toggleDarkMode}
               variant="ghost"
               size="icon"
               aria-label="Toggle Night Mode"
-              title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+              title={
+                isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"
+              }
             >
               {isDarkMode ? (
                 <Sun className="h-4 w-4 text-yellow-400" />

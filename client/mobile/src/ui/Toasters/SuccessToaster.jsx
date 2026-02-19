@@ -1,6 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Alert, AlertDescription } from '@mieweb/ui';
+import { Alert, AlertDescription } from "@mieweb/ui";
 
 const SuccessToaster = ({ message, onClose }) => {
   useEffect(() => {

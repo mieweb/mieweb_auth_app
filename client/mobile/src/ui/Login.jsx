@@ -1,13 +1,23 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { openSupportLink } from '../../../../utils/openExternal';
-import { Meteor } from 'meteor/meteor';
-import { Session } from 'meteor/session';
-import { Fingerprint as FingerprintIcon, KeyRound, AlertCircle } from 'lucide-react';
-import { Input, Button, Alert, AlertDescription } from '@mieweb/ui';
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { openSupportLink } from "../../../../utils/openExternal";
+import { Meteor } from "meteor/meteor";
+import { Session } from "meteor/session";
+import {
+  Fingerprint as FingerprintIcon,
+  KeyRound,
+  AlertCircle,
+} from "lucide-react";
+import { Input, Button, Alert, AlertDescription } from "@mieweb/ui";
 
 // ── Lock Screen (biometric auto-trigger) ────────────────────────────────────
-const LockScreen = ({ email, onBiometricSuccess, onShowPinFallback, error, isAuthenticating }) => {
+const LockScreen = ({
+  email,
+  onBiometricSuccess,
+  onShowPinFallback,
+  error,
+  isAuthenticating,
+}) => {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
       <div className="max-w-md w-full space-y-6 bg-card text-card-foreground p-8 rounded-3xl shadow-xl border border-border">
@@ -17,9 +27,7 @@ const LockScreen = ({ email, onBiometricSuccess, onShowPinFallback, error, isAut
             <FingerprintIcon className="h-7 w-7 text-primary" />
           </div>
           <h2 className="text-2xl font-bold text-foreground">Welcome Back!</h2>
-          {email && (
-            <p className="text-sm text-muted-foreground">{email}</p>
-          )}
+          {email && <p className="text-sm text-muted-foreground">{email}</p>}
         </div>
 
         {/* Error */}
@@ -58,10 +66,14 @@ const LockScreen = ({ email, onBiometricSuccess, onShowPinFallback, error, isAut
 
 // ── Main LoginPage ───────────────────────────────────────────────────────────
 export const LoginPage = ({ deviceDetails }) => {
-  const [email, setEmail] = useState(() => localStorage.getItem('lastLoggedInEmail') || '');
-  const [isReturningUser, setIsReturningUser] = useState(() => !!localStorage.getItem('lastLoggedInEmail'));
-  const [pin, setPin] = useState('');
-  const [error, setError] = useState('');
+  const [email, setEmail] = useState(
+    () => localStorage.getItem("lastLoggedInEmail") || "",
+  );
+  const [isReturningUser, setIsReturningUser] = useState(
+    () => !!localStorage.getItem("lastLoggedInEmail"),
+  );
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [showPinForm, setShowPinForm] = useState(false);
@@ -69,38 +81,42 @@ export const LoginPage = ({ deviceDetails }) => {
   const biometricTriggered = useRef(false);
 
   // Determine if biometric credentials exist
-  const hasBiometricCredentials = !!localStorage.getItem('biometricUserId');
+  const hasBiometricCredentials = !!localStorage.getItem("biometricUserId");
 
   // ── Connection monitor ──────────────────────────────────────────────────
   useEffect(() => {
-    if (!deviceDetails) console.warn('No device details available');
-
     const connectionCheck = setInterval(() => {
       if (!Meteor.status().connected) {
-        setError('Connection to server lost. Reconnecting…');
-      } else if (error.includes('Connection to server lost')) {
-        setError('');
+        setError("Connection to server lost. Reconnecting…");
+      } else {
+        setError((prev) =>
+          prev === "Connection to server lost. Reconnecting…" ? "" : prev,
+        );
       }
     }, 3000);
 
     return () => clearInterval(connectionCheck);
-  }, [deviceDetails, error]);
+  }, []);
 
   // ── Registration check helper ───────────────────────────────────────────
   const checkRegistrationStatus = async (userId, emailAddress) => {
     setCheckingStatus(true);
     try {
-      const result = await Meteor.callAsync('users.checkRegistrationStatus', { userId, email: emailAddress });
-      if (!result?.status) throw new Error('Failed to retrieve registration status');
+      const result = await Meteor.callAsync("users.checkRegistrationStatus", {
+        userId,
+        email: emailAddress,
+      });
+      if (!result?.status)
+        throw new Error("Failed to retrieve registration status");
 
-      if (result.status !== 'approved') {
-        setError('Your account is pending approval by an administrator.');
-        navigate('/pending-registration');
+      if (result.status !== "approved") {
+        setError("Your account is pending approval by an administrator.");
+        navigate("/pending-registration");
         return false;
       }
       return true;
     } catch (err) {
-      setError(err.reason || err.message || 'Failed to verify account status');
+      setError(err.reason || err.message || "Failed to verify account status");
       return false;
     } finally {
       setCheckingStatus(false);
@@ -109,7 +125,7 @@ export const LoginPage = ({ deviceDetails }) => {
 
   // ── Biometric login (reusable) ──────────────────────────────────────────
   const handleBiometricLogin = useCallback(async () => {
-    const biometricUserId = localStorage.getItem('biometricUserId');
+    const biometricUserId = localStorage.getItem("biometricUserId");
     if (!biometricUserId) {
       // No credentials stored – fall back to PIN form
       setShowPinForm(true);
@@ -117,35 +133,50 @@ export const LoginPage = ({ deviceDetails }) => {
     }
 
     setIsLoggingIn(true);
-    setError('');
+    setError("");
 
     try {
-      if (!window.Fingerprint) throw new Error('Biometric auth unavailable on this device.');
+      if (!window.Fingerprint)
+        throw new Error("Biometric auth unavailable on this device.");
 
       await new Promise((resolve, reject) => {
         Fingerprint.loadBiometricSecret(
-          { description: 'Authenticate to unlock MieSecure', disableBackup: true },
+          {
+            description: "Authenticate to unlock MIE Auth",
+            disableBackup: true,
+          },
           async () => {
             try {
-              const result = await Meteor.callAsync('users.loginWithBiometric', biometricUserId);
-              if (!result?._id) throw new Error('Biometric authentication failed');
+              const result = await Meteor.callAsync(
+                "users.loginWithBiometric",
+                biometricUserId,
+              );
+              if (!result?._id)
+                throw new Error("Biometric authentication failed");
 
-              const isApproved = await checkRegistrationStatus(result._id, result.email);
+              const isApproved = await checkRegistrationStatus(
+                result._id,
+                result.email,
+              );
               if (isApproved) {
-                Session.set('userProfile', { email: result.email, username: result.username, _id: result._id });
-                navigate('/dashboard');
+                Session.set("userProfile", {
+                  email: result.email,
+                  username: result.username,
+                  _id: result._id,
+                });
+                navigate("/dashboard");
               }
               resolve();
             } catch (err) {
               reject(err);
             }
           },
-          (err) => reject(err || new Error('Biometric authentication cancelled'))
+          (err) =>
+            reject(err || new Error("Biometric authentication cancelled")),
         );
       });
     } catch (err) {
-      console.error('Biometric login error:', err);
-      setError(err.message || 'Biometric login failed. Use PIN instead.');
+      setError(err.message || "Biometric login failed. Use PIN instead.");
       // Don't auto-open PIN – let user decide
     } finally {
       setIsLoggingIn(false);
@@ -173,30 +204,41 @@ export const LoginPage = ({ deviceDetails }) => {
   // ── PIN login ───────────────────────────────────────────────────────────
   const handlePinLogin = async (e) => {
     e.preventDefault();
-    if (!deviceDetails) { setError('Device info not available. Please refresh.'); return; }
-    if (!Meteor.status().connected) { setError('No connection. Please check your network.'); return; }
+    if (!deviceDetails) {
+      setError("Device info not available. Please refresh.");
+      return;
+    }
+    if (!Meteor.status().connected) {
+      setError("No connection. Please check your network.");
+      return;
+    }
 
     setIsLoggingIn(true);
-    setError('');
+    setError("");
 
     try {
       let userId;
       await new Promise((resolve, reject) => {
         Meteor.loginWithPassword(email, pin, (err) => {
-          if (err) { reject(err); } else { userId = Meteor.userId(); resolve(); }
+          if (err) {
+            reject(err);
+          } else {
+            userId = Meteor.userId();
+            resolve();
+          }
         });
       });
 
       const isApproved = await checkRegistrationStatus(userId, email);
       if (isApproved) {
-        Session.set('userProfile', { email, _id: userId });
-        localStorage.setItem('lastLoggedInEmail', email);
-        navigate('/dashboard');
+        Session.set("userProfile", { email, _id: userId });
+        localStorage.setItem("lastLoggedInEmail", email);
+        navigate("/dashboard");
       } else {
         Meteor.logout();
       }
     } catch (err) {
-      setError(err.reason || 'Login failed. Please try again.');
+      setError(err.reason || "Login failed. Please try again.");
     } finally {
       setIsLoggingIn(false);
     }
@@ -210,7 +252,10 @@ export const LoginPage = ({ deviceDetails }) => {
         error={error}
         isAuthenticating={isLoggingIn || checkingStatus}
         onBiometricSuccess={handleBiometricLogin}
-        onShowPinFallback={() => { setError(''); setShowPinForm(true); }}
+        onShowPinFallback={() => {
+          setError("");
+          setShowPinForm(true);
+        }}
       />
     );
   }
@@ -225,10 +270,10 @@ export const LoginPage = ({ deviceDetails }) => {
             <KeyRound className="h-7 w-7 text-primary" />
           </div>
           <h2 className="text-2xl font-bold text-foreground">
-            {isReturningUser ? 'Welcome Back!' : 'Sign In'}
+            {isReturningUser ? "Welcome Back!" : "Sign In"}
           </h2>
           <p className="text-sm text-muted-foreground">
-            {isReturningUser ? email : 'Enter your credentials to continue'}
+            {isReturningUser ? email : "Enter your credentials to continue"}
           </p>
         </div>
 
@@ -253,9 +298,15 @@ export const LoginPage = ({ deviceDetails }) => {
               disabled={isLoggingIn || checkingStatus}
             />
             {isReturningUser && (
-              <Button variant="link" size="sm"
+              <Button
+                variant="link"
+                size="sm"
                 type="button"
-                onClick={() => { localStorage.removeItem('lastLoggedInEmail'); setEmail(''); setIsReturningUser(false); }}
+                onClick={() => {
+                  localStorage.removeItem("lastLoggedInEmail");
+                  setEmail("");
+                  setIsReturningUser(false);
+                }}
               >
                 Not you? Use a different account
               </Button>
@@ -285,13 +336,13 @@ export const LoginPage = ({ deviceDetails }) => {
             disabled={isLoggingIn || checkingStatus}
             fullWidth
             isLoading={isLoggingIn || checkingStatus}
-            loadingText={checkingStatus ? 'Verifying…' : 'Signing In…'}
+            loadingText={checkingStatus ? "Verifying…" : "Signing In…"}
           >
             Sign In with PIN
           </Button>
 
           <div className="text-center text-sm text-muted-foreground">
-            Need help?{' '}
+            Need help?{" "}
             <Button
               variant="link"
               type="button"
@@ -305,7 +356,11 @@ export const LoginPage = ({ deviceDetails }) => {
         {/* Back to biometric if available */}
         {hasBiometricCredentials && (
           <Button
-            onClick={() => { setError(''); setShowPinForm(false); biometricTriggered.current = false; }}
+            onClick={() => {
+              setError("");
+              setShowPinForm(false);
+              biometricTriggered.current = false;
+            }}
             variant="outline"
             fullWidth
             leftIcon={<FingerprintIcon className="h-4 w-4" />}

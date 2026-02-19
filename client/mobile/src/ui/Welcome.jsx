@@ -1,7 +1,7 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { LogIn, UserPlus, ShieldCheck } from 'lucide-react';
-import { Button } from '@mieweb/ui';
+import React from "react";
+import { useNavigate } from "react-router-dom";
+import { LogIn, UserPlus, ShieldCheck } from "lucide-react";
+import { Button } from "@mieweb/ui";
 
 export const WelcomePage = () => {
   const navigate = useNavigate();
@@ -15,15 +15,17 @@ export const WelcomePage = () => {
             <ShieldCheck className="h-10 w-10 text-indigo-300" />
           </div>
           <h1 className="text-4xl font-bold text-white tracking-tight">
-            MieSecure
+            MIE Auth
           </h1>
-          <p className="text-indigo-300/80 text-sm">Your secure mobile companion</p>
+          <p className="text-indigo-300/80 text-sm">
+            Secure, open-source two-factor authentication
+          </p>
         </div>
 
         {/* Actions */}
         <div className="space-y-3">
           <Button
-            onClick={() => navigate('/login')}
+            onClick={() => navigate("/login")}
             size="lg"
             fullWidth
             leftIcon={<LogIn className="h-5 w-5" />}
@@ -32,7 +34,7 @@ export const WelcomePage = () => {
           </Button>
 
           <Button
-            onClick={() => navigate('/register')}
+            onClick={() => navigate("/register")}
             variant="outline"
             size="lg"
             fullWidth

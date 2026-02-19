@@ -1,18 +1,18 @@
-import React from 'react';
-import { Input, Select, Card, CardContent } from '@mieweb/ui';
+import React from "react";
+import { Input, Select, Card, CardContent } from "@mieweb/ui";
 
 const filterOptions = [
-  { value: 'all', label: 'All' },
-  { value: 'pending', label: 'Pending' },
-  { value: 'approve', label: 'Approved' },
-  { value: 'reject', label: 'Rejected' },
+  { value: "all", label: "All" },
+  { value: "pending", label: "Pending" },
+  { value: "approve", label: "Approved" },
+  { value: "reject", label: "Rejected" },
 ];
 
 export const NotificationFilters = ({
   filter,
   searchTerm,
   onFilterChange,
-  onSearchChange
+  onSearchChange,
 }) => {
   return (
     <Card className="m-2">
@@ -40,4 +40,4 @@ export const NotificationFilters = ({
       </CardContent>
     </Card>
   );
-}; 
+};
