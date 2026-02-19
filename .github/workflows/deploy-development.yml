@@ -278,9 +278,9 @@ jobs:
       # Dev Android uses 'com.mieweb.mieauth.dev' to separate from production
       - name: Patch mobile-config.js for Dev Android bundle ID
         run: |
-          sed -i "s/id: 'org.mieweb.opensource'/id: 'com.mieweb.mieauth.dev'/" mobile-config.js
-          sed -i "s/name: 'MIEAuth'/name: 'MIEAuth Dev'/" mobile-config.js
-          echo "Patched bundle ID and app name for Dev Android:"
+          sed -i "s/id: 'org.mieweb.opensource'/id: 'org.mieweb.os.dev'/" mobile-config.js
+          sed -i "s/name: 'MIEAuth'/name: 'MIEAuth Beta'/" mobile-config.js
+          echo "Patched bundle ID and app name for Beta Android:"
           grep -E "id:|name:" mobile-config.js
 
       - name: Build Android AAB
@@ -322,13 +322,23 @@ jobs:
           echo "SIGNED_AAB=${SIGNED_AAB}" >> $GITHUB_ENV
           echo "Signed AAB: ${SIGNED_AAB}"
 
-      # Play Store upload skipped for dev — manual sideload or add secret later
-      - name: Play Store upload notice
+      - name: Upload to Google Play Store (Beta)
+        if: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON != '' }}
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: org.mieweb.os.dev
+          releaseFiles: ${{ env.SIGNED_AAB }}
+          track: internal
+          status: completed
+          releaseName: "MIEAuth Dev v${{ env.APP_VERSION }}"
+          whatsNewDirectory: distribution/whatsnew
+
+      - name: Play Store upload skipped notice
+        if: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON == '' }}
         run: |
-          echo "::notice::Dev build — Play Store upload skipped."
-          echo "Download the signed AAB from the GitHub Release for manual testing."
-          echo "To enable auto-upload, register 'com.mieweb.mieauth.dev' on Play Console"
-          echo "and add GOOGLE_PLAY_DEV_SERVICE_ACCOUNT_JSON secret."
+          echo "::notice::Play Store upload skipped — GOOGLE_PLAY_SERVICE_ACCOUNT_JSON secret not configured."
+          echo "Download the signed AAB from the GitHub Release and upload manually."
 
       - name: Upload AAB as Artifact
         uses: actions/upload-artifact@v4
