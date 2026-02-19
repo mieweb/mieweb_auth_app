@@ -292,6 +292,13 @@ jobs:
           echo "SIGNED_AAB=${SIGNED_AAB}" >> $GITHUB_ENV
           echo "Signed AAB: ${SIGNED_AAB}"
 
+      - name: Upload AAB as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-signed-aab
+          path: ${{ env.SIGNED_AAB }}
+          retention-days: 90
+
       - name: Upload to Google Play Store (Beta)
         uses: r0adkll/upload-google-play@v1
         with:
@@ -302,12 +309,6 @@ jobs:
           status: completed
           releaseName: "MIEAuth Dev v${{ env.APP_VERSION }}"
           whatsNewDirectory: distribution/whatsnew
-
-      - name: Upload AAB as Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: dev-signed-aab
-          path: ${{ env.SIGNED_AAB }}
           retention-days: 90
 
   # ─────────────────────────────────────────────
