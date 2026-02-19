@@ -92,7 +92,7 @@ export const useNotificationHandler = (userId, username) => {
         const deviceInfo = Session.get("capturedDeviceInfo") || {};
         const deviceUUID = deviceInfo.uuid || null;
 
-        const result = await Meteor.callAsync(
+        await Meteor.callAsync(
           "notifications.handleResponse",
           userId,
           action,

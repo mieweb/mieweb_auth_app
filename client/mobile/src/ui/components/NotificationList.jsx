@@ -10,14 +10,7 @@ import {
   formatDateTime,
   isNotificationExpired,
 } from "../../../../../utils/utils.js";
-import {
-  Spinner,
-  Alert,
-  AlertDescription,
-  Badge,
-  Card,
-  CardContent,
-} from "@mieweb/ui";
+import { Spinner, Alert, AlertDescription, Badge } from "@mieweb/ui";
 
 export const NotificationList = ({
   notifications,
