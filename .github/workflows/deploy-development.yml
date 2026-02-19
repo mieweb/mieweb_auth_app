@@ -285,8 +285,9 @@ jobs:
           # Verify
           jarsigner -verify -verbose -certs "$UNSIGNED_AAB"
 
-          # Copy to final named file
-          SIGNED_AAB="Mieauth-DEV-v${APP_VERSION}_${BUILD_DATE}.aab"
+          # Copy to final named file (sanitize parentheses for safe filenames)
+          SAFE_VERSION=$(echo "${APP_VERSION}" | tr '()' '..')
+          SIGNED_AAB="Mieauth-DEV-v${SAFE_VERSION}_${BUILD_DATE}.aab"
           cp "$UNSIGNED_AAB" "$SIGNED_AAB"
           echo "SIGNED_AAB=${SIGNED_AAB}" >> $GITHUB_ENV
           echo "Signed AAB: ${SIGNED_AAB}"
