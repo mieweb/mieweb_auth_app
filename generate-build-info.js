@@ -31,58 +31,30 @@ function getAppVersion() {
 
 function getCommitHash() {
   try {
-    // Fetch latest refs from remote so origin/main is up to date
-    execSync('git fetch origin main', {
-      encoding: 'utf8',
-      stdio: ['pipe', 'pipe', 'ignore']
-    });
-  } catch (_) {
-    // fetch may fail in offline/CI environments, continue with local ref
-  }
-
-  try {
-    // Get the last commit hash from the main branch
-    const hash = execSync('git rev-parse --short origin/main', {
+    // Get the short commit hash of the current HEAD (whatever branch is checked out)
+    const hash = execSync('git rev-parse --short HEAD', {
       encoding: 'utf8',
       stdio: ['pipe', 'pipe', 'ignore']
     }).trim();
-    
+
     return hash;
   } catch (error) {
-    // Fallback: try local main branch
-    try {
-      const hash = execSync('git rev-parse --short main', {
-        encoding: 'utf8',
-        stdio: ['pipe', 'pipe', 'ignore']
-      }).trim();
-      return hash;
-    } catch (_) {
-      console.error('Error getting commit hash from main:', error.message);
-      return 'unknown';
-    }
+    console.error('Error getting commit hash:', error.message);
+    return 'unknown';
   }
 }
 
 function getCommitDate() {
   try {
-    const date = execSync('git log -1 origin/main --format=%cd --date=iso', {
+    const date = execSync('git log -1 HEAD --format=%cd --date=iso', {
       encoding: 'utf8',
       stdio: ['pipe', 'pipe', 'ignore']
     }).trim();
-    
+
     return date;
   } catch (error) {
-    // Fallback: try local main branch
-    try {
-      const date = execSync('git log -1 main --format=%cd --date=iso', {
-        encoding: 'utf8',
-        stdio: ['pipe', 'pipe', 'ignore']
-      }).trim();
-      return date;
-    } catch (_) {
-      console.error('Error getting commit date from main:', error.message);
-      return new Date().toISOString();
-    }
+    console.error('Error getting commit date:', error.message);
+    return new Date().toISOString();
   }
 }
 
