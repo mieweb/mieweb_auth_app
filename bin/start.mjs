@@ -1,9 +1,7 @@
 import { execSync } from "child_process";
-import { tmpdir } from "os";
 import getPort from "get-port";
 import readline from "readline-sync";
 import https from "https";
-import fs from "fs";
 
 async function startServer() {
   console.log("starting the server.......");
