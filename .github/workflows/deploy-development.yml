@@ -292,6 +292,13 @@ jobs:
           echo "SIGNED_AAB=${SIGNED_AAB}" >> $GITHUB_ENV
           echo "Signed AAB: ${SIGNED_AAB}"
 
+      - name: Upload AAB as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-signed-aab
+          path: ${{ env.SIGNED_AAB }}
+          retention-days: 90
+
       - name: Upload to Google Play Store (Beta)
         uses: r0adkll/upload-google-play@v1
         with:
@@ -302,12 +309,6 @@ jobs:
           status: completed
           releaseName: "MIEAuth Dev v${{ env.APP_VERSION }}"
           whatsNewDirectory: distribution/whatsnew
-
-      - name: Upload AAB as Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: dev-signed-aab
-          path: ${{ env.SIGNED_AAB }}
           retention-days: 90
 
   # ─────────────────────────────────────────────
@@ -400,6 +401,8 @@ jobs:
 
       - name: Archive & Export iOS App
         run: |
+          set -euo pipefail
+
           WORKSPACE_PATH=$(find ios-build -name "*.xcworkspace" -type d | head -1)
           echo "Found workspace: ${WORKSPACE_PATH}"
 
@@ -420,7 +423,7 @@ jobs:
             -allowProvisioningUpdates \
             OTHER_CODE_SIGN_FLAGS="--keychain ${{ env.KEYCHAIN_PATH }}" \
             CODE_SIGN_STYLE=Manual \
-            PROVISIONING_PROFILE_SPECIFIER="${{ env.PROFILE_UUID }}" | xcpretty || true
+            PROVISIONING_PROFILE_SPECIFIER="${{ env.PROFILE_UUID }}"
 
           # Create export options plist
           cat > $RUNNER_TEMP/ExportOptions.plist << EOF
@@ -445,7 +448,7 @@ jobs:
           xcodebuild -exportArchive \
             -archivePath $RUNNER_TEMP/MIEAuth.xcarchive \
             -exportPath $RUNNER_TEMP/export \
-            -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist | xcpretty || true
+            -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist
 
       - name: Upload to TestFlight
         env:
