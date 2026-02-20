@@ -365,10 +365,11 @@ jobs:
           python3 generate_app_resources.py public/resources/icon-beta.png
 
       # Dev iOS uses 'org.mieweb.os.dev' to separate from production
+      # Note: macOS (BSD sed) requires -i '' unlike Linux's -i
       - name: Patch mobile-config.js for Dev iOS bundle ID & app name
         run: |
-          sed -i "s/id: 'org.mieweb.opensource'/id: 'org.mieweb.os.dev'/" mobile-config.js
-          sed -i "s/name: 'MIEAuth'/name: 'MIEAuth (Opensource) (Beta)'/" mobile-config.js
+          sed -i '' "s/id: 'org.mieweb.opensource'/id: 'org.mieweb.os.dev'/" mobile-config.js
+          sed -i '' "s/name: 'MIEAuth'/name: 'MIEAuth Opensource Beta'/" mobile-config.js
           echo "Patched bundle ID and app name for Beta iOS:"
           grep -E "id:|name:" mobile-config.js
 
@@ -435,10 +436,18 @@ jobs:
           fi
           echo "Found workspace: ${WORKSPACE_PATH}"
 
+          # Detect scheme dynamically (Cordova derives scheme from app name)
+          SCHEME=$(xcodebuild -workspace "$WORKSPACE_PATH" -list 2>/dev/null | awk '/Schemes:/{found=1; next} found && NF{print; exit}' | xargs)
+          if [ -z "$SCHEME" ]; then
+            SCHEME="MIEAuth Opensource Beta"
+            echo "Warning: Could not detect scheme, falling back to: ${SCHEME}"
+          fi
+          echo "Using scheme: ${SCHEME}"
+
           # Archive
           xcodebuild archive \
             -workspace "$WORKSPACE_PATH" \
-            -scheme MIEAuth \
+            -scheme "$SCHEME" \
             -configuration Release \
             -destination "generic/platform=iOS" \
             -archivePath $RUNNER_TEMP/MIEAuth.xcarchive \
