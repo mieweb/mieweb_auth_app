@@ -433,11 +433,28 @@ jobs:
           echo "=== Profile Type ==="
           security cms -D -i "$PROFILE_PATH" | grep -A1 "ProvisionsAllDevices\|get-task-allow" || echo "App Store Distribution profile (no get-task-allow)"
 
-      - name: Archive & Export iOS App
+      - name: Debug - iOS project structure
         run: |
-          set -euo pipefail
+          echo "=== Workspace files ==="
+          find ios-build -name "*.xcworkspace" -type d || echo "No workspaces found"
+          echo ""
+          echo "=== Xcode project files ==="
+          find ios-build -name "*.xcodeproj" -type d || echo "No xcodeproj found"
+          echo ""
 
-          # Install CocoaPods dependencies if Podfile exists
+          WORKSPACE_PATH=$(find ios-build -name "*.xcworkspace" -not -path "*/*.xcodeproj/*" -type d | head -1)
+          if [ -z "$WORKSPACE_PATH" ]; then
+            WORKSPACE_PATH=$(find ios-build -name "*.xcworkspace" -type d | head -1)
+          fi
+
+          echo "=== Available schemes in ${WORKSPACE_PATH} ==="
+          xcodebuild -workspace "$WORKSPACE_PATH" -list 2>/dev/null || echo "Failed to list schemes"
+          echo ""
+          echo "=== Podfile exists? ==="
+          find ios-build -name "Podfile" -type f || echo "No Podfile found"
+
+      - name: Setup iOS project (CocoaPods)
+        run: |
           PODFILE_PATH=$(find ios-build -name "Podfile" -type f | head -1)
           if [ -n "$PODFILE_PATH" ]; then
             PODFILE_DIR=$(dirname "$PODFILE_PATH")
@@ -445,25 +462,25 @@ jobs:
             cd "$PODFILE_DIR"
             pod install
             cd -
+          else
+            echo "No Podfile found — skipping CocoaPods"
           fi
+
+      - name: Archive iOS App
+        run: |
+          set -euo pipefail
 
           # Find workspace - prefer CocoaPods-generated one (not inside .xcodeproj)
           WORKSPACE_PATH=$(find ios-build -name "*.xcworkspace" -not -path "*/*.xcodeproj/*" -type d | head -1)
           if [ -z "$WORKSPACE_PATH" ]; then
             WORKSPACE_PATH=$(find ios-build -name "*.xcworkspace" -type d | head -1)
           fi
-          echo "Found workspace: ${WORKSPACE_PATH}"
+          echo "Using workspace: ${WORKSPACE_PATH}"
 
-          # Detect scheme dynamically (Cordova derives scheme from app name)
-          # Filter out 'Cordova' scheme (framework target) — we want the app scheme
-          SCHEME=$(xcodebuild -workspace "$WORKSPACE_PATH" -list 2>/dev/null | awk '/Schemes:/{found=1; next} found && NF && !/^\s*Cordova\s*$/{print; exit}' | xargs)
-          if [ -z "$SCHEME" ]; then
-            SCHEME="MIEAuth Opensource Beta"
-            echo "Warning: Could not detect scheme, falling back to: ${SCHEME}"
-          fi
+          # Scheme matches the app name set in mobile-config.js (patched earlier)
+          SCHEME="MIEAuth Opensource Beta"
           echo "Using scheme: ${SCHEME}"
 
-          # Archive
           xcodebuild archive \
             -workspace "$WORKSPACE_PATH" \
             -scheme "$SCHEME" \
@@ -475,6 +492,39 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM=${{ secrets.APPLE_TEAM_ID }} \
             PROVISIONING_PROFILE_SPECIFIER="${{ env.PROFILE_UUID }}"
+
+      - name: Debug - Verify archive
+        if: always()
+        run: |
+          ARCHIVE_PATH=$RUNNER_TEMP/MIEAuth.xcarchive
+          if [ ! -d "$ARCHIVE_PATH" ]; then
+            echo "ERROR: Archive not found at ${ARCHIVE_PATH}"
+            exit 1
+          fi
+
+          echo "=== Archive Info.plist ==="
+          plutil -p "$ARCHIVE_PATH/Info.plist" | head -20 || true
+          echo ""
+          echo "=== Archive SchemeName ==="
+          /usr/libexec/PlistBuddy -c "Print :SchemeName" "$ARCHIVE_PATH/Info.plist" 2>/dev/null || echo "Could not read SchemeName"
+          echo ""
+          echo "=== Applications in archive ==="
+          ls -la "$ARCHIVE_PATH/Products/Applications/" 2>/dev/null || echo "WARNING: No Applications directory — this means the archive is for a framework, not an app!"
+          echo ""
+          echo "=== .app bundles ==="
+          find "$ARCHIVE_PATH/Products" -name "*.app" -type d 2>/dev/null || echo "WARNING: No .app bundles found!"
+          echo ""
+          echo "=== App bundle ID (from archived app) ==="
+          APP_PATH=$(find "$ARCHIVE_PATH/Products" -name "*.app" -type d | head -1)
+          if [ -n "$APP_PATH" ]; then
+            /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP_PATH/Info.plist" 2>/dev/null || true
+          else
+            echo "No app bundle to inspect"
+          fi
+
+      - name: Export iOS App
+        run: |
+          set -euo pipefail
 
           # Create export options plist
           cat > $RUNNER_TEMP/ExportOptions.plist << EOF
@@ -493,13 +543,6 @@ jobs:
           </plist>
           EOF
 
-          echo "=== Archive contents ==="
-          ls -la $RUNNER_TEMP/MIEAuth.xcarchive/Products/Applications/ || echo "No Applications dir found"
-          find $RUNNER_TEMP/MIEAuth.xcarchive/Products -name "*.app" -type d || echo "No .app bundles found"
-          echo ""
-          echo "=== Archive Info.plist (scheme/bundleID) ==="
-          plutil -p $RUNNER_TEMP/MIEAuth.xcarchive/Info.plist | head -20 || true
-          echo ""
           echo "=== ExportOptions.plist content ==="
           cat $RUNNER_TEMP/ExportOptions.plist
           echo ""
@@ -517,6 +560,21 @@ jobs:
             -authenticationKeyPath ~/private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8 \
             -authenticationKeyID ${{ secrets.APPLE_API_KEY_ID }} \
             -authenticationKeyIssuerID ${{ secrets.APPLE_API_ISSUER_ID }}
+
+      - name: Debug - Verify export
+        if: always()
+        run: |
+          echo "=== Export directory ==="
+          ls -la $RUNNER_TEMP/export/ 2>/dev/null || echo "Export directory not found"
+          echo ""
+          echo "=== IPA files ==="
+          find $RUNNER_TEMP/export -name "*.ipa" -type f 2>/dev/null || echo "No IPA found"
+          echo ""
+          echo "=== Distribution logs ==="
+          find /var/folders -name "*.xcdistributionlogs" -type d 2>/dev/null | head -3 | while read logdir; do
+            echo "Log dir: $logdir"
+            cat "$logdir/IDEDistribution.standard.log" 2>/dev/null | tail -20 || true
+          done
 
       - name: Upload to TestFlight
         env:
