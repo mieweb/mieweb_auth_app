@@ -321,7 +321,6 @@ jobs:
           status: completed
           releaseName: "MIEAuth Dev v${{ env.APP_VERSION }}"
           whatsNewDirectory: distribution/whatsnew
-          changesNotSentForReview: true
 
   # ─────────────────────────────────────────────
   # Job 4: Build iOS → Archive → TestFlight

@@ -306,7 +306,6 @@ jobs:
           status: completed
           releaseName: "MIEAuth v${{ env.APP_VERSION }}"
           whatsNewDirectory: distribution/whatsnew
-          changesNotSentForReview: true
 
       - name: Upload AAB as Artifact
         uses: actions/upload-artifact@v4
