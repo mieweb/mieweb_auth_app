@@ -201,7 +201,7 @@ jobs:
   build-android-dev:
     needs: prepare
     runs-on: ubuntu-latest
-    if: ${{ !cancelled() && needs.prepare.result == 'success' }}
+    if: false  # Temporarily disabled — focusing on iOS build
     env:
       APP_VERSION: ${{ needs.prepare.outputs.app_version }}
       BUILD_DATE: ${{ needs.prepare.outputs.build_date }}
@@ -455,7 +455,8 @@ jobs:
           echo "Found workspace: ${WORKSPACE_PATH}"
 
           # Detect scheme dynamically (Cordova derives scheme from app name)
-          SCHEME=$(xcodebuild -workspace "$WORKSPACE_PATH" -list 2>/dev/null | awk '/Schemes:/{found=1; next} found && NF{print; exit}' | xargs)
+          # Filter out 'Cordova' scheme (framework target) — we want the app scheme
+          SCHEME=$(xcodebuild -workspace "$WORKSPACE_PATH" -list 2>/dev/null | awk '/Schemes:/{found=1; next} found && NF && !/^\s*Cordova\s*$/{print; exit}' | xargs)
           if [ -z "$SCHEME" ]; then
             SCHEME="MIEAuth Opensource Beta"
             echo "Warning: Could not detect scheme, falling back to: ${SCHEME}"
@@ -492,11 +493,30 @@ jobs:
           </plist>
           EOF
 
-          # Export
+          echo "=== Archive contents ==="
+          ls -la $RUNNER_TEMP/MIEAuth.xcarchive/Products/Applications/ || echo "No Applications dir found"
+          find $RUNNER_TEMP/MIEAuth.xcarchive/Products -name "*.app" -type d || echo "No .app bundles found"
+          echo ""
+          echo "=== Archive Info.plist (scheme/bundleID) ==="
+          plutil -p $RUNNER_TEMP/MIEAuth.xcarchive/Info.plist | head -20 || true
+          echo ""
+          echo "=== ExportOptions.plist content ==="
+          cat $RUNNER_TEMP/ExportOptions.plist
+          echo ""
+
+          # Write App Store Connect API key for export authentication
+          mkdir -p ~/private_keys
+          echo "${{ secrets.APPLE_API_KEY_P8_BASE64 }}" | base64 --decode > ~/private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
+
+          # Export with API authentication (required for Xcode 16+ app-store-connect method)
           xcodebuild -exportArchive \
             -archivePath $RUNNER_TEMP/MIEAuth.xcarchive \
             -exportPath $RUNNER_TEMP/export \
-            -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist
+            -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8 \
+            -authenticationKeyID ${{ secrets.APPLE_API_KEY_ID }} \
+            -authenticationKeyIssuerID ${{ secrets.APPLE_API_ISSUER_ID }}
 
       - name: Upload to TestFlight
         env:
