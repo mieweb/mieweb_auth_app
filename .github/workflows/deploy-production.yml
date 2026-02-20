@@ -440,7 +440,7 @@ jobs:
           <plist version="1.0">
           <dict>
               <key>method</key>
-              <string>app-store</string>
+              <string>app-store-connect</string>
               <key>provisioningProfiles</key>
               <dict>
                   <key>org.mieweb.opensource</key>
