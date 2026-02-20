@@ -1,0 +1,38 @@
+[Unit]
+Description=MIEAuth - Secure Two-Factor Authentication Server
+Documentation=https://github.com/mieweb/mieweb_auth_app
+After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=aabrol
+Group=ldapusers
+WorkingDirectory=/home/aabrol/Builds/current
+ExecStart=/home/aabrol/scripts/start-mieauth.sh
+Restart=on-failure
+RestartSec=10
+
+# Environment is sourced via start-mieauth.sh wrapper
+# which calls: source /home/aabrol/scripts/set-env.sh
+# Edit ~/scripts/set-env.sh to change environment variables
+
+# Logging — stdout/stderr go to journald
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mieauth
+
+# Security hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/home/aabrol/Builds /home/aabrol/github
+
+# Graceful shutdown
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

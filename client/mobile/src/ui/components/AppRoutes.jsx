@@ -11,6 +11,7 @@ import { WebLandingPage } from '../../../../web/WebLandingPage';
 import { PrivacyPolicyPage } from '../../../../web/PrivacyPolicyPage';
 import { SupportPage } from '../../../../web/SupportPage';
 import { DeleteAccountPage } from '../../../../web/DeleteAccountPage';
+import { FAQPage } from '../../../../web/FAQPage';
 import { Meteor } from 'meteor/meteor';
 
 export const AppRoutes = ({ isRegistered, deviceUuid }) => {
@@ -33,6 +34,7 @@ export const AppRoutes = ({ isRegistered, deviceUuid }) => {
             )
           }
         />
+        <Route path="/faq" element={<FAQPage />} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="/support" element={<SupportPage />} />
         <Route path="/delete-account" element={<DeleteAccountPage />} />
