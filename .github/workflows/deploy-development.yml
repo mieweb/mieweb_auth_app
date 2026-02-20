@@ -415,6 +415,24 @@ jobs:
           echo "KEYCHAIN_PATH=${KEYCHAIN_PATH}" >> $GITHUB_ENV
           echo "PROFILE_UUID=${PROFILE_UUID}" >> $GITHUB_ENV
 
+      - name: Debug signing info
+        run: |
+          echo "=== Provisioning Profile Details ==="
+          PROFILE_PATH=$RUNNER_TEMP/profile.mobileprovision
+          security cms -D -i "$PROFILE_PATH" | grep -A1 "Name\|TeamIdentifier\|application-identifier\|aps-environment" || true
+          echo ""
+          echo "=== Profile Bundle ID ==="
+          security cms -D -i "$PROFILE_PATH" | grep -A2 "application-identifier" || true
+          echo ""
+          echo "=== Profile Certificates (SHA-1) ==="
+          security cms -D -i "$PROFILE_PATH" | plutil -extract DeveloperCertificates xml1 -o - - 2>/dev/null | grep "<data>" | head -3 || true
+          echo ""
+          echo "=== Keychain Certificates ==="
+          security find-identity -v -p codesigning "${{ env.KEYCHAIN_PATH }}" || true
+          echo ""
+          echo "=== Profile Type ==="
+          security cms -D -i "$PROFILE_PATH" | grep -A1 "ProvisionsAllDevices\|get-task-allow" || echo "App Store Distribution profile (no get-task-allow)"
+
       - name: Archive & Export iOS App
         run: |
           set -euo pipefail
