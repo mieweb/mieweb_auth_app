@@ -86,6 +86,14 @@ jobs:
       - name: Generate build info
         run: node generate-build-info.js
 
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add mobile-config.js public/buildInfo.json
+          git commit -m "ci: bump dev version to ${{ steps.version.outputs.app_version }} [skip ci]" || echo "No changes to commit"
+          git push origin development || echo "Nothing to push"
+
       - name: Upload workspace for downstream jobs
         uses: actions/upload-artifact@v4
         with:
@@ -313,6 +321,7 @@ jobs:
           status: completed
           releaseName: "MIEAuth Dev v${{ env.APP_VERSION }}"
           whatsNewDirectory: distribution/whatsnew
+          changesNotSentForReview: true
 
   # ─────────────────────────────────────────────
   # Job 4: Build iOS → Archive → TestFlight

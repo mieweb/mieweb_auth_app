@@ -133,6 +133,8 @@ jobs:
             git reset --hard origin/main
 
             echo "=== Generating build info ==="
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
             node generate-build-info.js
 
             echo "=== Resetting Meteor local cache ==="
@@ -304,6 +306,7 @@ jobs:
           status: completed
           releaseName: "MIEAuth v${{ env.APP_VERSION }}"
           whatsNewDirectory: distribution/whatsnew
+          changesNotSentForReview: true
 
       - name: Upload AAB as Artifact
         uses: actions/upload-artifact@v4
@@ -399,7 +402,25 @@ jobs:
           echo "KEYCHAIN_PATH=${KEYCHAIN_PATH}" >> $GITHUB_ENV
           echo "PROFILE_UUID=${PROFILE_UUID}" >> $GITHUB_ENV
 
-      - name: Archive & Export iOS App
+      - name: Debug signing info
+        run: |
+          echo "=== Provisioning Profile Details ==="
+          PROFILE_PATH=$RUNNER_TEMP/profile.mobileprovision
+          security cms -D -i "$PROFILE_PATH" | grep -A1 "Name\|TeamIdentifier\|application-identifier\|aps-environment" || true
+          echo ""
+          echo "=== Profile Bundle ID ==="
+          security cms -D -i "$PROFILE_PATH" | grep -A2 "application-identifier" || true
+          echo ""
+          echo "=== Profile Certificates (SHA-1) ==="
+          security cms -D -i "$PROFILE_PATH" | plutil -extract DeveloperCertificates xml1 -o - - 2>/dev/null | grep "<data>" | head -3 || true
+          echo ""
+          echo "=== Keychain Certificates ==="
+          security find-identity -v -p codesigning "${{ env.KEYCHAIN_PATH }}" || true
+          echo ""
+          echo "=== Profile Type ==="
+          security cms -D -i "$PROFILE_PATH" | grep -A1 "ProvisionsAllDevices\|get-task-allow" || echo "App Store Distribution profile (no get-task-allow)"
+
+      - name: Archive iOS App
         run: |
           set -euo pipefail
 
@@ -418,12 +439,15 @@ jobs:
           if [ -z "$WORKSPACE_PATH" ]; then
             WORKSPACE_PATH=$(find ios-build -name "*.xcworkspace" -type d | head -1)
           fi
-          echo "Found workspace: ${WORKSPACE_PATH}"
+          echo "Using workspace: ${WORKSPACE_PATH}"
 
-          # Archive
+          # Scheme matches the app name set in mobile-config.js
+          SCHEME="MIEAuth"
+          echo "Using scheme: ${SCHEME}"
+
           xcodebuild archive \
             -workspace "$WORKSPACE_PATH" \
-            -scheme MIEAuth \
+            -scheme "$SCHEME" \
             -configuration Release \
             -destination "generic/platform=iOS" \
             -archivePath $RUNNER_TEMP/MIEAuth.xcarchive \
@@ -432,6 +456,10 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM=${{ secrets.APPLE_TEAM_ID }} \
             PROVISIONING_PROFILE_SPECIFIER="${{ env.PROFILE_UUID }}"
+
+      - name: Export iOS App
+        run: |
+          set -euo pipefail
 
           # Create export options plist
           cat > $RUNNER_TEMP/ExportOptions.plist << EOF
@@ -450,11 +478,19 @@ jobs:
           </plist>
           EOF
 
-          # Export
+          # Write App Store Connect API key for export authentication
+          mkdir -p ~/private_keys
+          echo "${{ secrets.APPLE_API_KEY_P8_BASE64 }}" | base64 --decode > ~/private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
+
+          # Export with API authentication (required for Xcode 16+ app-store-connect method)
           xcodebuild -exportArchive \
             -archivePath $RUNNER_TEMP/MIEAuth.xcarchive \
             -exportPath $RUNNER_TEMP/export \
-            -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist
+            -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8 \
+            -authenticationKeyID ${{ secrets.APPLE_API_KEY_ID }} \
+            -authenticationKeyIssuerID ${{ secrets.APPLE_API_ISSUER_ID }}
 
       - name: Upload to TestFlight
         env:
@@ -514,9 +550,9 @@ jobs:
           ANDROID="${{ needs.build-and-publish-android.result }}"
           IOS="${{ needs.build-and-publish-ios.result }}"
 
-          STATUS_SERVER=$( [ "$SERVER" = "success" ] && echo "deployed" || echo "FAILED" )
-          STATUS_ANDROID=$( [ "$ANDROID" = "success" ] && echo "published" || echo "FAILED" )
-          STATUS_IOS=$( [ "$IOS" = "success" ] && echo "uploaded" || echo "FAILED" )
+          STATUS_SERVER=$( [ "$SERVER" = "success" ] && echo "✅ deployed" || echo "❌ FAILED" )
+          STATUS_ANDROID=$( [ "$ANDROID" = "success" ] && echo "✅ published" || echo "❌ FAILED" )
+          STATUS_IOS=$( [ "$IOS" = "success" ] && echo "✅ uploaded" || echo "❌ FAILED" )
 
           echo "server=${STATUS_SERVER}" >> "$GITHUB_OUTPUT"
           echo "android=${STATUS_ANDROID}" >> "$GITHUB_OUTPUT"
@@ -528,18 +564,19 @@ jobs:
           tag_name: ${{ env.TAG_NAME }}
           name: "MIEAuth ${{ env.TAG_NAME }} (${{ env.BUILD_DATE }})"
           body: |
-            ## MIEAuth Release ${{ env.TAG_NAME }}
+            ## MIEAuth Production Release ${{ env.TAG_NAME }}
 
             **Build Date:** ${{ env.BUILD_DATE }}
             **Version:** ${{ env.APP_VERSION }}
+            **Environment:** Production (`mieauth-prod.os.mieweb.org`)
 
             ### Deployment Status:
-            - Server: **${{ steps.status.outputs.server }}** (`mieauth-prod.os.mieweb.org`)
-            - Android AAB → Play Store: **${{ steps.status.outputs.android }}**
-            - iOS → TestFlight: **${{ steps.status.outputs.ios }}**
+            - Server: ${{ steps.status.outputs.server }} (`mieauth-prod.os.mieweb.org`)
+            - Android AAB → Play Store: ${{ steps.status.outputs.android }} (`com.mieweb.mieauth`)
+            - iOS → TestFlight: ${{ steps.status.outputs.ios }} (`org.mieweb.opensource`)
 
             ---
-            *Automated release from CI/CD pipeline*
+            *Automated production release from CI/CD pipeline (branch: main)*
           files: |
             Mieauth-v${{ env.APP_VERSION }}_${{ env.BUILD_DATE }}.aab
           fail_on_unmatched_files: false
