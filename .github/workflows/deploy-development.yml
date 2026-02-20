@@ -246,7 +246,7 @@ jobs:
 
       - name: Generate beta icons
         run: |
-          pip3 install Pillow
+          pip3 install --break-system-packages Pillow
           python3 generate_app_resources.py public/resources/icon-beta.png
 
       # Dev Android uses 'com.mieweb.mieauth.dev' to separate from production
@@ -361,7 +361,7 @@ jobs:
 
       - name: Generate beta icons
         run: |
-          pip3 install Pillow
+          pip3 install --break-system-packages Pillow
           python3 generate_app_resources.py public/resources/icon-beta.png
 
       # Dev iOS uses 'org.mieweb.os.dev' to separate from production
