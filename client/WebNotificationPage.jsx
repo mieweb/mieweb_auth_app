@@ -147,17 +147,17 @@ export const WebNotificationPage = () => {
 
   return (
     <Layout>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column: Instructions & Info */}
-          <div className="lg:col-span-1 space-y-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-12">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
+          {/* Instructions & Info — shown after form on mobile */}
+          <div className="order-2 lg:order-1 lg:col-span-1 space-y-4 lg:space-y-6">
             <Card>
               <CardContent>
-                <h2 className="text-lg font-bold text-foreground mb-4 flex items-center">
+                <h2 className="text-lg font-bold text-foreground mb-3 flex items-center">
                   <Info className="w-5 h-5 mr-2 text-primary" />
                   MIE Auth Test Instructions
                 </h2>
-                <p className="text-sm text-muted-foreground mb-4">
+                <p className="text-sm text-muted-foreground mb-3">
                   Test your Auth app, a professional two-factor authentication
                   app using push notifications.
                 </p>
@@ -165,7 +165,7 @@ export const WebNotificationPage = () => {
                 <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-2">
                   What to Test
                 </h3>
-                <ul className="text-sm text-muted-foreground space-y-2 mb-6 list-disc pl-4">
+                <ul className="text-sm text-muted-foreground space-y-1.5 mb-4 list-disc pl-4">
                   <li>Push notification delivery and reliability</li>
                   <li>Login approval/denial flow</li>
                   <li>Device registration process</li>
@@ -181,7 +181,7 @@ export const WebNotificationPage = () => {
                 <h3 className="text-sm font-semibold text-foreground mb-2">
                   Feedback
                 </h3>
-                <p className="text-sm text-muted-foreground mb-4">
+                <p className="text-sm text-muted-foreground mb-3">
                   Your feedback is crucial! Please report bugs or suggestions to{" "}
                   <a
                     href="mailto:devopsalerts@mieweb.com"
@@ -198,8 +198,8 @@ export const WebNotificationPage = () => {
             </Card>
           </div>
 
-          {/* Right Column: Testing Interface */}
-          <div className="lg:col-span-2">
+          {/* Testing Interface — shown first on mobile */}
+          <div className="order-1 lg:order-2 lg:col-span-2">
             <Card>
               <CardHeader>
                 <div className="flex items-center space-x-3">
@@ -215,12 +215,12 @@ export const WebNotificationPage = () => {
                 </div>
               </CardHeader>
 
-              <CardContent className="space-y-8">
+              <CardContent className="space-y-4 sm:space-y-8">
                 {/* Prerequisite Note & Download Links */}
                 <Alert variant="info">
                   <AlertDescription>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                      <div className="flex-1">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                      <div className="flex-1 text-sm">
                         <strong>Prerequisite:</strong> You need to install the
                         app and register your device to receive notifications.
                       </div>
@@ -267,7 +267,7 @@ export const WebNotificationPage = () => {
                 )}
 
                 {/* Form */}
-                <div className="space-y-6">
+                <div className="space-y-4 sm:space-y-6">
                   <Input
                     label="Target Username"
                     name="username"
@@ -278,7 +278,7 @@ export const WebNotificationPage = () => {
                     helperText="Enter the username of the registered device you want to test."
                   />
 
-                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2">
                     <Input
                       label="Notification Title"
                       name="title"
@@ -291,7 +291,7 @@ export const WebNotificationPage = () => {
                       label="Notification Body"
                       name="body"
                       id="body"
-                      placeholder="e.g., This is a test notification from MIEWeb Auth."
+                      placeholder="e.g., This is a test notification"
                       value={formData.body}
                       onChange={handleChange}
                     />
@@ -327,16 +327,16 @@ export const WebNotificationPage = () => {
                     />
                   </div>
 
-                  <div className="bg-muted rounded-lg p-4 border border-border">
+                  <div className="bg-muted rounded-lg p-3 sm:p-4 border border-border">
                     <h4 className="text-sm font-medium text-foreground mb-2 flex items-center">
                       <Smartphone className="w-4 h-4 mr-2 text-muted-foreground" />
                       Preview
                     </h4>
                     <div className="bg-card p-3 rounded border border-border shadow-sm">
-                      <p className="font-semibold text-foreground">
+                      <p className="font-semibold text-foreground text-sm sm:text-base break-words">
                         {formData.title || "Notification Title"}
                       </p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm text-muted-foreground break-words">
                         {formData.body || "Notification body text..."}
                       </p>
                     </div>
