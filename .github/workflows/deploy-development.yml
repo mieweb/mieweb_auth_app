@@ -309,7 +309,7 @@ jobs:
           status: completed
           releaseName: "MIEAuth Dev v${{ env.APP_VERSION }}"
           whatsNewDirectory: distribution/whatsnew
-          retention-days: 90
+          changesNotSentForReview: true
 
   # ─────────────────────────────────────────────
   # Job 4: Build iOS → Archive → TestFlight
