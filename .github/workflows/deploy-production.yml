@@ -123,7 +123,7 @@ jobs:
         env:
           APP_VERSION: ${{ needs.prepare.outputs.app_version }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no aabrol@mieauth-prod.os.mieweb.org << 'DEPLOY_SCRIPT'
+          ssh -i ~/.ssh/deploy_key -p 2000 -o StrictHostKeyChecking=no aabrol@mieauth-prod.os.mieweb.org << 'DEPLOY_SCRIPT'
             set -e
 
             echo "=== Pulling latest code ==="
