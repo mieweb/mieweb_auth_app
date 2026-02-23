@@ -14,36 +14,36 @@ This feature adds client-specific API key authentication to the `/send-notificat
 
 ## Files Changed
 
-| File | Description |
-|------|-------------|
-| `utils/api/apiKeys.js` | **NEW** - MongoDB collection and Meteor methods for API key management |
-| `server/main.js` | Added API key verification logic to `/send-notification` endpoint |
-| `utils/api/notificationHistory.js` | Added `clientId` field and index to track notification origins |
-| `client/WebNotificationPage.jsx` | Added API key and client ID input fields to the test UI |
-| `manage-api-keys.js` | **NEW** - CLI tool for API key administration |
-| `client/mobile/src/ui/components/AppRoutes.jsx` | Changed route from `/send-notification` to `/test-notification` |
-| `client/web/components/Layout.jsx` | Updated navigation links to use new route |
-| `client/mobile/src/ui/hooks/useNotificationData.js` | Fixed null appId handling to prevent errors |
-| `package.json` | Added `mongodb` dependency for CLI tool |
+| File                                                | Description                                                            |
+| --------------------------------------------------- | ---------------------------------------------------------------------- |
+| `utils/api/apiKeys.js`                              | **NEW** - MongoDB collection and Meteor methods for API key management |
+| `server/main.js`                                    | Added API key verification logic to `/send-notification` endpoint      |
+| `utils/api/notificationHistory.js`                  | Added `clientId` field and index to track notification origins         |
+| `client/WebNotificationPage.jsx`                    | Added API key and client ID input fields to the test UI                |
+| `manage-api-keys.js`                                | **NEW** - CLI tool for API key administration                          |
+| `client/mobile/src/ui/components/AppRoutes.jsx`     | Changed route from `/send-notification` to `/test-notification`        |
+| `client/web/components/Layout.jsx`                  | Updated navigation links to use new route                              |
+| `client/mobile/src/ui/hooks/useNotificationData.js` | Fixed null appId handling to prevent errors                            |
+| `package.json`                                      | Added `mongodb` dependency for CLI tool                                |
 
 ## Configuration
 
 ### Environment Variable
 
-| Variable | Description | Default |
-|----------|-------------|---------|
+| Variable                       | Description                                                        | Default                           |
+| ------------------------------ | ------------------------------------------------------------------ | --------------------------------- |
 | `SEND_NOTIFICATION_FORCE_AUTH` | Set to `"true"` to require API key authentication for all requests | Not set (authentication optional) |
 
 ### Behavior Matrix
 
-| SEND_NOTIFICATION_FORCE_AUTH | API Key Provided | Result |
-|------------------------------|------------------|--------|
-| Not set / false | No | Request allowed, clientId = 'unspecified' |
-| Not set / false | Yes (valid) | Request allowed, clientId = client's ID |
-| Not set / false | Yes (invalid) | **403 Forbidden** |
-| `"true"` | No | **403 Forbidden** |
-| `"true"` | Yes (valid) | Request allowed, clientId = client's ID |
-| `"true"` | Yes (invalid) | **403 Forbidden** |
+| SEND_NOTIFICATION_FORCE_AUTH | API Key Provided | Result                                    |
+| ---------------------------- | ---------------- | ----------------------------------------- |
+| Not set / false              | No               | Request allowed, clientId = 'unspecified' |
+| Not set / false              | Yes (valid)      | Request allowed, clientId = client's ID   |
+| Not set / false              | Yes (invalid)    | **403 Forbidden**                         |
+| `"true"`                     | No               | **403 Forbidden**                         |
+| `"true"`                     | Yes (valid)      | Request allowed, clientId = client's ID   |
+| `"true"`                     | Yes (invalid)    | **403 Forbidden**                         |
 
 ## Usage
 
@@ -121,7 +121,7 @@ curl -X POST http://localhost:3000/send-notification \
 ```javascript
 {
   // ... existing fields ...
-  clientId: String  // NEW - The client that sent this notification (default: 'unspecified')
+  clientId: String; // NEW - The client that sent this notification (default: 'unspecified')
 }
 ```
 

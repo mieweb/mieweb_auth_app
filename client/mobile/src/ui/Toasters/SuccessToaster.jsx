@@ -1,13 +1,15 @@
-import React, { useEffect } from 'react';
+import React, { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Alert, AlertDescription } from "@mieweb/ui";
 
 const SuccessToaster = ({ message, onClose }) => {
   useEffect(() => {
+    if (!message) return;
     const timer = setTimeout(() => {
       onClose();
     }, 3000);
     return () => clearTimeout(timer);
-  }, [onClose]);
+  }, [message, onClose]);
 
   return (
     <AnimatePresence>
@@ -17,9 +19,11 @@ const SuccessToaster = ({ message, onClose }) => {
           animate={{ x: 0 }}
           exit={{ x: "150%" }}
           transition={{ duration: 0.5, ease: "easeInOut" }}
-          className="fixed top-5 right-5 bg-green-500 text-white px-4 py-2 rounded shadow-lg"
+          className="fixed top-5 right-5 z-50"
         >
-          {message}
+          <Alert variant="success" dismissible onDismiss={onClose}>
+            <AlertDescription>{message}</AlertDescription>
+          </Alert>
         </motion.div>
       )}
     </AnimatePresence>

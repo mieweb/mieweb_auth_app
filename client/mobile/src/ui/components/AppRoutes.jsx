@@ -1,72 +1,134 @@
-import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { LoginPage } from '../Login';
-import { RegistrationPage } from '../Registration';
-import { WelcomePage } from '../Welcome';
-import { LandingPage } from '../LandingPage';
-import { BiometricRegistrationModal } from '../Modal/BiometricRegistrationModal';
-import PendingRegistrationPage from '../PendingRegistrationPage';
-import { WebNotificationPage } from '../../../../WebNotificationPage';
-import { WebLandingPage } from '../../../../web/WebLandingPage';
-import { PrivacyPolicyPage } from '../../../../web/PrivacyPolicyPage';
-import { SupportPage } from '../../../../web/SupportPage';
-import { DeleteAccountPage } from '../../../../web/DeleteAccountPage';
-import { FAQPage } from '../../../../web/FAQPage';
-import { Meteor } from 'meteor/meteor';
+import React, { Suspense, lazy } from "react";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
+import { LoginPage } from "../Login";
+import { RegistrationPage } from "../Registration";
+import { LandingPage } from "../LandingPage";
+import BiometricRegistrationModal from "../Modal/BiometricRegistrationModal";
+import PendingRegistrationPage from "../PendingRegistrationPage";
+import { Meteor } from "meteor/meteor";
+import { ProtectedRoute } from "./ProtectedRoute";
+import { Spinner } from "@mieweb/ui";
+
+// Lazy-load web-only pages to reduce initial bundle for mobile
+const WebLandingPage = lazy(() =>
+  import("../../../../web/WebLandingPage").then((m) => ({
+    default: m.WebLandingPage,
+  })),
+);
+const WebNotificationPage = lazy(() =>
+  import("../../../../WebNotificationPage").then((m) => ({
+    default: m.WebNotificationPage,
+  })),
+);
+const PrivacyPolicyPage = lazy(() =>
+  import("../../../../web/PrivacyPolicyPage").then((m) => ({
+    default: m.PrivacyPolicyPage,
+  })),
+);
+const SupportPage = lazy(() =>
+  import("../../../../web/SupportPage").then((m) => ({
+    default: m.SupportPage,
+  })),
+);
+const DeleteAccountPage = lazy(() =>
+  import("../../../../web/DeleteAccountPage").then((m) => ({
+    default: m.DeleteAccountPage,
+  })),
+);
+const NotFoundPage = lazy(() =>
+  import("../../../../web/NotFoundPage").then((m) => ({
+    default: m.NotFoundPage,
+  })),
+);
+const MobileAppRequired = lazy(() =>
+  import("../../../../web/MobileAppRequired").then((m) => ({
+    default: m.MobileAppRequired,
+  })),
+);
+
+const PageLoader = () => (
+  <div className="flex items-center justify-center min-h-screen">
+    <Spinner size="xl" />
+  </div>
+);
 
 export const AppRoutes = ({ isRegistered, deviceUuid }) => {
-  console.log(' ### Log Step 3 : inside AppRoutes.jsx, App routes called with:', JSON.stringify({ isRegistered, deviceUuid }));
-  
   return (
     <Router>
-      <Routes>
-        <Route
-          path="/"
-          element={
-            Meteor.isCordova ? (
-              isRegistered ? (
-                <Navigate to="/login" replace />
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route
+            path="/"
+            element={
+              Meteor.isCordova ? (
+                isRegistered ? (
+                  <Navigate to="/login" replace />
+                ) : (
+                  <Navigate to="/register" replace />
+                )
               ) : (
-                <Navigate to="/register" replace />
+                <WebLandingPage />
               )
-            ) : (
-              <WebLandingPage />
-            )
-          }
-        />
-        <Route path="/faq" element={<FAQPage />} />
-        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
-        <Route path="/support" element={<SupportPage />} />
-        <Route path="/delete-account" element={<DeleteAccountPage />} />
-        <Route
-          path="/login"
-          element={<LoginPage deviceDetails={deviceUuid} />}
-        />
-        <Route
-          path="/register"
-          element={<RegistrationPage deviceDetails={deviceUuid} />}
-        />
-        <Route
-          path="/dashboard"
-          element={<LandingPage deviceDetails={deviceUuid} />}
-        />
-        <Route
-          path="/welcome"
-          element={<WelcomePage deviceDetails={deviceUuid} />}
-        />
-        <Route
-          path="/biometricModal"
-          element={<BiometricRegistrationModal deviceDetails={deviceUuid} />}
-        />
-        <Route
-          path="/pending-registration"
-          element={<PendingRegistrationPage />}
-        />
-        <Route
-          path="/test-notification"
-          element={<WebNotificationPage />}
-        />
-      </Routes>
+            }
+          />
+          <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+          <Route path="/support" element={<SupportPage />} />
+          <Route path="/delete-account" element={<DeleteAccountPage />} />
+          <Route
+            path="/login"
+            element={
+              Meteor.isCordova ? (
+                <LoginPage deviceDetails={deviceUuid} />
+              ) : (
+                <MobileAppRequired mode="login" />
+              )
+            }
+          />
+          <Route
+            path="/register"
+            element={
+              Meteor.isCordova ? (
+                <RegistrationPage deviceDetails={deviceUuid} />
+              ) : (
+                <MobileAppRequired mode="register" />
+              )
+            }
+          />
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <LandingPage deviceDetails={deviceUuid} />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/biometricModal"
+            element={
+              <ProtectedRoute>
+                <BiometricRegistrationModal deviceDetails={deviceUuid} />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/pending-registration"
+            element={<PendingRegistrationPage />}
+          />
+          <Route path="/test-notification" element={<WebNotificationPage />} />
+          {/* 404 catch-all */}
+          <Route
+            path="*"
+            element={
+              Meteor.isCordova ? <Navigate to="/" replace /> : <NotFoundPage />
+            }
+          />
+        </Routes>
+      </Suspense>
     </Router>
   );
 };

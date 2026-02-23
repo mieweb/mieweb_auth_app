@@ -13,40 +13,52 @@ describe("meteor-app", function () {
 
     describe("Screen lock-based session management", function () {
       it("should store pause state in localStorage", function () {
-        const STORAGE_KEY = 'appWasPaused';
-        
-        localStorage.setItem(STORAGE_KEY, 'true');
+        const STORAGE_KEY = "appWasPaused";
+
+        localStorage.setItem(STORAGE_KEY, "true");
         const pauseState = localStorage.getItem(STORAGE_KEY);
-        
-        assert.strictEqual(pauseState, 'true', "Should store pause state correctly");
-        
+
+        assert.strictEqual(
+          pauseState,
+          "true",
+          "Should store pause state correctly",
+        );
+
         // Cleanup
         localStorage.removeItem(STORAGE_KEY);
       });
 
       it("should detect when app was paused", function () {
-        const STORAGE_KEY = 'appWasPaused';
-        
+        const STORAGE_KEY = "appWasPaused";
+
         // Simulate app pause
-        localStorage.setItem(STORAGE_KEY, 'true');
-        
+        localStorage.setItem(STORAGE_KEY, "true");
+
         // Check if app was paused
-        const wasPaused = localStorage.getItem(STORAGE_KEY) === 'true';
-        assert.strictEqual(wasPaused, true, "Should detect that app was paused");
-        
+        const wasPaused = localStorage.getItem(STORAGE_KEY) === "true";
+        assert.strictEqual(
+          wasPaused,
+          true,
+          "Should detect that app was paused",
+        );
+
         // Cleanup
         localStorage.removeItem(STORAGE_KEY);
       });
 
       it("should handle no pause state gracefully", function () {
-        const STORAGE_KEY = 'appWasPaused';
-        
+        const STORAGE_KEY = "appWasPaused";
+
         // Ensure no stored state
         localStorage.removeItem(STORAGE_KEY);
-        
+
         // Check pause state
         const wasPaused = localStorage.getItem(STORAGE_KEY);
-        assert.strictEqual(wasPaused, null, "Should return null when no pause state exists");
+        assert.strictEqual(
+          wasPaused,
+          null,
+          "Should return null when no pause state exists",
+        );
       });
     });
   }
@@ -70,47 +82,49 @@ describe("meteor-app", function () {
       it("should clean up users with expired approval tokens", async function () {
         // Create a test user
         const userId = await Accounts.createUser({
-          email: 'test@example.com',
-          username: 'testuser',
-          password: 'testpass',
+          email: "test@example.com",
+          username: "testuser",
+          password: "testpass",
           profile: {
-            firstName: 'Test',
-            lastName: 'User',
-            registrationStatus: 'pending'
-          }
+            firstName: "Test",
+            lastName: "User",
+            registrationStatus: "pending",
+          },
         });
 
         // Create device details for the user
         await DeviceDetails.insertAsync({
           userId: userId,
-          email: 'test@example.com',
-          username: 'testuser',
-          firstName: 'Test',
-          lastName: 'User',
-          devices: [{
-            deviceUUID: 'test-device-uuid',
-            appId: 'test-app-id',
-            biometricSecret: 'test-secret',
-            fcmToken: 'test-fcm-token',
-            isFirstDevice: true,
-            isPrimary: true,
-            isSecondaryDevice: false,
-            deviceRegistrationStatus: 'pending',
-            lastUpdated: new Date()
-          }],
+          email: "test@example.com",
+          username: "testuser",
+          firstName: "Test",
+          lastName: "User",
+          devices: [
+            {
+              deviceUUID: "test-device-uuid",
+              appId: "test-app-id",
+              biometricSecret: "test-secret",
+              fcmToken: "test-fcm-token",
+              isFirstDevice: true,
+              isPrimary: true,
+              isSecondaryDevice: false,
+              deviceRegistrationStatus: "pending",
+              lastUpdated: new Date(),
+            },
+          ],
           createdAt: new Date(),
-          lastUpdated: new Date()
+          lastUpdated: new Date(),
         });
 
         // Create an expired approval token
         const expiredDate = new Date(Date.now() - 60 * 1000); // 1 minute ago
         await ApprovalTokens.insertAsync({
           userId: userId,
-          token: 'expired-token',
+          token: "expired-token",
           createdAt: new Date(Date.now() - 5 * 60 * 1000), // 5 minutes ago
           expiresAt: expiredDate,
           used: false,
-          action: null
+          action: null,
         });
 
         // Verify test data exists
@@ -119,7 +133,7 @@ describe("meteor-app", function () {
         assert.strictEqual(await ApprovalTokens.find().countAsync(), 1);
 
         // Run cleanup
-        const result = await Meteor.callAsync('users.cleanupExpiredApprovals');
+        const result = await Meteor.callAsync("users.cleanupExpiredApprovals");
 
         // Verify cleanup results
         assert.strictEqual(result.success, true);
@@ -136,25 +150,25 @@ describe("meteor-app", function () {
       it("should not clean up users with valid (non-expired) tokens", async function () {
         // Create a test user
         const userId = await Accounts.createUser({
-          email: 'test@example.com',
-          username: 'testuser',
-          password: 'testpass',
+          email: "test@example.com",
+          username: "testuser",
+          password: "testpass",
           profile: {
-            firstName: 'Test',
-            lastName: 'User',
-            registrationStatus: 'pending'
-          }
+            firstName: "Test",
+            lastName: "User",
+            registrationStatus: "pending",
+          },
         });
 
         // Create a valid (non-expired) approval token
         const futureDate = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
         await ApprovalTokens.insertAsync({
           userId: userId,
-          token: 'valid-token',
+          token: "valid-token",
           createdAt: new Date(),
           expiresAt: futureDate,
           used: false,
-          action: null
+          action: null,
         });
 
         // Verify test data exists
@@ -162,7 +176,7 @@ describe("meteor-app", function () {
         assert.strictEqual(await ApprovalTokens.find().countAsync(), 1);
 
         // Run cleanup
-        const result = await Meteor.callAsync('users.cleanupExpiredApprovals');
+        const result = await Meteor.callAsync("users.cleanupExpiredApprovals");
 
         // Verify no cleanup occurred for valid tokens
         assert.strictEqual(result.success, true);
@@ -177,29 +191,29 @@ describe("meteor-app", function () {
       it("should not clean up approved users even with expired tokens", async function () {
         // Create an approved test user
         const userId = await Accounts.createUser({
-          email: 'test@example.com',
-          username: 'testuser',
-          password: 'testpass',
+          email: "test@example.com",
+          username: "testuser",
+          password: "testpass",
           profile: {
-            firstName: 'Test',
-            lastName: 'User',
-            registrationStatus: 'approved' // Already approved
-          }
+            firstName: "Test",
+            lastName: "User",
+            registrationStatus: "approved", // Already approved
+          },
         });
 
         // Create an expired approval token
         const expiredDate = new Date(Date.now() - 60 * 1000); // 1 minute ago
         await ApprovalTokens.insertAsync({
           userId: userId,
-          token: 'expired-token',
+          token: "expired-token",
           createdAt: new Date(Date.now() - 5 * 60 * 1000),
           expiresAt: expiredDate,
           used: true, // Token was used for approval
-          action: 'approved'
+          action: "approved",
         });
 
         // Run cleanup
-        const result = await Meteor.callAsync('users.cleanupExpiredApprovals');
+        const result = await Meteor.callAsync("users.cleanupExpiredApprovals");
 
         // Verify approved user was not removed
         assert.strictEqual(result.cleanedUsers, 0);
@@ -213,46 +227,48 @@ describe("meteor-app", function () {
       it("should completely remove user when admin rejects", async function () {
         // Create a test user
         const userId = await Accounts.createUser({
-          email: 'test@example.com',
-          username: 'testuser',
-          password: 'testpass',
+          email: "test@example.com",
+          username: "testuser",
+          password: "testpass",
           profile: {
-            firstName: 'Test',
-            lastName: 'User',
-            registrationStatus: 'pending'
-          }
+            firstName: "Test",
+            lastName: "User",
+            registrationStatus: "pending",
+          },
         });
 
         // Create device details
         await DeviceDetails.insertAsync({
           userId: userId,
-          email: 'test@example.com',
-          username: 'testuser',
-          firstName: 'Test',
-          lastName: 'User',
-          devices: [{
-            deviceUUID: 'test-device-uuid',
-            appId: 'test-app-id',
-            biometricSecret: 'test-secret',
-            fcmToken: 'test-fcm-token',
-            isFirstDevice: true,
-            isPrimary: true,
-            isSecondaryDevice: false,
-            deviceRegistrationStatus: 'pending',
-            lastUpdated: new Date()
-          }],
+          email: "test@example.com",
+          username: "testuser",
+          firstName: "Test",
+          lastName: "User",
+          devices: [
+            {
+              deviceUUID: "test-device-uuid",
+              appId: "test-app-id",
+              biometricSecret: "test-secret",
+              fcmToken: "test-fcm-token",
+              isFirstDevice: true,
+              isPrimary: true,
+              isSecondaryDevice: false,
+              deviceRegistrationStatus: "pending",
+              lastUpdated: new Date(),
+            },
+          ],
           createdAt: new Date(),
-          lastUpdated: new Date()
+          lastUpdated: new Date(),
         });
 
         // Create approval token
         await ApprovalTokens.insertAsync({
           userId: userId,
-          token: 'test-token',
+          token: "test-token",
           createdAt: new Date(),
           expiresAt: new Date(Date.now() + 5 * 60 * 1000),
           used: false,
-          action: null
+          action: null,
         });
 
         // Verify test data exists
@@ -261,7 +277,7 @@ describe("meteor-app", function () {
         assert.strictEqual(await ApprovalTokens.find().countAsync(), 1);
 
         // Remove user completely
-        const result = await Meteor.callAsync('users.removeCompletely', userId);
+        const result = await Meteor.callAsync("users.removeCompletely", userId);
 
         // Verify removal was successful
         assert.strictEqual(result.success, true);
@@ -280,55 +296,105 @@ describe("meteor-app", function () {
       const { errorTemplate } = require("../server/templates/email");
 
       it("should render expired token error message", function () {
-        const html = errorTemplate('expired');
-        
-        assert.ok(html.includes('Token Expired'), "Should show 'Token Expired' title");
-        assert.ok(html.includes('The approval token has expired'), "Should show expired message");
-        assert.ok(html.includes('Please request a new approval link'), "Should show details");
+        const html = errorTemplate("expired");
+
+        assert.ok(
+          html.includes("Token Expired"),
+          "Should show 'Token Expired' title",
+        );
+        assert.ok(
+          html.includes("The approval token has expired"),
+          "Should show expired message",
+        );
+        assert.ok(
+          html.includes("Please request a new approval link"),
+          "Should show details",
+        );
       });
 
       it("should render user not found error message", function () {
-        const html = errorTemplate('user_not_found');
-        
-        assert.ok(html.includes('User Not Found'), "Should show 'User Not Found' title");
-        assert.ok(html.includes('The user associated with this approval token was not found'), "Should show user not found message");
-        assert.ok(html.includes('user registered a new account'), "Should explain the reason");
+        const html = errorTemplate("user_not_found");
+
+        assert.ok(
+          html.includes("User Not Found"),
+          "Should show 'User Not Found' title",
+        );
+        assert.ok(
+          html.includes(
+            "The user associated with this approval token was not found",
+          ),
+          "Should show user not found message",
+        );
+        assert.ok(
+          html.includes("user registered a new account"),
+          "Should explain the reason",
+        );
       });
 
       it("should render invalid token error message", function () {
-        const html = errorTemplate('invalid_token');
-        
-        assert.ok(html.includes('Invalid Token'), "Should show 'Invalid Token' title");
-        assert.ok(html.includes('The approval token is invalid or does not exist'), "Should show invalid token message");
+        const html = errorTemplate("invalid_token");
+
+        assert.ok(
+          html.includes("Invalid Token"),
+          "Should show 'Invalid Token' title",
+        );
+        assert.ok(
+          html.includes("The approval token is invalid or does not exist"),
+          "Should show invalid token message",
+        );
       });
 
       it("should render unknown error message for unrecognized reasons", function () {
-        const html = errorTemplate('some_unknown_reason');
-        
-        assert.ok(html.includes('Invalid Request'), "Should show default 'Invalid Request' title");
-        assert.ok(html.includes('This link is invalid or has expired'), "Should show default message");
+        const html = errorTemplate("some_unknown_reason");
+
+        assert.ok(
+          html.includes("Invalid Request"),
+          "Should show default 'Invalid Request' title",
+        );
+        assert.ok(
+          html.includes("This link is invalid or has expired"),
+          "Should show default message",
+        );
       });
 
       it("should render unknown error message when no reason is provided", function () {
         const html = errorTemplate();
-        
-        assert.ok(html.includes('Invalid Request'), "Should show default 'Invalid Request' title");
-        assert.ok(html.includes('This link is invalid or has expired'), "Should show default message");
+
+        assert.ok(
+          html.includes("Invalid Request"),
+          "Should show default 'Invalid Request' title",
+        );
+        assert.ok(
+          html.includes("This link is invalid or has expired"),
+          "Should show default message",
+        );
       });
 
       it("should always include error styling", function () {
-        const html = errorTemplate('expired');
-        
-        assert.ok(html.includes('error-message'), "Should include error-message class");
-        assert.ok(html.includes('background-color: #f44336'), "Should include error background color");
+        const html = errorTemplate("expired");
+
+        assert.ok(
+          html.includes("error-message"),
+          "Should include error-message class",
+        );
+        assert.ok(
+          html.includes("background-color: #f44336"),
+          "Should include error background color",
+        );
       });
 
       it("should render server error message", function () {
-        const html = errorTemplate('server_error');
-        
-        assert.ok(html.includes('Internal Server Error'), "Should show 'Internal Server Error' title");
-        assert.ok(html.includes('An internal server error occurred'), "Should show server error message");
-        assert.ok(html.includes('try again later'), "Should suggest retrying");
+        const html = errorTemplate("server_error");
+
+        assert.ok(
+          html.includes("Internal Server Error"),
+          "Should show 'Internal Server Error' title",
+        );
+        assert.ok(
+          html.includes("An internal server error occurred"),
+          "Should show server error message",
+        );
+        assert.ok(html.includes("try again later"), "Should suggest retrying");
       });
     });
 
@@ -336,8 +402,8 @@ describe("meteor-app", function () {
       const { ApprovalTokens } = require("../utils/api/approvalTokens");
       const { determineTokenErrorReason } = require("../utils/utils");
 
-      const testUserId = 'test-user-error-reason';
-      const testToken = 'test-token-error-reason';
+      const testUserId = "test-user-error-reason";
+      const testToken = "test-token-error-reason";
 
       afterEach(async function () {
         await ApprovalTokens.removeAsync({ userId: testUserId });
@@ -349,11 +415,11 @@ describe("meteor-app", function () {
           userId: testUserId,
           token: testToken,
           expiresAt: new Date(Date.now() - 1000), // expired 1 second ago
-          used: false
+          used: false,
         });
 
         const reason = await determineTokenErrorReason(testUserId, testToken);
-        assert.strictEqual(reason, 'expired');
+        assert.strictEqual(reason, "expired");
       });
 
       it("should return 'expired' when expiresAt equals current time (boundary)", async function () {
@@ -362,11 +428,11 @@ describe("meteor-app", function () {
           userId: testUserId,
           token: testToken,
           expiresAt: now,
-          used: false
+          used: false,
         });
 
         const reason = await determineTokenErrorReason(testUserId, testToken);
-        assert.strictEqual(reason, 'expired');
+        assert.strictEqual(reason, "expired");
       });
 
       it("should return 'user_not_found' when token exists, not expired, but user missing", async function () {
@@ -374,12 +440,12 @@ describe("meteor-app", function () {
           userId: testUserId,
           token: testToken,
           expiresAt: new Date(Date.now() + 60000), // expires in 1 minute
-          used: false
+          used: false,
         });
         // No user inserted
 
         const reason = await determineTokenErrorReason(testUserId, testToken);
-        assert.strictEqual(reason, 'user_not_found');
+        assert.strictEqual(reason, "user_not_found");
       });
 
       it("should return 'invalid_token' when token doesn't exist but user does", async function () {
@@ -387,19 +453,23 @@ describe("meteor-app", function () {
         // No token inserted
 
         const reason = await determineTokenErrorReason(testUserId, testToken);
-        assert.strictEqual(reason, 'invalid_token');
+        assert.strictEqual(reason, "invalid_token");
       });
 
       it("should return 'user_not_found' when neither token nor user exist", async function () {
         // No token or user inserted
         const reason = await determineTokenErrorReason(testUserId, testToken);
-        assert.strictEqual(reason, 'user_not_found');
+        assert.strictEqual(reason, "user_not_found");
       });
     });
 
     describe("API Key Authentication", function () {
-      const { ApiKeys, hashApiKey, verifyApiKey } = require("../utils/api/apiKeys");
-      const crypto = require('crypto');
+      const {
+        ApiKeys,
+        hashApiKey,
+        verifyApiKey,
+      } = require("../utils/api/apiKeys");
+      const crypto = require("crypto");
 
       beforeEach(async function () {
         // Clean up API keys before each test
@@ -414,42 +484,62 @@ describe("meteor-app", function () {
       describe("hashApiKey function", function () {
         it("should produce consistent hashes with the same salt", function () {
           const apiKey = "test-api-key-123";
-          const salt = crypto.randomBytes(32).toString('hex');
-          
+          const salt = crypto.randomBytes(32).toString("hex");
+
           const result1 = hashApiKey(apiKey, salt);
           const result2 = hashApiKey(apiKey, salt);
-          
-          assert.strictEqual(result1.hashedKey, result2.hashedKey, "Same key and salt should produce same hash");
-          assert.strictEqual(result1.salt, result2.salt, "Salt should be returned unchanged");
+
+          assert.strictEqual(
+            result1.hashedKey,
+            result2.hashedKey,
+            "Same key and salt should produce same hash",
+          );
+          assert.strictEqual(
+            result1.salt,
+            result2.salt,
+            "Salt should be returned unchanged",
+          );
         });
 
         it("should produce different hashes with different salts", function () {
           const apiKey = "test-api-key-123";
-          const salt1 = crypto.randomBytes(32).toString('hex');
-          const salt2 = crypto.randomBytes(32).toString('hex');
-          
+          const salt1 = crypto.randomBytes(32).toString("hex");
+          const salt2 = crypto.randomBytes(32).toString("hex");
+
           const result1 = hashApiKey(apiKey, salt1);
           const result2 = hashApiKey(apiKey, salt2);
-          
-          assert.notStrictEqual(result1.hashedKey, result2.hashedKey, "Different salts should produce different hashes");
+
+          assert.notStrictEqual(
+            result1.hashedKey,
+            result2.hashedKey,
+            "Different salts should produce different hashes",
+          );
         });
 
         it("should generate a salt if none provided", function () {
           const apiKey = "test-api-key-123";
-          
+
           const result = hashApiKey(apiKey);
-          
+
           assert.ok(result.salt, "Should generate a salt");
-          assert.strictEqual(result.salt.length, 64, "Salt should be 64 hex characters (32 bytes)");
+          assert.strictEqual(
+            result.salt.length,
+            64,
+            "Salt should be 64 hex characters (32 bytes)",
+          );
           assert.ok(result.hashedKey, "Should generate a hash");
         });
 
         it("should produce a 128-character hex hash (64 bytes)", function () {
           const apiKey = "test-api-key-123";
-          
+
           const result = hashApiKey(apiKey);
-          
-          assert.strictEqual(result.hashedKey.length, 128, "Hash should be 128 hex characters");
+
+          assert.strictEqual(
+            result.hashedKey.length,
+            128,
+            "Hash should be 128 hex characters",
+          );
         });
       });
 
@@ -457,9 +547,9 @@ describe("meteor-app", function () {
         it("should return true for valid key/hash pairs", function () {
           const apiKey = "test-api-key-for-verification";
           const result = hashApiKey(apiKey);
-          
+
           const isValid = verifyApiKey(apiKey, result.hashedKey, result.salt);
-          
+
           assert.strictEqual(isValid, true, "Should verify correct API key");
         });
 
@@ -467,32 +557,40 @@ describe("meteor-app", function () {
           const apiKey = "correct-api-key";
           const wrongKey = "wrong-api-key";
           const result = hashApiKey(apiKey);
-          
+
           const isValid = verifyApiKey(wrongKey, result.hashedKey, result.salt);
-          
+
           assert.strictEqual(isValid, false, "Should reject incorrect API key");
         });
 
         it("should return false for incorrect salt", function () {
           const apiKey = "test-api-key";
           const result = hashApiKey(apiKey);
-          const wrongSalt = crypto.randomBytes(32).toString('hex');
-          
+          const wrongSalt = crypto.randomBytes(32).toString("hex");
+
           const isValid = verifyApiKey(apiKey, result.hashedKey, wrongSalt);
-          
-          assert.strictEqual(isValid, false, "Should reject with incorrect salt");
+
+          assert.strictEqual(
+            isValid,
+            false,
+            "Should reject with incorrect salt",
+          );
         });
       });
 
       describe("apiKeys.create method", function () {
         it("should create a new API key and return it", async function () {
           const clientId = "test-client.example.com";
-          
-          const apiKey = await Meteor.callAsync('apiKeys.create', clientId);
-          
+
+          const apiKey = await Meteor.callAsync("apiKeys.create", clientId);
+
           assert.ok(apiKey, "Should return an API key");
-          assert.strictEqual(apiKey.length, 64, "API key should be 64 hex characters");
-          
+          assert.strictEqual(
+            apiKey.length,
+            64,
+            "API key should be 64 hex characters",
+          );
+
           // Verify it was stored
           const stored = await ApiKeys.findOneAsync({ clientId });
           assert.ok(stored, "Should store the key in database");
@@ -503,34 +601,46 @@ describe("meteor-app", function () {
 
         it("should reject duplicate client IDs", async function () {
           const clientId = "duplicate-client.example.com";
-          
+
           // Create first key
-          await Meteor.callAsync('apiKeys.create', clientId);
-          
+          await Meteor.callAsync("apiKeys.create", clientId);
+
           // Try to create duplicate
           try {
-            await Meteor.callAsync('apiKeys.create', clientId);
+            await Meteor.callAsync("apiKeys.create", clientId);
             assert.fail("Should have thrown an error");
           } catch (error) {
-            assert.strictEqual(error.error, 'client-exists', "Should throw client-exists error");
+            assert.strictEqual(
+              error.error,
+              "client-exists",
+              "Should throw client-exists error",
+            );
           }
         });
 
         it("should reject 'unspecified' as client ID", async function () {
           try {
-            await Meteor.callAsync('apiKeys.create', 'unspecified');
+            await Meteor.callAsync("apiKeys.create", "unspecified");
             assert.fail("Should have thrown an error");
           } catch (error) {
-            assert.strictEqual(error.error, 'invalid-client-id', "Should throw invalid-client-id error");
+            assert.strictEqual(
+              error.error,
+              "invalid-client-id",
+              "Should throw invalid-client-id error",
+            );
           }
         });
 
         it("should reject 'UNSPECIFIED' (case-insensitive) as client ID", async function () {
           try {
-            await Meteor.callAsync('apiKeys.create', 'UNSPECIFIED');
+            await Meteor.callAsync("apiKeys.create", "UNSPECIFIED");
             assert.fail("Should have thrown an error");
           } catch (error) {
-            assert.strictEqual(error.error, 'invalid-client-id', "Should throw invalid-client-id error");
+            assert.strictEqual(
+              error.error,
+              "invalid-client-id",
+              "Should throw invalid-client-id error",
+            );
           }
         });
       });
@@ -538,72 +648,127 @@ describe("meteor-app", function () {
       describe("apiKeys.verify method", function () {
         it("should validate correct API keys", async function () {
           const clientId = "verify-test.example.com";
-          const apiKey = await Meteor.callAsync('apiKeys.create', clientId);
-          
-          const result = await Meteor.callAsync('apiKeys.verify', apiKey, clientId);
-          
-          assert.strictEqual(result.isValid, true, "Should validate correct key");
-          assert.strictEqual(result.clientId, clientId, "Should return correct client ID");
+          const apiKey = await Meteor.callAsync("apiKeys.create", clientId);
+
+          const result = await Meteor.callAsync(
+            "apiKeys.verify",
+            apiKey,
+            clientId,
+          );
+
+          assert.strictEqual(
+            result.isValid,
+            true,
+            "Should validate correct key",
+          );
+          assert.strictEqual(
+            result.clientId,
+            clientId,
+            "Should return correct client ID",
+          );
         });
 
         it("should validate correct API keys without client ID hint", async function () {
           const clientId = "verify-no-hint.example.com";
-          const apiKey = await Meteor.callAsync('apiKeys.create', clientId);
-          
-          const result = await Meteor.callAsync('apiKeys.verify', apiKey);
-          
-          assert.strictEqual(result.isValid, true, "Should validate correct key");
-          assert.strictEqual(result.clientId, clientId, "Should return correct client ID");
+          const apiKey = await Meteor.callAsync("apiKeys.create", clientId);
+
+          const result = await Meteor.callAsync("apiKeys.verify", apiKey);
+
+          assert.strictEqual(
+            result.isValid,
+            true,
+            "Should validate correct key",
+          );
+          assert.strictEqual(
+            result.clientId,
+            clientId,
+            "Should return correct client ID",
+          );
         });
 
         it("should reject incorrect API keys", async function () {
           const clientId = "reject-test.example.com";
-          await Meteor.callAsync('apiKeys.create', clientId);
-          
-          const result = await Meteor.callAsync('apiKeys.verify', 'wrong-api-key', clientId);
-          
-          assert.strictEqual(result.isValid, false, "Should reject incorrect key");
-          assert.strictEqual(result.clientId, null, "Should return null client ID");
+          await Meteor.callAsync("apiKeys.create", clientId);
+
+          const result = await Meteor.callAsync(
+            "apiKeys.verify",
+            "wrong-api-key",
+            clientId,
+          );
+
+          assert.strictEqual(
+            result.isValid,
+            false,
+            "Should reject incorrect key",
+          );
+          assert.strictEqual(
+            result.clientId,
+            null,
+            "Should return null client ID",
+          );
         });
 
         it("should reject API keys for non-existent clients", async function () {
-          const result = await Meteor.callAsync('apiKeys.verify', 'any-key', 'non-existent-client');
-          
-          assert.strictEqual(result.isValid, false, "Should reject key for non-existent client");
+          const result = await Meteor.callAsync(
+            "apiKeys.verify",
+            "any-key",
+            "non-existent-client",
+          );
+
+          assert.strictEqual(
+            result.isValid,
+            false,
+            "Should reject key for non-existent client",
+          );
         });
 
         it("should update lastUsed timestamp on successful verification", async function () {
           const clientId = "timestamp-test.example.com";
-          const apiKey = await Meteor.callAsync('apiKeys.create', clientId);
-          
+          const apiKey = await Meteor.callAsync("apiKeys.create", clientId);
+
           // Initially lastUsed should be null
           let stored = await ApiKeys.findOneAsync({ clientId });
-          assert.strictEqual(stored.lastUsed, null, "lastUsed should be null initially");
-          
+          assert.strictEqual(
+            stored.lastUsed,
+            null,
+            "lastUsed should be null initially",
+          );
+
           // Verify the key
-          await Meteor.callAsync('apiKeys.verify', apiKey, clientId);
-          
+          await Meteor.callAsync("apiKeys.verify", apiKey, clientId);
+
           // Check lastUsed was updated
           stored = await ApiKeys.findOneAsync({ clientId });
           assert.ok(stored.lastUsed, "lastUsed should be updated");
-          assert.ok(stored.lastUsed instanceof Date, "lastUsed should be a Date");
+          assert.ok(
+            stored.lastUsed instanceof Date,
+            "lastUsed should be a Date",
+          );
         });
 
         it("should reject 'unspecified' as client ID", async function () {
-          const result = await Meteor.callAsync('apiKeys.verify', 'any-key', 'unspecified');
-          
-          assert.strictEqual(result.isValid, false, "Should reject unspecified client ID");
+          const result = await Meteor.callAsync(
+            "apiKeys.verify",
+            "any-key",
+            "unspecified",
+          );
+
+          assert.strictEqual(
+            result.isValid,
+            false,
+            "Should reject unspecified client ID",
+          );
         });
       });
 
       describe("apiKeys.list method", function () {
         it("should return all keys with metadata", async function () {
           // Create some keys
-          await Meteor.callAsync('apiKeys.create', 'list-test-1.example.com');
-          await Meteor.callAsync('apiKeys.create', 'list-test-2.example.com');
-          
-          const keys = await Meteor.callAsync('apiKeys.list');
-          
+          await Meteor.callAsync("apiKeys.create", "list-test-1.example.com");
+          await Meteor.callAsync("apiKeys.create", "list-test-2.example.com");
+
+          const keys = await Meteor.callAsync("apiKeys.list");
+
           assert.strictEqual(keys.length, 2, "Should return 2 keys");
           assert.ok(keys[0].clientId, "Should include clientId");
           assert.ok(keys[0].createdAt, "Should include createdAt");
@@ -612,8 +777,8 @@ describe("meteor-app", function () {
         });
 
         it("should return empty array when no keys exist", async function () {
-          const keys = await Meteor.callAsync('apiKeys.list');
-          
+          const keys = await Meteor.callAsync("apiKeys.list");
+
           assert.strictEqual(keys.length, 0, "Should return empty array");
         });
       });
@@ -621,65 +786,102 @@ describe("meteor-app", function () {
       describe("apiKeys.delete method", function () {
         it("should delete an existing key", async function () {
           const clientId = "delete-test.example.com";
-          await Meteor.callAsync('apiKeys.create', clientId);
-          
-          const result = await Meteor.callAsync('apiKeys.delete', clientId);
-          
-          assert.strictEqual(result, true, "Should return true on successful delete");
-          
+          await Meteor.callAsync("apiKeys.create", clientId);
+
+          const result = await Meteor.callAsync("apiKeys.delete", clientId);
+
+          assert.strictEqual(
+            result,
+            true,
+            "Should return true on successful delete",
+          );
+
           // Verify it was deleted
           const stored = await ApiKeys.findOneAsync({ clientId });
           assert.strictEqual(stored, undefined, "Key should be deleted");
         });
 
         it("should return false for non-existent keys", async function () {
-          const result = await Meteor.callAsync('apiKeys.delete', 'non-existent-client');
-          
-          assert.strictEqual(result, false, "Should return false for non-existent key");
+          const result = await Meteor.callAsync(
+            "apiKeys.delete",
+            "non-existent-client",
+          );
+
+          assert.strictEqual(
+            result,
+            false,
+            "Should return false for non-existent key",
+          );
         });
       });
 
       describe("apiKeys.regenerate method", function () {
         it("should generate a new key and invalidate the old one", async function () {
           const clientId = "regenerate-test.example.com";
-          const oldKey = await Meteor.callAsync('apiKeys.create', clientId);
-          
-          const newKey = await Meteor.callAsync('apiKeys.regenerate', clientId);
-          
+          const oldKey = await Meteor.callAsync("apiKeys.create", clientId);
+
+          const newKey = await Meteor.callAsync("apiKeys.regenerate", clientId);
+
           assert.ok(newKey, "Should return new key");
           assert.notStrictEqual(newKey, oldKey, "New key should be different");
-          
+
           // Old key should no longer work
-          const oldResult = await Meteor.callAsync('apiKeys.verify', oldKey, clientId);
-          assert.strictEqual(oldResult.isValid, false, "Old key should be invalid");
-          
+          const oldResult = await Meteor.callAsync(
+            "apiKeys.verify",
+            oldKey,
+            clientId,
+          );
+          assert.strictEqual(
+            oldResult.isValid,
+            false,
+            "Old key should be invalid",
+          );
+
           // New key should work
-          const newResult = await Meteor.callAsync('apiKeys.verify', newKey, clientId);
-          assert.strictEqual(newResult.isValid, true, "New key should be valid");
+          const newResult = await Meteor.callAsync(
+            "apiKeys.verify",
+            newKey,
+            clientId,
+          );
+          assert.strictEqual(
+            newResult.isValid,
+            true,
+            "New key should be valid",
+          );
         });
 
         it("should reject regeneration for non-existent clients", async function () {
           try {
-            await Meteor.callAsync('apiKeys.regenerate', 'non-existent-client');
+            await Meteor.callAsync("apiKeys.regenerate", "non-existent-client");
             assert.fail("Should have thrown an error");
           } catch (error) {
-            assert.strictEqual(error.error, 'client-not-found', "Should throw client-not-found error");
+            assert.strictEqual(
+              error.error,
+              "client-not-found",
+              "Should throw client-not-found error",
+            );
           }
         });
 
         it("should reject 'unspecified' as client ID", async function () {
           try {
-            await Meteor.callAsync('apiKeys.regenerate', 'unspecified');
+            await Meteor.callAsync("apiKeys.regenerate", "unspecified");
             assert.fail("Should have thrown an error");
           } catch (error) {
-            assert.strictEqual(error.error, 'invalid-client-id', "Should throw invalid-client-id error");
+            assert.strictEqual(
+              error.error,
+              "invalid-client-id",
+              "Should throw invalid-client-id error",
+            );
           }
         });
       });
     });
 
     describe("Notification History clientId tracking", function () {
-      const { NotificationHistory } = require("../utils/api/notificationHistory");
+      const {
+        NotificationHistory,
+      } = require("../utils/api/notificationHistory");
 
       beforeEach(async function () {
         await NotificationHistory.removeAsync({});
@@ -690,37 +892,57 @@ describe("meteor-app", function () {
       });
 
       it("should default clientId to 'unspecified' when not provided", async function () {
-        const notificationId = await Meteor.callAsync('notificationHistory.insert', {
-          userId: 'test-user-id',
-          title: 'Test Notification',
-          body: 'Test body'
+        const notificationId = await Meteor.callAsync(
+          "notificationHistory.insert",
+          {
+            userId: "test-user-id",
+            title: "Test Notification",
+            body: "Test body",
+          },
+        );
+
+        const notification = await NotificationHistory.findOneAsync({
+          _id: notificationId,
         });
-        
-        const notification = await NotificationHistory.findOneAsync({ _id: notificationId });
-        
-        assert.strictEqual(notification.clientId, 'unspecified', "Should default to 'unspecified'");
+
+        assert.strictEqual(
+          notification.clientId,
+          "unspecified",
+          "Should default to 'unspecified'",
+        );
       });
 
       it("should store provided clientId", async function () {
-        const clientId = 'ldap.example.com';
-        const notificationId = await Meteor.callAsync('notificationHistory.insert', {
-          userId: 'test-user-id',
-          title: 'Test Notification',
-          body: 'Test body',
-          clientId: clientId
+        const clientId = "ldap.example.com";
+        const notificationId = await Meteor.callAsync(
+          "notificationHistory.insert",
+          {
+            userId: "test-user-id",
+            title: "Test Notification",
+            body: "Test body",
+            clientId: clientId,
+          },
+        );
+
+        const notification = await NotificationHistory.findOneAsync({
+          _id: notificationId,
         });
-        
-        const notification = await NotificationHistory.findOneAsync({ _id: notificationId });
-        
-        assert.strictEqual(notification.clientId, clientId, "Should store provided clientId");
+
+        assert.strictEqual(
+          notification.clientId,
+          clientId,
+          "Should store provided clientId",
+        );
       });
     });
 
     describe("Notification expiry checks", function () {
-      const { NotificationHistory } = require("../utils/api/notificationHistory");
+      const {
+        NotificationHistory,
+      } = require("../utils/api/notificationHistory");
       const { isNotificationExpired } = require("../utils/utils");
       const { TIMEOUT_DURATION_MS } = require("../utils/constants");
-      
+
       let testUserIds = [];
 
       beforeEach(async function () {
@@ -740,101 +962,153 @@ describe("meteor-app", function () {
       it("should identify expired notification", function () {
         const oldDate = new Date(Date.now() - TIMEOUT_DURATION_MS - 1000); // 1 second past expiry
         const isExpired = isNotificationExpired(oldDate);
-        assert.strictEqual(isExpired, true, "Should identify expired notification");
+        assert.strictEqual(
+          isExpired,
+          true,
+          "Should identify expired notification",
+        );
       });
 
       it("should identify non-expired notification", function () {
         const recentDate = new Date(Date.now() - 1000); // 1 second ago
         const isExpired = isNotificationExpired(recentDate);
-        assert.strictEqual(isExpired, false, "Should identify non-expired notification");
+        assert.strictEqual(
+          isExpired,
+          false,
+          "Should identify non-expired notification",
+        );
       });
 
       it("should handle string timestamp", function () {
-        const oldDateString = new Date(Date.now() - TIMEOUT_DURATION_MS - 1000).toISOString();
+        const oldDateString = new Date(
+          Date.now() - TIMEOUT_DURATION_MS - 1000,
+        ).toISOString();
         const isExpired = isNotificationExpired(oldDateString);
         assert.strictEqual(isExpired, true, "Should handle string timestamp");
       });
 
       it("should return true for null/undefined createdAt", function () {
-        assert.strictEqual(isNotificationExpired(null), true, "Should return true for null");
-        assert.strictEqual(isNotificationExpired(undefined), true, "Should return true for undefined");
+        assert.strictEqual(
+          isNotificationExpired(null),
+          true,
+          "Should return true for null",
+        );
+        assert.strictEqual(
+          isNotificationExpired(undefined),
+          true,
+          "Should return true for undefined",
+        );
       });
 
       it("should reject action on expired notification", async function () {
-        const userId = 'test-user-' + Random.id();
+        const userId = "test-user-" + Random.id();
         testUserIds.push(userId); // Track for cleanup
-        
+
         // Create a user
         await Accounts.createUserAsync({
           username: userId,
           email: `${userId}@example.com`,
-          password: 'testpass'
+          password: "testpass",
         });
 
         // Insert an expired notification
-        const notificationId = await Meteor.callAsync('notificationHistory.insert', {
-          userId: userId,
-          title: 'Test Expired Notification',
-          body: 'This notification is expired'
-        });
+        const notificationId = await Meteor.callAsync(
+          "notificationHistory.insert",
+          {
+            userId: userId,
+            title: "Test Expired Notification",
+            body: "This notification is expired",
+          },
+        );
 
         // Get the notification and manually set an old createdAt
-        const notification = await NotificationHistory.findOneAsync({ _id: notificationId });
+        const notification = await NotificationHistory.findOneAsync({
+          _id: notificationId,
+        });
         const expiredDate = new Date(Date.now() - TIMEOUT_DURATION_MS - 1000);
         await NotificationHistory.updateAsync(
           { _id: notification._id },
-          { $set: { createdAt: expiredDate } }
+          { $set: { createdAt: expiredDate } },
         );
 
         // Try to handle response for expired notification
         const result = await Meteor.callAsync(
-          'notifications.handleResponse',
+          "notifications.handleResponse",
           userId,
-          'approve',
-          notification.notificationId
+          "approve",
+          notification.notificationId,
         );
 
-        assert.strictEqual(result.success, false, "Should reject action on expired notification");
-        assert.strictEqual(result.message, "Notification has expired", "Should return correct error message");
+        assert.strictEqual(
+          result.success,
+          false,
+          "Should reject action on expired notification",
+        );
+        assert.strictEqual(
+          result.message,
+          "Notification has expired",
+          "Should return correct error message",
+        );
 
         // Verify notification was marked as timeout
-        const updatedNotification = await NotificationHistory.findOneAsync({ _id: notification._id });
-        assert.strictEqual(updatedNotification.status, 'timeout', "Should mark notification as timeout");
+        const updatedNotification = await NotificationHistory.findOneAsync({
+          _id: notification._id,
+        });
+        assert.strictEqual(
+          updatedNotification.status,
+          "timeout",
+          "Should mark notification as timeout",
+        );
       });
 
       it("should allow action on non-expired notification", async function () {
-        const userId = 'test-user-' + Random.id();
+        const userId = "test-user-" + Random.id();
         testUserIds.push(userId); // Track for cleanup
-        
+
         // Create a user
         await Accounts.createUserAsync({
           username: userId,
           email: `${userId}@example.com`,
-          password: 'testpass'
+          password: "testpass",
         });
 
         // Insert a recent notification
-        const notificationId = await Meteor.callAsync('notificationHistory.insert', {
-          userId: userId,
-          title: 'Test Recent Notification',
-          body: 'This notification is recent'
-        });
+        const notificationId = await Meteor.callAsync(
+          "notificationHistory.insert",
+          {
+            userId: userId,
+            title: "Test Recent Notification",
+            body: "This notification is recent",
+          },
+        );
 
-        const notification = await NotificationHistory.findOneAsync({ _id: notificationId });
+        const notification = await NotificationHistory.findOneAsync({
+          _id: notificationId,
+        });
 
         // Try to handle response for non-expired notification
         const result = await Meteor.callAsync(
-          'notifications.handleResponse',
+          "notifications.handleResponse",
           userId,
-          'approve',
-          notification.notificationId
+          "approve",
+          notification.notificationId,
         );
 
-        assert.strictEqual(result.success, true, "Should allow action on non-expired notification");
+        assert.strictEqual(
+          result.success,
+          true,
+          "Should allow action on non-expired notification",
+        );
 
         // Verify notification was updated with action
-        const updatedNotification = await NotificationHistory.findOneAsync({ _id: notification._id });
-        assert.strictEqual(updatedNotification.status, 'approve', "Should update notification with approve status");
+        const updatedNotification = await NotificationHistory.findOneAsync({
+          _id: notification._id,
+        });
+        assert.strictEqual(
+          updatedNotification.status,
+          "approve",
+          "Should update notification with approve status",
+        );
       });
     });
   }

@@ -1,5 +1,5 @@
 import { Meteor } from "meteor/meteor";
-import { Session } from 'meteor/session';
+import { Session } from "meteor/session";
 
 // Session validation with retry logic
 const validateSessionWithRetry = (callback, retries = 3, interval = 1000) => {
@@ -12,9 +12,9 @@ const validateSessionWithRetry = (callback, retries = 3, interval = 1000) => {
       setTimeout(checkSession, interval);
     } else {
       console.warn("Session validation failed after retries");
-      Session.set('notificationReceivedId', {
+      Session.set("notificationReceivedId", {
         appId: notification.additionalData.appId,
-        status: "pending"
+        status: "pending",
       });
     }
   };
@@ -22,44 +22,46 @@ const validateSessionWithRetry = (callback, retries = 3, interval = 1000) => {
 };
 
 const sendUserAction = (appId, action) => {
-  console.log(`Initiating ${action} action for: ${appId}`);
-  
   validateSessionWithRetry(() => {
-    Meteor.call('notifications.handleResponse', appId, action, (error, result) => {
-      if (error) {
-        console.error('Action failed:', error);
-        Session.set('notificationReceivedId', { 
-          appId, 
-          status: "error",
-          error: error.message
-        });
-      } else {
-        console.log('Action processed successfully');
-        Session.set('notificationReceivedId', {
-          appId,
-          status: action === 'approve' ? "approved" : "rejected",
-          timestamp: new Date().getTime()
-        });
-      }
-    });
+    Meteor.call(
+      "notifications.handleResponse",
+      appId,
+      action,
+      (error, result) => {
+        if (error) {
+          console.error("Action failed:", error);
+          Session.set("notificationReceivedId", {
+            appId,
+            status: "error",
+            error: error.message,
+          });
+        } else {
+          Session.set("notificationReceivedId", {
+            appId,
+            status: action === "approve" ? "approved" : "rejected",
+            timestamp: new Date().getTime(),
+          });
+        }
+      },
+    );
   });
 };
 
 const createNotificationChannel = () => {
   PushNotification.createChannel(
-    () => console.log('Android notification channel ready'),
-    (error) => console.error('Channel error:', error),
+    () => {},
+    (error) => {},
     {
-      id: 'default',
-      name: 'Approval Channel',
-      description: 'Critical security approvals',
+      id: "default",
+      name: "Approval Channel",
+      description: "Critical security approvals",
       importance: 4,
       vibration: true,
-      sound: 'default',
+      sound: "default",
       visibility: 1,
       lights: true,
-      lightColor: '#FF4081'
-    }
+      lightColor: "#FF4081",
+    },
   );
 };
 
@@ -77,35 +79,31 @@ const configurePushNotifications = () => {
         id: "default",
         importance: "high",
         sound: "default",
-        vibration: true
-      }
+        vibration: true,
+      },
     },
     ios: {
       alert: true,
       badge: true,
       sound: true,
       priority: "high",
-      foreground: true
-    }
+      foreground: true,
+    },
   });
 };
 
 const setupRegistrationHandler = (push) => {
-  push.on('registration', (data) => {
-    console.log('Device token registered:', data.registrationId);
-    Session.set('deviceToken', data.registrationId);
-    Meteor.call('deviceDetails.storeFCMToken', data.registrationId);
+  push.on("registration", (data) => {
+    Session.set("deviceToken", data.registrationId);
+    Meteor.call("deviceDetails.storeFCMToken", data.registrationId);
   });
 };
 
 const setupNotificationHandler = (push) => {
-  push.on('notification', (notification) => {
-    console.log('Raw notification:', JSON.stringify(notification));
-    
-    
+  push.on("notification", (notification) => {
     Meteor.startup(() => {
       const additionalData = notification.additionalData || {};
-      
+
       // Cold start handling
       if (additionalData.coldstart) {
         setTimeout(() => {
@@ -119,11 +117,11 @@ const setupNotificationHandler = (push) => {
 
       // Standard notification handling
       if (additionalData.appId) {
-        Session.set('notificationReceivedId', {
+        Session.set("notificationReceivedId", {
           appId: additionalData.appId,
           status: "pending",
           rawData: JSON.stringify(additionalData),
-          timestamp: new Date().getTime()
+          timestamp: new Date().getTime(),
         });
       }
     });
@@ -131,20 +129,18 @@ const setupNotificationHandler = (push) => {
 };
 
 const setupErrorHandler = (push) => {
-  push.on('error', (error) => {
-    console.error('Push system error:', error);
-    Session.set('pushError', {
+  push.on("error", (error) => {
+    console.error("Push system error:", error);
+    Session.set("pushError", {
       message: error.message,
       code: error.code,
-      details: JSON.stringify(error)
+      details: JSON.stringify(error),
     });
   });
 };
 
 export const initializePushNotifications = () => {
   try {
-    console.log('Initializing push notification system');
-    
     // Android channel setup
     createNotificationChannel();
 
@@ -158,13 +154,9 @@ export const initializePushNotifications = () => {
 
     // Ensure default channel exists every 30 seconds
     setInterval(() => {
-        console.warn('Re-creating default notification channel to ensure it exists');
-        createNotificationChannel();
+      createNotificationChannel();
     }, 30000);
-
-    console.log('Push notification system ready');
   } catch (error) {
-    console.error('Critical push initialization error:', error);
-    Session.set('pushInitError', error.toString());
+    Session.set("pushInitError", error.toString());
   }
 };

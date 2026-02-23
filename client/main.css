@@ -1,5 +1,35 @@
+@import "@mieweb/ui/styles.css";
 @import "tailwindcss";
 
 @source "../client/**/*.{js,jsx,ts,tsx}";
+@source "../node_modules/@mieweb/ui/dist/**/*.{js,cjs}";
 
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* ── Custom keyframe animations ── */
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes draw-check {
+  from {
+    stroke-dashoffset: 24;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@utility animate-slide-up {
+  animation: slide-up 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@utility animate-draw-check {
+  animation: draw-check 0.4s ease-out 0.25s forwards;
+  stroke-dashoffset: 24;
+}

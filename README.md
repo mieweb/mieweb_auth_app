@@ -24,6 +24,7 @@ sequenceDiagram
 ## Application Screenshots
 
 ### Home Page
+
 The main interface of the application where users can interact with the authentication features.
 
 <div align="center">
@@ -31,6 +32,7 @@ The main interface of the application where users can interact with the authenti
 </div>
 
 ### Push Notification Example
+
 Example of how push notifications appear on mobile devices.
 
 <div align="center">
@@ -51,6 +53,7 @@ cd mieweb_auth_app
 Before setting up the application, ensure you have the following tools installed and properly configured:
 
 ### Required Software
+
 - **Node.js & npm** - JavaScript runtime and package manager
 - **Meteor** - Full-stack JavaScript platform (see [Meteor Installation Docs](https://docs.meteor.com/install.html))
 - **Android Studio** - Including Android SDK and adb tools for Android development
@@ -87,6 +90,7 @@ meteor npm run start-dev
 ```
 
 **What this command does:**
+
 - Creates a secure tunnel using the **Magic Box** tool
 - Prompts for **YubiKey** authentication to generate a secure proxy URL
 - Provides a publicly accessible URL for mobile device testing
@@ -102,6 +106,7 @@ meteor npm run start
 ```
 
 **Production considerations:**
+
 - Starts the Meteor server in production mode
 - Server must be accessible via your production domain or IP address
 - No tunneling or proxy setup required
@@ -155,15 +160,15 @@ Download the `GoogleService-Info.plist` configuration file for iOS integration.
 ### Security Considerations
 
 > **Important Security Notice**
-> 
+>
 > Never download or manually handle the Firebase Admin SDK JSON file. Instead, use the Firebase Admin SDK secret string method for secure environment variable configuration.
 
 ### Configuration Files Summary
 
-| Platform | Configuration File | Destination Path |
-|----------|-------------------|------------------|
-| Android | `google-services.json` | `public/android/google-services.json` |
-| iOS | `GoogleService-Info.plist` | `public/ios/GoogleService-Info.plist` |
+| Platform | Configuration File         | Destination Path                      |
+| -------- | -------------------------- | ------------------------------------- |
+| Android  | `google-services.json`     | `public/android/google-services.json` |
+| iOS      | `GoogleService-Info.plist` | `public/ios/GoogleService-Info.plist` |
 
 **Note:** The `mobile-config.js` file automatically handles the inclusion of these configuration files in your Cordova build process.
 
@@ -179,11 +184,13 @@ Download the `GoogleService-Info.plist` configuration file for iOS integration.
 #### Environment Variable Setup
 
 **For production servers:**
+
 ```bash
 export FIREBASE_SERVICE_ACCOUNT_JSON='{"type":"service_account","project_id":"your-project-id","private_key_id":"...","private_key":"-----BEGIN PRIVATE KEY-----\n..."}'
 ```
 
 **For development environment:**
+
 - Create a file: `server/private/firebase-admin-key.json`
 - Add the JSON content to this file
 - Ensure this file is included in your `.gitignore`
@@ -196,12 +203,14 @@ export FIREBASE_SERVICE_ACCOUNT_JSON='{"type":"service_account","project_id":"yo
 ### Android Development
 
 #### Initial Setup
+
 ```bash
 meteor add-platform android
 meteor add cordova:@havesource/cordova-plugin-push@5.0.5
 ```
 
 #### Running on Physical Android Device
+
 Ensure your Android device is connected via USB with Developer Options and USB Debugging enabled.
 
 ```bash
@@ -209,6 +218,7 @@ meteor npm run start android-device --mobile-server=https://<your-proxy-url-or-p
 ```
 
 #### Running on Android Emulator
+
 Ensure you have an Android emulator created and running through Android Studio.
 
 ```bash
@@ -218,11 +228,13 @@ meteor npm run start android
 ### iOS Development (Mac Only)
 
 #### Initial Setup
+
 ```bash
 meteor add-platform ios
 ```
 
 #### Running on Physical iOS Device
+
 Connect your iOS device to your Mac. This command will open Xcode where you need to manually select your device and build.
 
 ```bash
@@ -230,6 +242,7 @@ meteor npm run start ios-device --mobile-server=https://<your-proxy-url-or-produ
 ```
 
 #### Running on iOS Simulator
+
 This command opens Xcode where you can select your preferred iOS simulator.
 
 ```bash
@@ -247,6 +260,7 @@ meteor build output/ --architecture os.linux.x86_64 --server=https://<your-produ
 ```
 
 **Build output:**
+
 - The generated `.aab` file will be located in the `output/` directory
 - This file is ready for upload to Google Play Console
 - No additional tunneling tools are required for production builds
@@ -263,6 +277,7 @@ RELYINGPARTY="your-username"
 ```
 
 Run the notification script:
+
 ```bash
 ./send-notification.sh
 ```
@@ -277,6 +292,7 @@ Run the notification script:
 ```
 
 **Response meanings:**
+
 - `success: false` - Invalid FCM token or configuration issue
 - `action: approve` - User approved the notification
 - `action: reject` - User rejected the notification
@@ -301,6 +317,7 @@ python3 generate_app_resources.py path/to/your-icon.png
 ```
 
 The script will automatically:
+
 - Generate all iOS icon sizes (1024x1024 down to 20x20)
 - Generate all Android icon sizes (192x192 down to 48x48)
 - Create splash screens for both platforms
@@ -324,6 +341,7 @@ npm run prebuild
 ```
 
 This script:
+
 - Extracts the app version from `mobile-config.js`
 - Gets the current git commit hash
 - Generates `public/buildInfo.json` with version and build metadata
@@ -331,6 +349,7 @@ This script:
 ### Viewing Build Information
 
 Users can view the app version and build number by:
+
 1. Opening the mobile app
 2. Navigating to the Support page
 3. Scrolling to the "App Information" section
@@ -341,18 +360,18 @@ The build number is clickable and links to the corresponding commit on GitHub fo
 
 Understanding the application architecture and file organization:
 
-| Path/File | Purpose | Description |
-|-----------|---------|-------------|
-| `client/main.jsx` | Frontend Logic | React UI components and push notification registration |
-| `server/main.js` | Backend Logic | Meteor server implementation and push notification handling |
-| `mobile-config.js` | Mobile Configuration | Cordova application metadata and mobile-specific settings |
-| `generate_app_resources.py` | Resource Generator | Python script to generate app icons and splash screens |
-| `generate-build-info.js` | Build Info Generator | Node.js script to generate app version and build number metadata |
-| `public/resources/` | App Resources | Generated app icons and splash screens for all platforms |
-| `public/buildInfo.json` | Build Metadata | Auto-generated file with app version and git commit hash |
-| `public/android/` | Android Assets | Android-specific configuration files and resources |
-| `public/ios/` | iOS Assets | iOS-specific configuration files and resources |
-| `server/private/` | Server Secrets | Private configuration files (excluded from version control) |
+| Path/File                   | Purpose              | Description                                                      |
+| --------------------------- | -------------------- | ---------------------------------------------------------------- |
+| `client/main.jsx`           | Frontend Logic       | React UI components and push notification registration           |
+| `server/main.js`            | Backend Logic        | Meteor server implementation and push notification handling      |
+| `mobile-config.js`          | Mobile Configuration | Cordova application metadata and mobile-specific settings        |
+| `generate_app_resources.py` | Resource Generator   | Python script to generate app icons and splash screens           |
+| `generate-build-info.js`    | Build Info Generator | Node.js script to generate app version and build number metadata |
+| `public/resources/`         | App Resources        | Generated app icons and splash screens for all platforms         |
+| `public/buildInfo.json`     | Build Metadata       | Auto-generated file with app version and git commit hash         |
+| `public/android/`           | Android Assets       | Android-specific configuration files and resources               |
+| `public/ios/`               | iOS Assets           | iOS-specific configuration files and resources                   |
+| `server/private/`           | Server Secrets       | Private configuration files (excluded from version control)      |
 
 ## Continuous Integration and Deployment
 
@@ -361,11 +380,13 @@ Understanding the application architecture and file organization:
 The project includes automated CI/CD pipelines:
 
 #### Android Build Workflow
+
 - **File:** `.github/workflows/android-build.yml`
 - **Purpose:** Automated Android application building and testing
 - **Triggers:** Push to main branch, pull requests
 
-#### Server Bundle Workflow  
+#### Server Bundle Workflow
+
 - **File:** `.github/workflows/build-server-on-release.yml`
 - **Purpose:** Automated server bundling for production releases
 - **Triggers:** Release creation, tagged commits
@@ -373,9 +394,11 @@ The project includes automated CI/CD pipelines:
 ### CI/CD Configuration
 
 **Required GitHub Secrets:**
+
 - `FIREBASE_SERVICE_ACCOUNT_JSON` - Your Firebase Admin SDK secret for secure CI usage
 
 **Setup Instructions:**
+
 1. Navigate to your GitHub repository settings
 2. Go to Secrets and Variables → Actions
 3. Add the required secrets with their respective values
@@ -399,12 +422,14 @@ This feature ensures that if someone unlocks your phone, they still need to auth
 ## Security Best Practices
 
 ### Firebase Security
+
 - **Never commit Firebase Admin SDK JSON files to version control**
 - Use environment variables for all sensitive configuration
 - Implement proper `.gitignore` and `.meteorignore` rules
 - Regularly rotate Firebase service account keys
 
 ### Application Security
+
 - Restrict Firebase project access to necessary team members only
 - Implement proper authentication and authorization
 - Use HTTPS for all production communications
@@ -413,6 +438,7 @@ This feature ensures that if someone unlocks your phone, they still need to auth
 - **Device Lock Integration**: Leverages phone's built-in security for session management
 
 ### Development Security
+
 - Keep development and production environments separated
 - Use different Firebase projects for different environments
 - Implement proper logging without exposing sensitive data
@@ -423,16 +449,19 @@ This feature ensures that if someone unlocks your phone, they still need to auth
 ### Common Issues
 
 **Firebase Connection Issues:**
+
 - Verify configuration files are in correct locations
 - Check Firebase project settings and API enablement
 - Ensure environment variables are properly set
 
 **Mobile Build Issues:**
+
 - Verify all prerequisites are installed and properly configured
 - Check platform-specific SDK versions
 - Ensure proper signing certificates for iOS builds
 
 **Push Notification Issues:**
+
 - Verify FCM tokens are being properly generated and stored
 - Check Firebase Cloud Messaging configuration
 - Test with different notification payload formats
@@ -449,6 +478,7 @@ If you encounter issues or need assistance:
 ### Contributing
 
 We welcome contributions to improve this application. Please:
+
 - Fork the repository
 - Create a feature branch
 - Follow existing code style and conventions

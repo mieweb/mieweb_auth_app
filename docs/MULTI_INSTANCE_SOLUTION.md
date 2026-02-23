@@ -18,6 +18,7 @@ The new solution replaces in-memory storage with MongoDB-based shared state usin
 ### 1. PendingResponses Collection (`utils/api/pendingResponses.js`)
 
 **Schema:**
+
 ```javascript
 {
   username: String,        // User who should respond
@@ -31,6 +32,7 @@ The new solution replaces in-memory storage with MongoDB-based shared state usin
 ```
 
 **Key Methods:**
+
 - `pendingResponses.create()` - Create a new pending response
 - `pendingResponses.resolve()` - Mark a response as resolved
 - `pendingResponses.waitForResponse()` - Poll for response with timeout
@@ -39,6 +41,7 @@ The new solution replaces in-memory storage with MongoDB-based shared state usin
 ### 2. Modified Server Logic (`server/main.js`)
 
 **Before (In-Memory):**
+
 ```javascript
 const responsePromises = new Map();
 
@@ -53,16 +56,22 @@ if (responsePromises.has(username)) {
 ```
 
 **After (Database):**
+
 ```javascript
 // Create pending response in database
 const requestId = Random.id();
-await Meteor.callAsync('pendingResponses.create', username, requestId, 25000);
+await Meteor.callAsync("pendingResponses.create", username, requestId, 25000);
 
 // Wait for response using database polling
-const userResponse = await Meteor.callAsync('pendingResponses.waitForResponse', username, requestId, 25000);
+const userResponse = await Meteor.callAsync(
+  "pendingResponses.waitForResponse",
+  username,
+  requestId,
+  25000,
+);
 
 // Resolve from any instance
-await Meteor.callAsync('pendingResponses.resolve', username, action);
+await Meteor.callAsync("pendingResponses.resolve", username, action);
 ```
 
 ## How It Works
@@ -82,7 +91,7 @@ sequenceDiagram
     A3->>DB: Create pending response
     A3->>User: Send FCM notification
     A3->>DB: Poll for response
-    
+
     Note over LB,User: User Response
     User->>LB: Tap notification action
     LB->>A1: Route to Instance 1
@@ -94,33 +103,38 @@ sequenceDiagram
 ### 2. Database Operations
 
 **Creating Pending Response:**
+
 ```javascript
 // Any instance can create
 await PendingResponses.insertAsync({
-  username: 'john.doe',
-  requestId: 'req_123',
-  status: 'pending',
-  expiresAt: new Date(Date.now() + 25000)
+  username: "john.doe",
+  requestId: "req_123",
+  status: "pending",
+  expiresAt: new Date(Date.now() + 25000),
 });
 ```
 
 **Resolving Response:**
+
 ```javascript
 // Any instance can resolve
 await PendingResponses.updateAsync(
-  { username: 'john.doe', status: 'pending' },
-  { $set: { status: 'resolved', action: 'approve' } }
+  { username: "john.doe", status: "pending" },
+  { $set: { status: "resolved", action: "approve" } },
 );
 ```
 
 **Polling for Response:**
+
 ```javascript
 // Instance 3 polls every 500ms
 const pollForResponse = async () => {
   const response = await PendingResponses.findOneAsync({
-    username, requestId, status: 'resolved'
+    username,
+    requestId,
+    status: "resolved",
   });
-  
+
   if (response) return response.action;
   // Continue polling until timeout
 };
@@ -129,16 +143,19 @@ const pollForResponse = async () => {
 ## Features
 
 ### 1. Automatic Cleanup
+
 - **TTL Index**: MongoDB automatically removes expired documents
 - **Manual Cleanup**: Runs every minute to clean up stale entries
 - **No Memory Leaks**: No risk of growing in-memory collections
 
 ### 2. Monitoring
+
 - **Endpoint**: `GET /api/pending-responses`
 - **Purpose**: Monitor active pending responses across all instances
 - **Returns**: List of all pending/resolved responses
 
 ### 3. Backward Compatibility
+
 - Old `userAction` method preserved for compatibility
 - Existing notification APIs work unchanged
 - Database polling provides same synchronous behavior
@@ -146,6 +163,7 @@ const pollForResponse = async () => {
 ## Configuration
 
 ### Database Indexes
+
 ```javascript
 // Automatically created on startup
 PendingResponses.createIndex({ username: 1 });
@@ -154,21 +172,25 @@ PendingResponses.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 ```
 
 ### Environment Variables
+
 No new environment variables required. Uses existing MongoDB connection.
 
 ## Performance Considerations
 
 ### 1. Polling Frequency
+
 - **Interval**: 500ms (configurable)
 - **Trade-off**: Lower = more responsive, higher DB load
 - **Recommendation**: 500ms provides good balance
 
 ### 2. Database Load
+
 - **Reads**: ~2 queries per second per pending notification
 - **Writes**: 2 writes per notification (create + resolve)
 - **Impact**: Minimal for typical notification volumes
 
 ### 3. Scaling
+
 - **Horizontal**: Scales with number of app instances
 - **Vertical**: MongoDB handles concurrent polling efficiently
 - **Limits**: No inherent limits, scales with MongoDB capacity
@@ -176,18 +198,21 @@ No new environment variables required. Uses existing MongoDB connection.
 ## Testing
 
 ### 1. Multi-Instance Test
+
 ```bash
 node testMultiInstance.js
 ```
 
 ### 2. Database Operations Test
+
 ```javascript
 // Test pending response lifecycle
-await Meteor.callAsync('pendingResponses.create', 'testuser', 'req123', 30000);
-await Meteor.callAsync('pendingResponses.resolve', 'testuser', 'approve');
+await Meteor.callAsync("pendingResponses.create", "testuser", "req123", 30000);
+await Meteor.callAsync("pendingResponses.resolve", "testuser", "approve");
 ```
 
 ### 3. Monitoring
+
 ```bash
 curl http://localhost:3000/api/pending-responses
 ```
@@ -195,17 +220,21 @@ curl http://localhost:3000/api/pending-responses
 ## Migration Guide
 
 ### 1. Deploy Changes
+
 1. Deploy new code to all instances
 2. MongoDB indexes created automatically
 3. No downtime required
 
 ### 2. Verify Operation
+
 1. Check `/api/pending-responses` endpoint
 2. Send test notifications
 3. Monitor database for pending entries
 
 ### 3. Rollback Plan
+
 If issues occur:
+
 1. Revert to previous code version
 2. Drop `pendingResponses` collection
 3. Original in-memory system restored
@@ -215,21 +244,25 @@ If issues occur:
 ### Common Issues
 
 **1. Responses Not Resolving**
+
 - Check `/api/pending-responses` for stuck entries
 - Verify database connectivity
 - Check polling interval timing
 
 **2. Timeouts Still Occurring**
+
 - Verify all instances using new code
 - Check username matching logic
 - Monitor database query performance
 
 **3. Database Performance**
+
 - Monitor pending responses collection size
 - Check index usage with `explain()`
 - Adjust cleanup frequency if needed
 
 ### Debug Logs
+
 ```javascript
 // Enable detailed logging
 console.log(`Created pending response for ${username} with ID ${requestId}`);
@@ -239,7 +272,7 @@ console.log(`Resolved pending response for ${username} with action: ${action}`);
 ## Benefits
 
 1. **✅ Multi-Instance Compatible**: Works across any number of app instances
-2. **✅ No Code Changes Required**: Existing APIs work unchanged  
+2. **✅ No Code Changes Required**: Existing APIs work unchanged
 3. **✅ Automatic Cleanup**: No memory leaks or orphaned data
 4. **✅ Monitoring Capable**: Built-in monitoring and debugging
 5. **✅ Scalable**: Scales with your MongoDB infrastructure
@@ -248,6 +281,7 @@ console.log(`Resolved pending response for ${username} with action: ${action}`);
 ## Next Steps
 
 Consider these future enhancements:
+
 1. **Redis Migration**: For even better performance
 2. **WebSocket Events**: Replace polling with real-time events
 3. **Metrics Collection**: Track response times and success rates
