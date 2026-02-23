@@ -1,6 +1,13 @@
 {
+<<<<<<< HEAD
   "appVersion": "1.1.0",
   "buildNumber": "7390ef7",
   "buildDate": "2026-02-19T01:44:26.303Z",
   "commitDate": "2026-02-09 08:31:55 -0500"
+=======
+  "appVersion": "1.2.3",
+  "buildNumber": "5f83f84",
+  "buildDate": "2026-02-20T04:30:28.870Z",
+  "commitDate": "2026-02-19 23:29:20 -0500"
+>>>>>>> a09d8491593a1bad802c037653cd3f8ac683eea9
 }

@@ -1,4 +1,5 @@
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Github,
   Smartphone,
@@ -155,9 +156,29 @@ const FeatureCard = ({ icon: Icon, title, description, gradient, index }) => (
   </motion.div>
 );
 
+const highlightFaqs = [
+  {
+    q: "What is MIE Auth?",
+    a: "A push-based multi-factor authentication system that works with SSH via LDAP or via direct REST calls. It sends a push challenge to your registered device and returns an approve/deny decision.",
+  },
+  {
+    q: "Why not use Google Authenticator or Microsoft Authenticator?",
+    a: 'Those apps focus on TOTP codes or are tied to their own ecosystems. MIE Auth provides a vendor-neutral, self-hostable "LDAP bind → push → approve/deny" flow you fully own and operate.',
+  },
+  {
+    q: "How does it work with SSH?",
+    a: "SSH → LDAP bind → REST call to MIE Auth → push notification → user approves/denies → decision flows back through LDAP to SSH. The entire round-trip completes in seconds.",
+  },
+  {
+    q: "What if my phone is offline?",
+    a: "TOTP fallback, backup codes, or policy-controlled temporary bypass are all supported. You can also configure time-boxed emergency access workflows.",
+  },
+];
+
 export const WebLandingPage = () => {
   usePageTitle(null); // Home page — use default title
   const shouldReduceMotion = useReducedMotion();
+  const [openFaq, setOpenFaq] = useState(null);
   const heroRef = useRef(null);
   const { scrollYProgress } = useScroll({
     target: heroRef,
@@ -658,6 +679,58 @@ export const WebLandingPage = () => {
                 ))}
               </div>
             </motion.div>
+          </div>
+
+          {/* Quick FAQ */}
+          <div className="mt-16 lg:mt-20 max-w-3xl mx-auto">
+            <h3 className="text-center text-lg font-bold text-gray-900 sm:text-xl mb-2">
+              Common Questions
+            </h3>
+            <p className="text-center text-sm text-gray-500 mb-8">
+              Quick answers to what matters most.{" "}
+              <Link
+                to="/faq"
+                className="text-blue-600 hover:text-blue-800 font-medium"
+              >
+                See all FAQs &rarr;
+              </Link>
+            </p>
+            <div className="bg-white shadow-sm rounded-xl overflow-hidden border border-gray-100 divide-y divide-gray-100">
+              {highlightFaqs.map((item, i) => (
+                <div key={i}>
+                  <button
+                    onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                    className="w-full px-6 py-5 text-left flex items-center justify-between hover:bg-gray-50 transition-colors focus:outline-none"
+                    aria-expanded={openFaq === i}
+                  >
+                    <span className="text-sm font-medium text-gray-900 pr-4">
+                      {item.q}
+                    </span>
+                    {openFaq === i ? (
+                      <ChevronUp className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    )}
+                  </button>
+                  {openFaq === i && (
+                    <div className="px-6 pb-5">
+                      <p className="text-sm text-gray-600 leading-relaxed">
+                        {item.a}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="mt-6 text-center">
+              <Link
+                to="/faq"
+                className="inline-flex items-center text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors"
+              >
+                View all frequently asked questions
+                <ArrowRight className="w-4 h-4 ml-1" />
+              </Link>
+            </div>
           </div>
         </div>
       </Section>

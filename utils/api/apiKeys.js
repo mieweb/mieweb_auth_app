@@ -21,6 +21,7 @@ if (Meteor.isServer) {
   Meteor.startup(() => {
     ApiKeys.createIndex({ clientId: 1 }, { unique: true });
     ApiKeys.createIndex({ hashedKey: 1 });
+    ApiKeys.createIndex({ keyPrefix: 1 });
   });
 }
 
@@ -144,11 +145,12 @@ Meteor.methods({
     const apiKey = crypto.randomBytes(32).toString("hex");
     const { hashedKey, salt } = await hashApiKeyAsync(apiKey);
 
-    // Store the hashed key
+    // Store the hashed key with a prefix for display purposes
     await ApiKeys.insertAsync({
       clientId,
       hashedKey,
       salt,
+      keyPrefix: apiKey.substring(0, 5),
       createdAt: new Date(),
       lastUsed: null,
     });
@@ -253,6 +255,7 @@ Meteor.methods({
 
     return keys.map((k) => ({
       clientId: k.clientId,
+      keyPrefix: k.keyPrefix || null,
       createdAt: k.createdAt,
       lastUsed: k.lastUsed,
     }));
@@ -326,6 +329,7 @@ Meteor.methods({
         $set: {
           hashedKey,
           salt,
+          keyPrefix: apiKey.substring(0, 5),
           createdAt: new Date(),
           lastUsed: null,
         },

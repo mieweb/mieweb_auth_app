@@ -60,7 +60,6 @@ const ActionsModal = ({
       }
 
       try {
-        // Mark the notification as timed out
         await Meteor.callAsync(
           "notificationHistory.updateStatus",
           notification.notificationId,
@@ -111,11 +110,19 @@ const ActionsModal = ({
 
   if (!isOpen) return null;
 
-  // Circular timer
+  const isUrgent = timeLeft <= 10;
+
   const radius = 18;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference * (1 - timerProgress);
-  const isUrgent = timeLeft <= 10;
+
+  const formatTime = (seconds) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return m > 0
+      ? `${m}:${String(s).padStart(2, "0")}`
+      : `0:${String(s).padStart(2, "0")}`;
+  };
 
   return (
     <div

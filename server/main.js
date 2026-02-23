@@ -9,7 +9,10 @@ import { DeviceDetails } from "../utils/api/deviceDetails.js";
 import { NotificationHistory } from "../utils/api/notificationHistory.js";
 import { ApprovalTokens } from "../utils/api/approvalTokens";
 import { PendingResponses } from "../utils/api/pendingResponses.js";
+import { EmailLog, createEmailLog } from "../utils/api/emailLog.js";
 import "../utils/api/apiKeys.js"; // Import for side effects (Meteor methods registration)
+import "./adminApi"; // Admin REST API endpoints
+import { adminPageTemplate } from "./templates/admin";
 import { APPROVAL_TOKEN_EXPIRY_MS } from "../utils/constants.js";
 import {
   isValidToken,
@@ -27,6 +30,14 @@ import dotenv from "dotenv";
 
 //load the env to process.env
 dotenv.config();
+
+// Serve admin UI at /admin
+WebApp.connectHandlers.use("/admin", (req, res, next) => {
+  // Only serve the admin page for GET requests to exactly /admin or /admin/
+  if (req.method !== "GET") return next();
+  res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+  res.end(adminPageTemplate());
+});
 
 /**
  * Save notification history for a user
@@ -161,7 +172,15 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
       console.log("Raw request body:", body);
 
       if (!body || body.trim() === "") {
-        throw new Error("Empty request body");
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            success: false,
+            error:
+              "Request body is empty. Please send a JSON payload with username, title, body, and actions.",
+          }),
+        );
+        return;
       }
 
       let requestBody;
@@ -169,7 +188,15 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
         requestBody = JSON.parse(body);
       } catch (parseError) {
         console.error("JSON parse error:", parseError);
-        throw new Error("Invalid JSON in request body");
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            success: false,
+            error:
+              "Invalid JSON in request body. Please check the formatting and try again.",
+          }),
+        );
+        return;
       }
 
       // Log request body with sensitive fields redacted
@@ -234,6 +261,27 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
 
         clientId = verificationResult.clientId;
         console.log(`Request authenticated for client: ${clientId}`);
+      } else if (apikey) {
+        // Auth not required but key was provided — try to resolve clientId but don't block on failure
+        try {
+          const verificationResult = await Meteor.callAsync(
+            "apiKeys.verify",
+            apikey,
+            client_id,
+          );
+          if (verificationResult.isValid) {
+            clientId = verificationResult.clientId;
+            console.log(`Optional API key verified for client: ${clientId}`);
+          } else {
+            console.log(
+              "Optional API key provided but invalid — proceeding without auth",
+            );
+          }
+        } catch (err) {
+          console.log(
+            "Optional API key verification failed — proceeding without auth",
+          );
+        }
       }
 
       // Validate required fields
@@ -248,11 +296,27 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
       // Get user document
       const userDoc = await DeviceDetails.findOneAsync({ username });
       if (!userDoc) {
-        throw new Error(`User not found: ${username}`);
+        console.error(`User not found: ${username}`);
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            success: false,
+            error: `User "${username}" not found. Please check the username and try again.`,
+          }),
+        );
+        return;
       }
 
       if (!userDoc.devices || userDoc.devices.length === 0) {
-        throw new Error(`No devices found for user: ${username}`);
+        console.error(`No devices found for user: ${username}`);
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            success: false,
+            error: `No devices registered for user "${username}". The user needs to register a device first.`,
+          }),
+        );
+        return;
       }
 
       // Check if the user has any approved devices
@@ -701,11 +765,13 @@ Meteor.methods({
         .replace(/[\r\n]/g, "")
         .trim();
 
+      const deletionAdminSubject = `[Account Deletion Request] ${subjectUsername}`;
+
       // Send notification to admin
       await Email.sendAsync({
         to: adminEmails,
         from: fromEmail,
-        subject: `[Account Deletion Request] ${subjectUsername}`,
+        subject: deletionAdminSubject,
         html: `
           <h3>Account Deletion Request</h3>
           <p>A user has requested account deletion with the following details:</p>
@@ -728,6 +794,18 @@ Meteor.methods({
           <p>will be permanently deleted.</p>
         `,
       });
+      await createEmailLog({
+        type: "account_deletion_admin",
+        to: adminEmails,
+        from: fromEmail,
+        subject: deletionAdminSubject,
+        userId: user._id,
+        username,
+        email: normalizedEmail,
+        status: "sent",
+      });
+
+      const deletionUserSubject = "Account Deletion Request Received";
 
       // Send confirmation to user
       await Email.sendAsync({
@@ -748,6 +826,16 @@ Meteor.methods({
           <br />
           <p>Best regards,<br />The MIEWeb Auth Team</p>
         `,
+      });
+      await createEmailLog({
+        type: "account_deletion_user",
+        to: normalizedEmail,
+        from: fromEmail,
+        subject: deletionUserSubject,
+        userId: user._id,
+        username,
+        email: normalizedEmail,
+        status: "sent",
       });
 
       return { success: true };
@@ -1179,10 +1267,11 @@ Meteor.methods({
               "EMAIL_FROM is required for sending approval emails",
             );
           }
+          const approvalSubject = `New device approval required for user: ${username}`;
           await Email.sendAsync({
             to: adminEmails,
             from: fromEmail,
-            subject: `New device approval required for user: ${username}`,
+            subject: approvalSubject,
             html: `
             <p>A new user has registered with the following details:</p>
             <ul>
@@ -1201,6 +1290,16 @@ Meteor.methods({
               </a>
             </p>
           `,
+          });
+          await createEmailLog({
+            type: "registration_approval",
+            to: adminEmails,
+            from: fromEmail,
+            subject: approvalSubject,
+            userId,
+            username,
+            email,
+            status: "sent",
           });
 
           console.log(
@@ -1242,6 +1341,29 @@ Meteor.methods({
               { userId: userId },
               { $pull: { devices: { appId: deviceResp.appId } } },
             );
+          } else if (res === "approve" || res === "approved") {
+            // Update the secondary device status to approved
+            const userDeviceDoc = await DeviceDetails.findOneAsync({ userId });
+            if (userDeviceDoc) {
+              const devIdx = userDeviceDoc.devices.findIndex(
+                (d) => d.deviceUUID === sessionDeviceInfo.uuid,
+              );
+              if (devIdx !== -1) {
+                await DeviceDetails.updateAsync(
+                  { userId },
+                  {
+                    $set: {
+                      [`devices.${devIdx}.deviceRegistrationStatus`]:
+                        "approved",
+                      [`devices.${devIdx}.lastUpdated`]: new Date(),
+                    },
+                  },
+                );
+                console.log(
+                  `Secondary device ${sessionDeviceInfo.uuid} approved for user ${userId}`,
+                );
+              }
+            }
           }
           userAction = res;
         } catch (error) {

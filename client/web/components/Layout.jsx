@@ -79,6 +79,7 @@ export const Layout = ({ children }) => {
   const links = [
     { label: "Home", href: "/" },
     { label: "Test it now", href: "/test-notification" },
+    { label: "FAQ", href: "/faq" },
     { label: "Privacy Policy", href: "/privacy-policy" },
     { label: "Support", href: "/support" },
   ];

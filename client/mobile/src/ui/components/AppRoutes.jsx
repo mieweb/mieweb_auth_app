@@ -50,6 +50,11 @@ const MobileAppRequired = lazy(() =>
     default: m.MobileAppRequired,
   })),
 );
+const FAQPage = lazy(() =>
+  import("../../../../web/FAQPage").then((m) => ({
+    default: m.FAQPage,
+  })),
+);
 
 const PageLoader = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -79,6 +84,7 @@ export const AppRoutes = ({ isRegistered, deviceUuid }) => {
           <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
           <Route path="/support" element={<SupportPage />} />
           <Route path="/delete-account" element={<DeleteAccountPage />} />
+          <Route path="/faq" element={<FAQPage />} />
           <Route
             path="/login"
             element={
