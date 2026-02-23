@@ -766,11 +766,6 @@ Meteor.methods({
     check(userId, Match.Maybe(String));
     check(email, Match.Maybe(String));
 
-    console.log(
-      "### Log: Checking registration status for user",
-      userId || email,
-    );
-
     // Ensure we have some identifier to search with
     if (!userId && !email) {
       throw new Meteor.Error("invalid-params", "User ID or email is required");
@@ -789,17 +784,9 @@ Meteor.methods({
       throw new Meteor.Error("not-found", "User not found");
     }
 
-    console.log(
-      `### user details while searching for status', ${JSON.stringify(user)}`,
-    );
-
     // Get registration status and device info
     const registrationStatus = user.profile?.registrationStatus || "pending";
     const isFirstDevice = user.profile?.isFirstDevice || false;
-
-    console.log(
-      `### Log: User ${userId || email} registration status: ${registrationStatus}`,
-    );
 
     // Return registration status information
     return {
@@ -1801,6 +1788,33 @@ Meteor.methods({
 
     return { email, password };
   },
+});
+
+// ── Biometric login handler ──────────────────────────────────────────────
+// Registers a proper Accounts login handler so biometric auth establishes a
+// real Meteor session (sets Meteor.userId() on the client).
+Accounts.registerLoginHandler("biometric", async function (loginRequest) {
+  if (!loginRequest.biometricSecret) return undefined; // not a biometric attempt
+
+  check(loginRequest.biometricSecret, String);
+
+  const userDoc = await DeviceDetails.findOneAsync({
+    "devices.biometricSecret": loginRequest.biometricSecret,
+  });
+
+  if (!userDoc) {
+    throw new Meteor.Error("not-found", "Biometric credentials not found");
+  }
+
+  const user = await Meteor.users.findOneAsync({ _id: userDoc.userId });
+  if (!user) {
+    throw new Meteor.Error(
+      "not-found",
+      "User not found with these biometric credentials",
+    );
+  }
+
+  return { userId: user._id };
 });
 
 Meteor.startup(() => {

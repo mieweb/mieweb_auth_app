@@ -2,8 +2,9 @@ import { Mongo } from "meteor/mongo";
 import { check } from "meteor/check";
 import { SHA256 } from "meteor/sha";
 
-// Initialize collection
-const DeviceDetails = new Mongo.Collection("deviceDetails");
+// Guard against double-instantiation (Meteor + rspack both load this module)
+const DeviceDetails = (globalThis.__collections_deviceDetails ??=
+  new Mongo.Collection("deviceDetails"));
 
 // Export the collection
 export { DeviceDetails };

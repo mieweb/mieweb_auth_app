@@ -48,12 +48,13 @@ const PendingRegistrationPage = () => {
         {/* Status message */}
         <Alert variant="warning">
           <AlertDescription>
-            <p>{message}</p>
-            <p className="mt-1 text-xs opacity-75">
+            {message}
+            <br />
+            <span className="mt-1 text-xs opacity-75">
               {isAdmin
                 ? "An administrator will review your request shortly."
                 : "Your email verification is being processed."}
-            </p>
+            </span>
           </AlertDescription>
         </Alert>
 

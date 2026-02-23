@@ -2,7 +2,11 @@ import { Mongo } from "meteor/mongo";
 import { check, Match } from "meteor/check";
 import { Random } from "meteor/random";
 
-export const NotificationHistory = new Mongo.Collection("notificationHistory");
+// Guard against double-instantiation (Meteor + rspack both load this module)
+export const NotificationHistory =
+  (globalThis.__collections_notificationHistory ??= new Mongo.Collection(
+    "notificationHistory",
+  ));
 
 // Create indexes for better query performance
 if (Meteor.isServer) {

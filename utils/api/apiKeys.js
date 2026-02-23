@@ -3,7 +3,9 @@ import { check } from "meteor/check";
 import crypto from "crypto";
 import { promisify } from "util";
 
-export const ApiKeys = new Mongo.Collection("apiKeys");
+// Guard against double-instantiation (Meteor + rspack both load this module)
+export const ApiKeys = (globalThis.__collections_apiKeys ??=
+  new Mongo.Collection("apiKeys"));
 
 // Promisify pbkdf2 for async usage
 const pbkdf2Async = promisify(crypto.pbkdf2);

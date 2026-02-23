@@ -9,6 +9,7 @@ import {
   Textarea,
   Button,
   Alert,
+  AlertTitle,
   AlertDescription,
   Card,
   CardHeader,
@@ -147,21 +148,19 @@ export const DeleteAccountPage = () => {
 
             <div className="mb-6">
               <Alert variant="warning">
+                <AlertTitle>Important Information</AlertTitle>
                 <AlertDescription>
-                  <h3 className="text-sm font-medium mb-2">
-                    Important Information
-                  </h3>
-                  <ul className="text-sm space-y-1 list-disc list-inside">
-                    <li>Account deletion is permanent and cannot be undone</li>
-                    <li>
-                      All your data, including notification history, will be
-                      deleted
-                    </li>
-                    <li>
-                      You will receive a confirmation email before deletion
-                    </li>
-                    <li>Processing may take up to 30 days</li>
-                  </ul>
+                  <span className="text-sm space-y-1 block">
+                    {"• Account deletion is permanent and cannot be undone"}
+                    <br />
+                    {
+                      "• All your data, including notification history, will be deleted"
+                    }
+                    <br />
+                    {"• You will receive a confirmation email before deletion"}
+                    <br />
+                    {"• Processing may take up to 30 days"}
+                  </span>
                 </AlertDescription>
               </Alert>
             </div>

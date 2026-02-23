@@ -219,13 +219,13 @@ export const WebNotificationPage = () => {
                 {/* Prerequisite Note & Download Links */}
                 <Alert variant="info">
                   <AlertDescription>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                      <div className="flex-1">
+                    <span className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <span className="flex-1">
                         <strong>Prerequisite:</strong> You need to install the
                         app and register your device to receive notifications.
-                      </div>
+                      </span>
                       <AppStoreBadges />
-                    </div>
+                    </span>
                   </AlertDescription>
                 </Alert>
 

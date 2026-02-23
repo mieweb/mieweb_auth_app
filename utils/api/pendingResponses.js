@@ -1,7 +1,9 @@
 import { Mongo } from "meteor/mongo";
 import { check } from "meteor/check";
 
-export const PendingResponses = new Mongo.Collection("pendingResponses");
+// Guard against double-instantiation (Meteor + rspack both load this module)
+export const PendingResponses = (globalThis.__collections_pendingResponses ??=
+  new Mongo.Collection("pendingResponses"));
 
 // Create indexes for better query performance
 if (Meteor.isServer) {

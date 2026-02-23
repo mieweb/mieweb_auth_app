@@ -220,14 +220,13 @@ export const RegistrationPage = ({ deviceDetails }) => {
           {/* Status message */}
           <Alert variant="warning">
             <AlertDescription>
-              <p>
-                Since this is your first device registered with us, your account
-                needs to be approved by an administrator.
-              </p>
-              <p className="mt-1 text-xs opacity-75">
+              Since this is your first device registered with us, your account
+              needs to be approved by an administrator.
+              <br />
+              <span className="mt-1 text-xs opacity-75">
                 You will receive a notification once your registration has been
                 processed.
-              </p>
+              </span>
             </AlertDescription>
           </Alert>
 

@@ -4,6 +4,36 @@ import { Meteor } from "meteor/meteor";
 import { useTracker } from "meteor/react-meteor-data";
 import { SiteHeader, SiteFooter } from "@mieweb/ui";
 
+/**
+ * Intercept clicks on internal <a> tags rendered by @mieweb/ui components
+ * so they use React Router navigation instead of full page reloads.
+ */
+const useRouterLinkInterceptor = (navigate) => {
+  return useCallback(
+    (e) => {
+      const anchor = e.target.closest("a[href]");
+      if (!anchor) return;
+
+      const href = anchor.getAttribute("href");
+      // Skip external links, anchors, and non-path hrefs
+      if (
+        !href ||
+        href.startsWith("http") ||
+        href.startsWith("mailto:") ||
+        href.startsWith("#") ||
+        anchor.target === "_blank" ||
+        anchor.hasAttribute("download")
+      ) {
+        return;
+      }
+
+      e.preventDefault();
+      navigate(href);
+    },
+    [navigate],
+  );
+};
+
 export const Layout = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -72,8 +102,13 @@ export const Layout = ({ children }) => {
     { platform: "github", href: "https://github.com/mieweb/mieweb_auth_app" },
   ];
 
+  const handleLinkClick = useRouterLinkInterceptor(navigate);
+
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div
+      className="min-h-screen bg-background flex flex-col"
+      onClick={handleLinkClick}
+    >
       <SiteHeader
         logo={{
           src: "/logo.png",

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { openSupportLink } from "../../../../utils/openExternal";
 import { Meteor } from "meteor/meteor";
+import { Accounts } from "meteor/accounts-base";
 import { Session } from "meteor/session";
 import {
   Fingerprint as FingerprintIcon,
@@ -147,22 +148,33 @@ export const LoginPage = ({ deviceDetails }) => {
           },
           async () => {
             try {
-              const result = await Meteor.callAsync(
-                "users.loginWithBiometric",
-                biometricUserId,
-              );
-              if (!result?._id)
-                throw new Error("Biometric authentication failed");
+              // Use Accounts login handler to establish a proper Meteor session
+              await new Promise((loginResolve, loginReject) => {
+                Accounts.callLoginMethod({
+                  methodArguments: [{ biometricSecret: biometricUserId }],
+                  userCallback: (err) => {
+                    if (err) loginReject(err);
+                    else loginResolve();
+                  },
+                });
+              });
 
-              const isApproved = await checkRegistrationStatus(
-                result._id,
-                result.email,
-              );
+              const userId = Meteor.userId();
+              if (!userId) throw new Error("Biometric authentication failed");
+
+              const user = Meteor.user();
+              const email =
+                user?.emails?.[0]?.address ||
+                localStorage.getItem("lastLoggedInEmail") ||
+                "";
+              const username = user?.username || "";
+
+              const isApproved = await checkRegistrationStatus(userId, email);
               if (isApproved) {
                 Session.set("userProfile", {
-                  email: result.email,
-                  username: result.username,
-                  _id: result._id,
+                  email,
+                  username,
+                  _id: userId,
                 });
                 navigate("/dashboard");
               }
