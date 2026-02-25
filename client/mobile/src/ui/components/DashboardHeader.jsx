@@ -28,7 +28,7 @@ export const DashboardHeader = ({
   const iconLabel = "text-[9px] font-medium mt-0.5 leading-tight";
 
   return (
-    <header className="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl">
+    <header className="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl pt-[env(safe-area-inset-top)]">
       <div className="px-4 py-2.5">
         {/* Title row */}
         <div className="flex items-center justify-between">
