@@ -48,6 +48,7 @@ const api = async (path, opts = {}) => {
       err.status = response.status;
       err.statusText = response.statusText;
       err.body = body;
+      err.errorCode = body.errorCode || null;
       throw err;
     }
 
@@ -58,15 +59,16 @@ const api = async (path, opts = {}) => {
     wrapped.status = 0;
     wrapped.statusText = 'Network Error';
     wrapped.body = null;
+    wrapped.errorCode = 'network-error';
     throw wrapped;
   }
 };
 
 // ─── Toast ───────────────────────────────────────────────────────
 const Toast = ({ msg, type, onClose }) => {
-  useEffect(() => { const t = setTimeout(onClose, 3500); return () => clearTimeout(t); }, [onClose]);
-  const bg = type === 'error' ? 'bg-red-500' : 'bg-green-500';
-  return <div className={\`fixed top-4 right-4 z-50 \${bg} text-white px-4 py-2 rounded-lg shadow-lg fade-in text-sm\`}>{msg}</div>;
+  useEffect(() => { const t = setTimeout(onClose, type === 'error' ? 5000 : 3500); return () => clearTimeout(t); }, [onClose, type]);
+  const bg = type === 'error' ? 'bg-red-500' : type === 'warning' ? 'bg-yellow-500' : 'bg-green-500';
+  return <div className={\`fixed top-4 right-4 z-50 \${bg} text-white px-4 py-2 rounded-lg shadow-lg fade-in text-sm max-w-sm\`}>{msg}</div>;
 };
 
 // ─── Login Page ──────────────────────────────────────────────────
@@ -181,7 +183,7 @@ const ConfirmDialog = ({ title, message, onConfirm, onCancel, danger }) => (
 );
 
 // ─── Tab: API Keys ───────────────────────────────────────────────
-const ApiKeysTab = ({ toast }) => {
+const ApiKeysTab = ({ toast, toastErr }) => {
   const [keys, setKeys] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newClientId, setNewClientId] = useState('');
@@ -210,7 +212,7 @@ const ApiKeysTab = ({ toast }) => {
         toast(res.error || 'Failed to create API key', 'error');
       }
     } catch (err) {
-      toast(err.message || 'An unexpected error occurred', 'error');
+      toastErr(err.message || 'An unexpected error occurred', 'error', err);
     }
   };
 
@@ -226,7 +228,7 @@ const ApiKeysTab = ({ toast }) => {
           if (res.success) { toast('Key deleted', 'success'); load(); }
           else toast(res.error || 'Failed to delete key', 'error');
         } catch (err) {
-          toast(err.message || 'An unexpected error occurred', 'error');
+          toastErr(err.message || 'An unexpected error occurred', 'error', err);
         }
       }
     });
@@ -276,7 +278,7 @@ const ApiKeysTab = ({ toast }) => {
 };
 
 // ─── Tab: Users ──────────────────────────────────────────────────
-const UsersTab = ({ toast }) => {
+const UsersTab = ({ toast, toastErr }) => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [confirm, setConfirm] = useState(null);
@@ -301,7 +303,7 @@ const UsersTab = ({ toast }) => {
           if (res.success) { toast('User approved', 'success'); load(); }
           else toast(res.error || 'Failed to approve user', 'error');
         } catch (err) {
-          toast(err.message || 'An unexpected error occurred', 'error');
+          toastErr(err.message || 'An unexpected error occurred', 'error', err);
         }
       }
     });
@@ -319,7 +321,7 @@ const UsersTab = ({ toast }) => {
           if (res.success) { toast('User deleted', 'success'); load(); }
           else toast(res.error || 'Failed to delete user', 'error');
         } catch (err) {
-          toast(err.message || 'An unexpected error occurred', 'error');
+          toastErr(err.message || 'An unexpected error occurred', 'error', err);
         }
       }
     });
@@ -361,7 +363,7 @@ const UsersTab = ({ toast }) => {
 };
 
 // ─── Tab: Devices ────────────────────────────────────────────────
-const DevicesTab = ({ toast }) => {
+const DevicesTab = ({ toast, toastErr }) => {
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [confirm, setConfirm] = useState(null);
@@ -386,7 +388,7 @@ const DevicesTab = ({ toast }) => {
           if (res.success) { toast('Device approved', 'success'); load(); }
           else toast(res.error || 'Failed to approve device', 'error');
         } catch (err) {
-          toast(err.message || 'An unexpected error occurred', 'error');
+          toastErr(err.message || 'An unexpected error occurred', 'error', err);
         }
       }
     });
@@ -404,7 +406,7 @@ const DevicesTab = ({ toast }) => {
           if (res.success) { toast('Device revoked', 'success'); load(); }
           else toast(res.error || 'Failed to revoke device', 'error');
         } catch (err) {
-          toast(err.message || 'An unexpected error occurred', 'error');
+          toastErr(err.message || 'An unexpected error occurred', 'error', err);
         }
       }
     });
@@ -477,7 +479,7 @@ const DevicesTab = ({ toast }) => {
 };
 
 // ─── Tab: Emails ─────────────────────────────────────────────────
-const EmailsTab = ({ toast }) => {
+const EmailsTab = ({ toast, toastErr }) => {
   const [emails, setEmails] = useState([]);
   const [loading, setLoading] = useState(true);
   const [confirm, setConfirm] = useState(null);
@@ -503,7 +505,7 @@ const EmailsTab = ({ toast }) => {
           if (res.success) { toast('User approved', 'success'); load(); }
           else toast(res.error || 'Failed to approve user', 'error');
         } catch (err) {
-          toast(err.message || 'An unexpected error occurred', 'error');
+          toastErr(err.message || 'An unexpected error occurred', 'error', err);
         }
       }
     });
@@ -521,7 +523,7 @@ const EmailsTab = ({ toast }) => {
           if (res.success) { toast('User rejected and removed', 'success'); load(); }
           else toast(res.error || 'Failed to reject user', 'error');
         } catch (err) {
-          toast(err.message || 'An unexpected error occurred', 'error');
+          toastErr(err.message || 'An unexpected error occurred', 'error', err);
         }
       }
     });
@@ -629,6 +631,16 @@ const Dashboard = ({ adminId, onLogout }) => {
   const [toastData, setToastData] = useState(null);
   const toast = (msg, type) => setToastData({ msg, type });
 
+  // Wrap toast to auto-logout on session expiry
+  const toastWithSessionCheck = (msg, type, err) => {
+    if (err && (err.status === 401 || err.status === 403)) {
+      toast('Session expired. Please sign in again.', 'warning');
+      setTimeout(() => onLogout(), 1500);
+      return;
+    }
+    toast(msg, type);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {toastData && <Toast {...toastData} onClose={() => setToastData(null)} />}
@@ -652,10 +664,10 @@ const Dashboard = ({ adminId, onLogout }) => {
             </button>
           ))}
         </div>
-        {tab === 'keys' && <ApiKeysTab toast={toast} />}
-        {tab === 'users' && <UsersTab toast={toast} />}
-        {tab === 'devices' && <DevicesTab toast={toast} />}
-        {tab === 'emails' && <EmailsTab toast={toast} />}
+        {tab === 'keys' && <ApiKeysTab toast={toast} toastErr={toastWithSessionCheck} />}
+        {tab === 'users' && <UsersTab toast={toast} toastErr={toastWithSessionCheck} />}
+        {tab === 'devices' && <DevicesTab toast={toast} toastErr={toastWithSessionCheck} />}
+        {tab === 'emails' && <EmailsTab toast={toast} toastErr={toastWithSessionCheck} />}
       </div>
     </div>
   );
