@@ -147,7 +147,7 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
       
       if (!body || body.trim() === "") {
         res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: false, error: "Request body is empty. Please send a JSON payload with username, title, body, and actions." }));
+        res.end(JSON.stringify({ success: false, error: "Request body is empty. Please send a JSON payload with username, title, body, and actions.", errorCode: 'empty-body' }));
         return;
       }
       
@@ -157,7 +157,7 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
       } catch (parseError) {
         console.error("JSON parse error:", parseError);
         res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: false, error: "Invalid JSON in request body. Please check the formatting and try again." }));
+        res.end(JSON.stringify({ success: false, error: "Invalid JSON in request body. Please check the formatting and try again.", errorCode: 'invalid-json' }));
         return;
       }
       
@@ -187,7 +187,8 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
           res.writeHead(403, { "Content-Type": "application/json" });
           res.end(JSON.stringify({
             success: false,
-            error: "API key is required. Please provide a valid API key in the request. If you don't have one, please contact your administrator."
+            error: "API key is required. Please provide a valid API key in the request. If you don't have one, please contact your administrator.",
+            errorCode: 'api-key-required'
           }));
           return;
         }
@@ -200,7 +201,8 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
           res.writeHead(403, { "Content-Type": "application/json" });
           res.end(JSON.stringify({
             success: false,
-            error: "The API key provided is invalid or has been revoked. Please check your key or ask your administrator for a new one."
+            error: "The API key provided is invalid or has been revoked. Please check your key or ask your administrator for a new one.",
+            errorCode: 'api-key-invalid'
           }));
           return;
         }
@@ -225,22 +227,22 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
       // Validate required fields
       if (!username) {
         res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: false, error: "Username is required." }));
+        res.end(JSON.stringify({ success: false, error: "Username is required.", errorCode: 'missing-username' }));
         return;
       }
       if (!title) {
         res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: false, error: "Notification title is required." }));
+        res.end(JSON.stringify({ success: false, error: "Notification title is required.", errorCode: 'missing-title' }));
         return;
       }
       if (!messageBody) {
         res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: false, error: "Notification body is required." }));
+        res.end(JSON.stringify({ success: false, error: "Notification body is required.", errorCode: 'missing-body' }));
         return;
       }
       if (!actions || !Array.isArray(actions)) {
         res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: false, error: "Actions array is required." }));
+        res.end(JSON.stringify({ success: false, error: "Actions array is required.", errorCode: 'missing-actions' }));
         return;
       }
       
@@ -262,7 +264,7 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
       if (!fcmTokens || fcmTokens.length === 0) {
         console.error(`No FCM tokens found for username: ${username}`);
         res.writeHead(404, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: false, error: `No registered devices found for user "${username}". Make sure the user has installed the app and completed registration.` }));
+        res.end(JSON.stringify({ success: false, error: `No registered devices found for user "${username}". Make sure the user has installed the app and completed registration.`, errorCode: 'no-devices' }));
         return;
       }
       
@@ -271,14 +273,14 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
       if (!userDoc) {
         console.error(`User not found: ${username}`);
         res.writeHead(404, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: false, error: `User "${username}" not found. Please check the username and try again.` }));
+        res.end(JSON.stringify({ success: false, error: `User "${username}" not found. Please check the username and try again.`, errorCode: 'user-not-found' }));
         return;
       }
       
       if (!userDoc.devices || userDoc.devices.length === 0) {
         console.error(`No devices found for user: ${username}`);
         res.writeHead(404, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: false, error: `No devices registered for user "${username}". The user needs to register a device first.` }));
+        res.end(JSON.stringify({ success: false, error: `No devices registered for user "${username}". The user needs to register a device first.`, errorCode: 'no-devices' }));
         return;
       }
       
@@ -299,7 +301,7 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
         res.end(JSON.stringify({
           success: false,
           error: errorMessage,
-          reason: 'device_not_approved'
+          errorCode: 'device-not-approved'
         }));
         return;
       }
@@ -398,24 +400,49 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
       // Map known error patterns to user-friendly messages
       let userMessage = 'An unexpected error occurred while sending the notification. Please try again.';
       let statusCode = 500;
+      let errorCode = 'server-error';
 
       const msg = error.message || '';
-      if (msg.includes('Empty request body') || msg.includes('Invalid JSON')) {
+      if (error.isClientSafe) {
+        if (error.reason) {
+          userMessage = error.reason;
+        }
+
+        errorCode = error.error || 'server-error';
+        switch (errorCode) {
+          case 'invalid-username':
+          case 'not-found':
+          case 'user-not-found':
+            statusCode = 404;
+            break;
+          case 'invalid-status':
+            statusCode = 400;
+            break;
+          case 'database-error':
+          default:
+            statusCode = 500;
+            break;
+        }
+      } else if (msg.includes('Empty request body') || msg.includes('Invalid JSON')) {
         userMessage = 'Invalid request format. Please ensure you are sending a valid JSON payload.';
         statusCode = 400;
+        errorCode = 'invalid-request';
       } else if (msg.includes('messaging/') || msg.includes('FCM')) {
         userMessage = 'Failed to deliver the push notification. The device token may be expired — ask the user to re-open the app.';
         statusCode = 502;
+        errorCode = 'fcm-error';
       } else if (msg.includes('timeout') || msg.includes('Timed out')) {
         userMessage = 'The request timed out waiting for a user response.';
         statusCode = 408;
+        errorCode = 'timeout';
       }
 
       // Send error response (no stack traces)
       res.writeHead(statusCode, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
         success: false,
-        error: userMessage
+        error: userMessage,
+        errorCode
       }));
     }
   });
@@ -425,7 +452,8 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
     res.writeHead(500, { "Content-Type": "application/json" });
     res.end(JSON.stringify({
       success: false,
-      error: "Internal server error"
+      error: "Internal server error",
+      errorCode: 'server-error'
     }));
   });
 });

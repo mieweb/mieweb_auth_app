@@ -4,6 +4,7 @@ import { ApiKeys } from '../utils/api/apiKeys';
 import { DeviceDetails } from '../utils/api/deviceDetails';
 import { EmailLog } from '../utils/api/emailLog';
 import { requireAdminAuth, validateCredentials, createSession, destroySession, parseJsonBody, sendJson, getPublicKey, decryptPassword } from './adminAuth';
+import { mapMeteorError } from '../utils/errorHelpers';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -30,9 +31,10 @@ WebApp.connectHandlers.use('/api/admin/auth', async (req, res) => {
   if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
   if (req.method !== 'POST') return sendJson(res, 405, { error: 'Method not allowed' });
 
+  let username = '(unknown)';
   try {
     const body = await parseJsonBody(req);
-    const username = body.username;
+    username = body.username;
 
     // Support both encrypted and plaintext passwords
     let password;
@@ -111,7 +113,8 @@ WebApp.connectHandlers.use('/api/admin/api-keys/list', async (req, res) => {
       const keys = await ApiKeys.find({}, { fields: { clientId: 1, keyPrefix: 1, createdAt: 1, lastUsed: 1 } }).fetchAsync();
       sendJson(res, 200, { success: true, keys: keys.map(k => ({ clientId: k.clientId, keyPrefix: k.keyPrefix || '•••••', createdAt: k.createdAt, lastUsed: k.lastUsed })) });
     } catch (err) {
-      sendJson(res, 500, { error: err.message });
+      const mapped = mapMeteorError(err);
+      sendJson(res, mapped.status, { error: mapped.error, errorCode: mapped.errorCode });
     }
   });
 });
@@ -125,12 +128,13 @@ WebApp.connectHandlers.use('/api/admin/api-keys/create', async (req, res) => {
   await requireAdminAuth(req, res, async () => {
     try {
       const { clientId } = await parseJsonBody(req);
-      if (!clientId) return sendJson(res, 400, { error: 'clientId required' });
+      if (!clientId) return sendJson(res, 400, { error: 'clientId required', errorCode: 'missing-field' });
 
       const apiKey = await Meteor.callAsync('apiKeys.create', clientId);
       sendJson(res, 201, { success: true, clientId, apiKey, message: 'Store this key securely. It will not be shown again.' });
     } catch (err) {
-      sendJson(res, err.error === 'client-exists' ? 409 : 500, { error: err.reason || err.message });
+      const mapped = mapMeteorError(err);
+      sendJson(res, mapped.status, { error: mapped.error, errorCode: mapped.errorCode });
     }
   });
 });
@@ -144,12 +148,13 @@ WebApp.connectHandlers.use('/api/admin/api-keys/delete', async (req, res) => {
   await requireAdminAuth(req, res, async () => {
     try {
       const { clientId } = await parseJsonBody(req);
-      if (!clientId) return sendJson(res, 400, { error: 'clientId required' });
+      if (!clientId) return sendJson(res, 400, { error: 'clientId required', errorCode: 'missing-field' });
 
       const deleted = await Meteor.callAsync('apiKeys.delete', clientId);
-      sendJson(res, deleted ? 200 : 404, { success: deleted, message: deleted ? 'API key deleted' : 'Key not found' });
+      sendJson(res, deleted ? 200 : 404, { success: deleted, message: deleted ? 'API key deleted' : 'Key not found', errorCode: deleted ? undefined : 'client-not-found' });
     } catch (err) {
-      sendJson(res, 500, { error: err.message });
+      const mapped = mapMeteorError(err);
+      sendJson(res, mapped.status, { error: mapped.error, errorCode: mapped.errorCode });
     }
   });
 });
@@ -181,7 +186,8 @@ WebApp.connectHandlers.use('/api/admin/users/list', async (req, res) => {
         }))
       });
     } catch (err) {
-      sendJson(res, 500, { error: err.message });
+      const mapped = mapMeteorError(err);
+      sendJson(res, mapped.status, { error: mapped.error, errorCode: mapped.errorCode });
     }
   });
 });
@@ -195,17 +201,18 @@ WebApp.connectHandlers.use('/api/admin/users/approve', async (req, res) => {
   await requireAdminAuth(req, res, async () => {
     try {
       const { userId } = await parseJsonBody(req);
-      if (!userId) return sendJson(res, 400, { error: 'userId required' });
+      if (!userId) return sendJson(res, 400, { error: 'userId required', errorCode: 'missing-field' });
 
       const user = await Meteor.users.findOneAsync({ _id: userId });
-      if (!user) return sendJson(res, 404, { error: 'User not found' });
+      if (!user) return sendJson(res, 404, { error: 'User not found', errorCode: 'user-not-found' });
 
       await Meteor.users.updateAsync({ _id: userId }, { $set: { 'profile.registrationStatus': 'approved' } });
       await DeviceDetails.updateAsync({ userId }, { $set: { 'devices.$[].deviceRegistrationStatus': 'approved' } });
 
       sendJson(res, 200, { success: true, message: 'User approved' });
     } catch (err) {
-      sendJson(res, 500, { error: err.message });
+      const mapped = mapMeteorError(err);
+      sendJson(res, mapped.status, { error: mapped.error, errorCode: mapped.errorCode });
     }
   });
 });
@@ -219,12 +226,13 @@ WebApp.connectHandlers.use('/api/admin/users/delete', async (req, res) => {
   await requireAdminAuth(req, res, async () => {
     try {
       const { userId } = await parseJsonBody(req);
-      if (!userId) return sendJson(res, 400, { error: 'userId required' });
+      if (!userId) return sendJson(res, 400, { error: 'userId required', errorCode: 'missing-field' });
 
       const result = await Meteor.callAsync('users.removeCompletely', userId);
       sendJson(res, 200, { success: true, ...result });
     } catch (err) {
-      sendJson(res, 500, { error: err.message });
+      const mapped = mapMeteorError(err);
+      sendJson(res, mapped.status, { error: mapped.error, errorCode: mapped.errorCode });
     }
   });
 });
@@ -259,7 +267,8 @@ WebApp.connectHandlers.use('/api/admin/devices/list', async (req, res) => {
       });
       sendJson(res, 200, { success: true, devices });
     } catch (err) {
-      sendJson(res, 500, { error: err.message });
+      const mapped = mapMeteorError(err);
+      sendJson(res, mapped.status, { error: mapped.error, errorCode: mapped.errorCode });
     }
   });
 });
@@ -273,10 +282,10 @@ WebApp.connectHandlers.use('/api/admin/devices/approve', async (req, res) => {
   await requireAdminAuth(req, res, async () => {
     try {
       const { userId, deviceUUID } = await parseJsonBody(req);
-      if (!userId || !deviceUUID) return sendJson(res, 400, { error: 'userId and deviceUUID required' });
+      if (!userId || !deviceUUID) return sendJson(res, 400, { error: 'userId and deviceUUID required', errorCode: 'missing-field' });
 
       const userDoc = await DeviceDetails.findOneAsync({ userId, 'devices.deviceUUID': deviceUUID });
-      if (!userDoc) return sendJson(res, 404, { error: 'Device not found' });
+      if (!userDoc) return sendJson(res, 404, { error: 'Device not found', errorCode: 'device-not-found' });
 
       await DeviceDetails.updateAsync(
         { userId, 'devices.deviceUUID': deviceUUID },
@@ -285,7 +294,8 @@ WebApp.connectHandlers.use('/api/admin/devices/approve', async (req, res) => {
 
       sendJson(res, 200, { success: true, message: 'Device approved' });
     } catch (err) {
-      sendJson(res, 500, { error: err.message });
+      const mapped = mapMeteorError(err);
+      sendJson(res, mapped.status, { error: mapped.error, errorCode: mapped.errorCode });
     }
   });
 });
@@ -299,10 +309,10 @@ WebApp.connectHandlers.use('/api/admin/devices/revoke', async (req, res) => {
   await requireAdminAuth(req, res, async () => {
     try {
       const { userId, deviceUUID } = await parseJsonBody(req);
-      if (!userId || !deviceUUID) return sendJson(res, 400, { error: 'userId and deviceUUID required' });
+      if (!userId || !deviceUUID) return sendJson(res, 400, { error: 'userId and deviceUUID required', errorCode: 'missing-field' });
 
       const userDoc = await DeviceDetails.findOneAsync({ userId, 'devices.deviceUUID': deviceUUID });
-      if (!userDoc) return sendJson(res, 404, { error: 'Device not found' });
+      if (!userDoc) return sendJson(res, 404, { error: 'Device not found', errorCode: 'device-not-found' });
 
       // Remove the device from the user's devices array
       await DeviceDetails.updateAsync(
@@ -312,7 +322,8 @@ WebApp.connectHandlers.use('/api/admin/devices/revoke', async (req, res) => {
 
       sendJson(res, 200, { success: true, message: 'Device revoked and removed' });
     } catch (err) {
-      sendJson(res, 500, { error: err.message });
+      const mapped = mapMeteorError(err);
+      sendJson(res, mapped.status, { error: mapped.error, errorCode: mapped.errorCode });
     }
   });
 });
@@ -341,7 +352,8 @@ WebApp.connectHandlers.use('/api/admin/emails/list', async (req, res) => {
 
       sendJson(res, 200, { success: true, emails: enriched });
     } catch (err) {
-      sendJson(res, 500, { error: err.message });
+      const mapped = mapMeteorError(err);
+      sendJson(res, mapped.status, { error: mapped.error, errorCode: mapped.errorCode });
     }
   });
 });

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Meteor } from 'meteor/meteor';
 import { Layout } from './web/components/Layout';
-import { Send, Bell, CheckCircle, AlertCircle, Clock, User, Smartphone, Info, AlertTriangle } from 'lucide-react';
+import { Send, Bell, CheckCircle, XCircle, Clock, User, Smartphone, Info, AlertTriangle } from 'lucide-react';
+import { classifyError } from '../utils/errorHelpers';
 
 export const WebNotificationPage = () => {
   const [formData, setFormData] = useState({
@@ -79,7 +80,13 @@ export const WebNotificationPage = () => {
       }
 
       if (!response.ok) {
-        throw new Error(result.error || result.message || 'Something went wrong. Please try again.');
+        const errorCode = result.errorCode || '';
+        const httpStatus = response.status;
+        const { type: errorType, hint } = classifyError(errorCode, httpStatus);
+        const errorMessage = result.error || result.message || 'Something went wrong. Please try again.';
+        setStatus({ type: errorType, message: errorMessage, hint, errorCode, httpStatus });
+        setIsLoading(false);
+        return;
       }
 
       console.log('Notification response:', result);
@@ -119,8 +126,15 @@ export const WebNotificationPage = () => {
     } catch (error) {
       console.error('Error sending notification:', error);
       const msg = error.message || 'Failed to send notification';
-      // Show the server message directly — it's now user-friendly
-      setStatus({ type: 'error', message: msg });
+      const isNetwork = msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('Network request failed');
+      const errorCode = isNetwork ? 'network-error' : 'unknown';
+      const { hint } = classifyError(errorCode);
+      setStatus({
+        type: 'error',
+        message: isNetwork ? 'Unable to reach the server. Please check your network connection and try again.' : msg,
+        hint,
+        errorCode
+      });
       setIsLoading(false);
     }
   };
@@ -216,21 +230,43 @@ export const WebNotificationPage = () => {
 
                 {/* Status Messages */}
                 {status && (
-                  <div className={`rounded-md p-4 ${status.type === 'success' ? 'bg-green-50' : 'bg-red-50'}`}>
+                  <div className={`rounded-md p-4 ${
+                    status.type === 'success' ? 'bg-green-50 border border-green-200' : 
+                    status.type === 'warning' ? 'bg-yellow-50 border border-yellow-200' : 
+                    'bg-red-50 border border-red-200'
+                  }`}>
                     <div className="flex">
                       <div className="flex-shrink-0">
                         {status.type === 'success' ? (
                           <CheckCircle className="h-5 w-5 text-green-400" />
+                        ) : status.type === 'warning' ? (
+                          <AlertTriangle className="h-5 w-5 text-yellow-500" />
                         ) : (
-                          <AlertCircle className="h-5 w-5 text-red-400" />
+                          <XCircle className="h-5 w-5 text-red-400" />
                         )}
                       </div>
-                      <div className="ml-3">
-                        <h3 className={`text-sm font-medium ${status.type === 'success' ? 'text-green-800' : 'text-red-800'}`}>
-                          {status.type === 'success' ? 'Success' : 'Error'}
+                      <div className="ml-3 flex-1">
+                        <h3 className={`text-sm font-medium ${
+                          status.type === 'success' ? 'text-green-800' : 
+                          status.type === 'warning' ? 'text-yellow-800' : 
+                          'text-red-800'
+                        }`}>
+                          {status.type === 'success' ? 'Success' : status.type === 'warning' ? 'Warning' : 'Error'}
+                          {status.httpStatus ? ` (${status.httpStatus})` : ''}
                         </h3>
-                        <div className={`mt-2 text-sm ${status.type === 'success' ? 'text-green-700' : 'text-red-700'}`}>
+                        <div className={`mt-1 text-sm ${
+                          status.type === 'success' ? 'text-green-700' : 
+                          status.type === 'warning' ? 'text-yellow-700' : 
+                          'text-red-700'
+                        }`}>
                           <p>{status.message}</p>
+                          {status.hint && (
+                            <p className={`mt-2 text-xs ${
+                              status.type === 'warning' ? 'text-yellow-600' : 'text-red-600'
+                            }`}>
+                              <strong>Tip:</strong> {status.hint}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -264,7 +300,7 @@ export const WebNotificationPage = () => {
                         {userAction.type === 'success' ? (
                           <CheckCircle className="h-5 w-5 text-green-400" />
                         ) : userAction.type === 'error' ? (
-                          <AlertCircle className="h-5 w-5 text-red-400" />
+                          <XCircle className="h-5 w-5 text-red-400" />
                         ) : (
                           <Clock className="h-5 w-5 text-yellow-400" />
                         )}
