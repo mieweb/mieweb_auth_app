@@ -1,39 +1,39 @@
-import React from 'react';
-import { Session } from 'meteor/session';
-import { Meteor } from 'meteor/meteor';
+import React from "react";
+import { Session } from "meteor/session";
+import { Meteor } from "meteor/meteor";
 
 // Import Hooks
-import { useDarkMode } from './hooks/useDarkMode';
-import { useUserProfile } from './hooks/useUserProfile';
-import { useNotificationData } from './hooks/useNotificationData';
-import { useNotificationHandler } from './hooks/useNotificationHandler';
-import { useSessionTimeout } from './hooks/useSessionTimeout';
+import { useDarkMode } from "./hooks/useDarkMode";
+import { useUserProfile } from "./hooks/useUserProfile";
+import { useNotificationData } from "./hooks/useNotificationData";
+import { useNotificationHandler } from "./hooks/useNotificationHandler";
+import { useSessionTimeout } from "./hooks/useSessionTimeout";
 
 // Import Components
-import { DashboardHeader } from './components/DashboardHeader';
-import { ProfileSection } from './components/ProfileSection';
-import { NotificationFilters } from './components/NotificationFilters';
-import { NotificationList } from './components/NotificationList';
-import Pagination from './Pagination/Pagination'; // Keep existing pagination
-import ActionsModal from './Modal/ActionsModal';    // Keep existing modals
-import ResultModal from './Modal/ResultModal';      // Keep existing modals
-import { Clock } from 'lucide-react';
-import { useNavigate } from 'react-router';
+import { DashboardHeader } from "./components/DashboardHeader";
+import { ProfileSection } from "./components/ProfileSection";
+import { NotificationFilters } from "./components/NotificationFilters";
+import { NotificationList } from "./components/NotificationList";
+import Pagination from "./Pagination/Pagination";
+import ActionsModal from "./Modal/ActionsModal";
+import ResultModal from "./Modal/ResultModal";
+import { Clock } from "lucide-react";
+import { useNavigate } from "react-router";
 
 export const LandingPage = () => {
   // Get initial user info from Session (needed by hooks)
   const userProfileData = Session.get("userProfile") || {};
   const userId = userProfileData._id;
-  const username = userProfileData.username; // Needed for sending actions
+  const username = userProfileData.username;
 
-  const navigate = useNavigate()
+  const navigate = useNavigate();
 
   // Use Custom Hooks
   const { isDarkMode, toggleDarkMode } = useDarkMode();
-  
+
   // Session management - automatically logs out when returning to app after screen lock
   useSessionTimeout();
-  
+
   const {
     profile,
     isEditing,
@@ -43,8 +43,8 @@ export const LandingPage = () => {
     handleProfileChange,
     handleProfileUpdate,
     toggleEdit,
-    setSuccessMessage
-  } = useUserProfile(); // Hook now fetches profile based on userId from Session
+    setSuccessMessage,
+  } = useUserProfile();
 
   const {
     notifications,
@@ -55,10 +55,10 @@ export const LandingPage = () => {
     currentPage,
     totalPages,
     todaysActivityCount,
-    fetchNotificationHistory, // Get refetch function
+    fetchNotificationHistory,
     handleFilterChange,
     handleSearchChange,
-    handlePageChange
+    handlePageChange,
   } = useNotificationData(userId);
 
   const {
@@ -72,12 +72,11 @@ export const LandingPage = () => {
     handleReject,
     handleCloseResultModal,
     handleCloseActionModal,
-    openNotificationModal
-  } = useNotificationHandler(userId, username, fetchNotificationHistory); // Pass refetch
+    openNotificationModal,
+  } = useNotificationHandler(userId, username, fetchNotificationHistory);
 
   const handleTimeout = async () => {
-    handleCloseActionModal()
-    console.log("timeout")
+    handleCloseActionModal();
   };
 
   // Logout Function
@@ -85,27 +84,23 @@ export const LandingPage = () => {
     Meteor.logout((err) => {
       if (err) {
         console.error("Logout failed:", err);
-        // Show an error message to the user
       } else {
-        navigate('/login');
-        console.log("User logged out");
+        navigate("/login");
       }
     });
   };
 
   return (
-    <div className={`min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 dark:from-gray-900 dark:to-gray-800`}>
+    <div className="min-h-screen bg-background">
       <DashboardHeader
         title="MIEWeb Auth"
         isDarkMode={isDarkMode}
         toggleDarkMode={toggleDarkMode}
-        onRefresh={fetchNotificationHistory} // Use refetch from hook
+        onRefresh={fetchNotificationHistory}
         onLogout={handleLogout}
       />
 
-      <main className='max-w-7xl mx-auto px-4 py-6'>
-
-
+      <main className="max-w-7xl mx-auto px-4 py-6">
         <div className="container mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column (Profile & Device) */}
           <div className="lg:col-span-1 space-y-6">
@@ -114,11 +109,11 @@ export const LandingPage = () => {
               isEditing={isEditing}
               isSaving={isSaving}
               successMessage={successMessage}
-              errorMessage={errorMessage} // Pass error message from hook
+              errorMessage={errorMessage}
               handleProfileChange={handleProfileChange}
               handleProfileUpdate={handleProfileUpdate}
               toggleEdit={toggleEdit}
-              setSuccessMessage={setSuccessMessage} // Pass setter for toaster
+              setSuccessMessage={setSuccessMessage}
               todaysActivityCount={todaysActivityCount}
             />
           </div>
@@ -126,10 +121,8 @@ export const LandingPage = () => {
           {/* Right Column (Notifications) */}
           <div className="lg:col-span-2 space-y-6">
             <div className="flex items-center space-x-2 mx-2">
-              <Clock className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                History
-              </h2>
+              <Clock className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-semibold text-foreground">History</h2>
             </div>
             <NotificationFilters
               filter={filter}
@@ -153,7 +146,6 @@ export const LandingPage = () => {
             )}
           </div>
         </div>
-
       </main>
 
       {/* Modals */}
@@ -162,7 +154,7 @@ export const LandingPage = () => {
         onClose={handleCloseActionModal}
         onApprove={handleApprove}
         onReject={handleReject}
-        notification={notificationDetails} // Pass details from hook
+        notification={notificationDetails}
         isLoading={isProcessingAction}
         error={actionError}
         onTimeOut={handleTimeout}
@@ -170,7 +162,7 @@ export const LandingPage = () => {
       <ResultModal
         isOpen={isResultModalOpen}
         onClose={handleCloseResultModal}
-        action={currentAction} // Pass current action from hook
+        action={currentAction}
       />
     </div>
   );

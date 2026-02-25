@@ -1,90 +1,99 @@
-import React, { useState } from 'react';
-import { Meteor } from 'meteor/meteor';
-import { Layout } from './components/Layout';
-import { AlertCircle, CheckCircle, Trash2 } from 'lucide-react';
+import React, { useState } from "react";
+import { Meteor } from "meteor/meteor";
+import { Layout } from "./components/Layout";
+import { AlertCircle, CheckCircle, Trash2 } from "lucide-react";
+import { usePageTitle } from "../../hooks/usePageTitle";
 
 export const DeleteAccountPage = () => {
+  usePageTitle("Delete Account");
   const [formData, setFormData] = useState({
-    email: '',
-    username: '',
-    reason: ''
+    email: "",
+    username: "",
+    reason: "",
   });
-  const [status, setStatus] = useState({ type: '', message: '' });
+  const [status, setStatus] = useState({ type: "", message: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     // Don't trim on keystroke - it removes spaces while typing, confusing users
     // Trimming is done in handleSubmit before API call
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const validateForm = () => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    
+
     if (!formData.email || !emailRegex.test(formData.email)) {
       setStatus({
-        type: 'error',
-        message: 'Please enter a valid email address.'
+        type: "error",
+        message: "Please enter a valid email address.",
       });
       return false;
     }
-    
+
     if (formData.email.length < 3 || formData.email.length > 254) {
       setStatus({
-        type: 'error',
-        message: 'Email must be between 3 and 254 characters.'
+        type: "error",
+        message: "Email must be between 3 and 254 characters.",
       });
       return false;
     }
-    
-    if (!formData.username || formData.username.length < 1 || formData.username.length > 100) {
+
+    if (
+      !formData.username ||
+      formData.username.length < 1 ||
+      formData.username.length > 100
+    ) {
       setStatus({
-        type: 'error',
-        message: 'Username must be between 1 and 100 characters.'
+        type: "error",
+        message: "Username must be between 1 and 100 characters.",
       });
       return false;
     }
-    
+
     if (formData.reason && formData.reason.length > 1000) {
       setStatus({
-        type: 'error',
-        message: 'Reason must be less than 1000 characters.'
+        type: "error",
+        message: "Reason must be less than 1000 characters.",
       });
       return false;
     }
-    
+
     return true;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setStatus({ type: '', message: '' });
-    
+    setStatus({ type: "", message: "" });
+
     if (!validateForm()) {
       return;
     }
-    
+
     setIsSubmitting(true);
 
     // Trim email and username before sending to API
     const trimmedData = {
       email: formData.email.trim(),
       username: formData.username.trim(),
-      reason: formData.reason
+      reason: formData.reason,
     };
 
     try {
-      await Meteor.callAsync('users.requestAccountDeletion', trimmedData);
+      await Meteor.callAsync("users.requestAccountDeletion", trimmedData);
       setStatus({
-        type: 'success',
-        message: 'Account deletion request submitted successfully. You will receive a confirmation email shortly.'
+        type: "success",
+        message:
+          "Account deletion request submitted successfully. You will receive a confirmation email shortly.",
       });
-      setFormData({ email: '', username: '', reason: '' });
+      setFormData({ email: "", username: "", reason: "" });
     } catch (error) {
       setStatus({
-        type: 'error',
-        message: error.reason || 'Failed to submit deletion request. Please try again.'
+        type: "error",
+        message:
+          error.reason ||
+          "Failed to submit deletion request. Please try again.",
       });
     } finally {
       setIsSubmitting(false);
@@ -98,7 +107,9 @@ export const DeleteAccountPage = () => {
           <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
             <div className="flex items-center">
               <Trash2 className="h-6 w-6 text-red-600 mr-3" />
-              <h1 className="text-2xl font-bold text-gray-900">Delete Your Account</h1>
+              <h1 className="text-2xl font-bold text-gray-900">
+                Delete Your Account
+              </h1>
             </div>
             <p className="mt-2 text-sm text-gray-500">
               Request permanent deletion of your account and associated data
@@ -109,12 +120,12 @@ export const DeleteAccountPage = () => {
             {status.message && (
               <div
                 className={`mb-6 p-4 rounded-md flex items-start ${
-                  status.type === 'success'
-                    ? 'bg-green-50 text-green-800 border border-green-200'
-                    : 'bg-red-50 text-red-800 border border-red-200'
+                  status.type === "success"
+                    ? "bg-green-50 text-green-800 border border-green-200"
+                    : "bg-red-50 text-red-800 border border-red-200"
                 }`}
               >
-                {status.type === 'success' ? (
+                {status.type === "success" ? (
                   <CheckCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
                 ) : (
                   <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
@@ -124,10 +135,14 @@ export const DeleteAccountPage = () => {
             )}
 
             <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
-              <h3 className="text-sm font-medium text-yellow-800 mb-2">Important Information</h3>
+              <h3 className="text-sm font-medium text-yellow-800 mb-2">
+                Important Information
+              </h3>
               <ul className="text-sm text-yellow-700 space-y-1 list-disc list-inside">
                 <li>Account deletion is permanent and cannot be undone</li>
-                <li>All your data, including notification history, will be deleted</li>
+                <li>
+                  All your data, including notification history, will be deleted
+                </li>
                 <li>You will receive a confirmation email before deletion</li>
                 <li>Processing may take up to 30 days</li>
               </ul>
@@ -135,7 +150,10 @@ export const DeleteAccountPage = () => {
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                <label
+                  htmlFor="email"
+                  className="block text-sm font-medium text-gray-700"
+                >
                   Email Address <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -154,7 +172,10 @@ export const DeleteAccountPage = () => {
               </div>
 
               <div>
-                <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+                <label
+                  htmlFor="username"
+                  className="block text-sm font-medium text-gray-700"
+                >
                   Username <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -170,7 +191,10 @@ export const DeleteAccountPage = () => {
               </div>
 
               <div>
-                <label htmlFor="reason" className="block text-sm font-medium text-gray-700">
+                <label
+                  htmlFor="reason"
+                  className="block text-sm font-medium text-gray-700"
+                >
                   Reason for Deletion (Optional)
                 </label>
                 <textarea
@@ -200,7 +224,7 @@ export const DeleteAccountPage = () => {
                   className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
-                  {isSubmitting ? 'Submitting...' : 'Request Account Deletion'}
+                  {isSubmitting ? "Submitting..." : "Request Account Deletion"}
                 </button>
               </div>
             </form>

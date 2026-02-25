@@ -1,20 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import { Github } from 'lucide-react';
-import { Layout } from './components/Layout';
+import React, { useState, useEffect } from "react";
+import { Github } from "lucide-react";
+import { Layout } from "./components/Layout";
+import { usePageTitle } from "../../hooks/usePageTitle";
 
 export const SupportPage = () => {
-  const GITHUB_REPO_URL = 'https://github.com/mieweb/mieweb_auth_app';
+  usePageTitle("Support");
+  const GITHUB_REPO_URL = "https://github.com/mieweb/mieweb_auth_app";
   const GITHUB_NEW_ISSUE_URL = `${GITHUB_REPO_URL}/issues/new`;
-  
+
   const [buildInfo, setBuildInfo] = useState(null);
-  
+
   useEffect(() => {
     // Fetch build information
-    fetch('/buildInfo.json')
-      .then(response => response.json())
-      .then(data => setBuildInfo(data))
-      .catch(error => {
-        console.error('Error loading build info:', error);
+    fetch("/buildInfo.json")
+      .then((response) => response.json())
+      .then((data) => setBuildInfo(data))
+      .catch((error) => {
+        console.error("Error loading build info:", error);
       });
   }, []);
 
@@ -25,14 +27,16 @@ export const SupportPage = () => {
           <div className="px-4 py-5 sm:px-6">
             <h1 className="text-2xl font-bold text-gray-900">Support</h1>
             <p className="mt-1 max-w-2xl text-sm text-gray-500">
-              To request help or report a bug, please open an issue on our GitHub repository.
+              To request help or report a bug, please open an issue on our
+              GitHub repository.
             </p>
           </div>
-          
+
           <div className="border-t border-gray-200 px-4 py-5 sm:p-6">
             <div className="space-y-4">
               <p className="text-sm text-gray-600">
-                Opening an issue helps us track progress and respond publicly. Please include steps to reproduce and any relevant screenshots.
+                Opening an issue helps us track progress and respond publicly.
+                Please include steps to reproduce and any relevant screenshots.
               </p>
 
               <a
@@ -56,18 +60,27 @@ export const SupportPage = () => {
                     <Github className="h-5 w-5 text-gray-700" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-sm font-medium text-gray-900">Repository</div>
-                    <div className="text-xs text-gray-500 truncate">{GITHUB_REPO_URL}</div>
+                    <div className="text-sm font-medium text-gray-900">
+                      Repository
+                    </div>
+                    <div className="text-xs text-gray-500 truncate">
+                      {GITHUB_REPO_URL}
+                    </div>
                   </div>
                 </div>
-                <div className="text-sm font-medium text-blue-600 shrink-0">View</div>
+                <div className="text-sm font-medium text-blue-600 shrink-0">
+                  View
+                </div>
               </a>
             </div>
 
             <div className="mt-8 pt-6 border-t border-gray-200">
-              <h3 className="text-sm font-medium text-gray-900 mb-4">Account Management</h3>
+              <h3 className="text-sm font-medium text-gray-900 mb-4">
+                Account Management
+              </h3>
               <p className="text-sm text-gray-600 mb-4">
-                Need to delete your account? You can request account deletion and we'll process your request within 30 days.
+                Need to delete your account? You can request account deletion
+                and we'll process your request within 30 days.
               </p>
               <a
                 href="/delete-account"
@@ -79,11 +92,15 @@ export const SupportPage = () => {
 
             {buildInfo && (
               <div className="mt-8 pt-6 border-t border-gray-200">
-                <h3 className="text-sm font-medium text-gray-900 mb-4">App Information</h3>
+                <h3 className="text-sm font-medium text-gray-900 mb-4">
+                  App Information
+                </h3>
                 <dl className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <dt className="text-gray-600">Version</dt>
-                    <dd className="font-mono text-gray-900">{buildInfo.appVersion}</dd>
+                    <dd className="font-mono text-gray-900">
+                      {buildInfo.appVersion}
+                    </dd>
                   </div>
                   <div className="flex justify-between text-sm">
                     <dt className="text-gray-600">Build Number</dt>

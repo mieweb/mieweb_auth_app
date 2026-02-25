@@ -1,9 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { Meteor } from 'meteor/meteor';
-import { Session } from 'meteor/session';
-import { User, Mail, Edit, ChevronDown, ExternalLink } from 'lucide-react';
-import SuccessToaster from '../Toasters/SuccessToaster';
-import { openExternal } from '../../../../../utils/openExternal';
+import React, { useState, useEffect } from "react";
+import { Meteor } from "meteor/meteor";
+import { Session } from "meteor/session";
+import { User, Mail, Edit, ChevronDown, ExternalLink } from "lucide-react";
+import {
+  Button,
+  Input,
+  Avatar,
+  AvatarFallback,
+  Card,
+  CardContent,
+} from "@mieweb/ui";
+import SuccessToaster from "../Toasters/SuccessToaster";
+import { openExternal } from "../../../../../utils/openExternal";
 
 export const ProfileSection = ({
   profile,
@@ -15,7 +23,7 @@ export const ProfileSection = ({
   handleProfileUpdate,
   toggleEdit,
   setSuccessMessage,
-  todaysActivityCount = 0
+  todaysActivityCount = 0,
 }) => {
   const capturedDeviceInfo = Session.get("capturedDeviceInfo") || {};
   const deviceInfo = {
@@ -27,51 +35,46 @@ export const ProfileSection = ({
     <div className="flex-1">
       {isEditing ? (
         <div className="space-y-2">
-          <input
+          <Input
             type="text"
             name="firstName"
             value={profile.firstName || ""}
             onChange={handleProfileChange}
-            className="w-full px-2 py-1 rounded border dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600"
             placeholder="First Name"
           />
-          <input
+          <Input
             type="text"
             name="lastName"
             value={profile.lastName || ""}
             onChange={handleProfileChange}
-            className="w-full px-2 py-1 rounded border dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600"
             placeholder="Last Name"
           />
           <div className="flex space-x-2 mt-2">
-            <button
-              onClick={handleProfileUpdate}
-              disabled={isSaving}
-              className="px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
-            >
+            <Button size="sm" onClick={handleProfileUpdate} disabled={isSaving}>
               {isSaving ? "Saving..." : "Save"}
-            </button>
-            <button
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
               onClick={toggleEdit}
               disabled={isSaving}
-              className="px-3 py-1 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200"
             >
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center justify-between">
+        <h2 className="text-xl font-semibold text-foreground flex items-center justify-between">
           {`${profile.firstName || "User"} ${profile.lastName || ""}`}
           <button
             onClick={toggleEdit}
-            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
+            className="p-1 hover:bg-muted rounded-full"
           >
-            <Edit className="h-4 w-4 text-gray-500" />
+            <Edit className="h-4 w-4 text-muted-foreground" />
           </button>
         </h2>
       )}
-      <p className="text-gray-600 dark:text-gray-300 flex items-center">
+      <p className="text-muted-foreground flex items-center">
         <Mail className="h-4 w-4 mr-2" />
         {profile.email}
       </p>
@@ -80,51 +83,55 @@ export const ProfileSection = ({
 
   return (
     <div className="lg:col-span-1">
-      <div className="bg-white/80 backdrop-blur-sm dark:bg-gray-800/80 rounded-2xl shadow-lg p-6">
-        <SuccessToaster
-          message={successMessage}
-          onClose={() => setSuccessMessage("")}
-        />
-        <div className="flex items-center space-x-4 mb-6">
-          <div className="h-16 w-16 rounded-full bg-gradient-to-r from-indigo-500 to-blue-500 flex items-center justify-center">
-            <User className="h-8 w-8 text-white" />
+      <Card className="bg-card/80 backdrop-blur-sm">
+        <CardContent className="p-6">
+          <SuccessToaster
+            message={successMessage}
+            onClose={() => setSuccessMessage("")}
+          />
+          <div className="flex items-center space-x-4 mb-6">
+            <Avatar className="h-16 w-16">
+              <AvatarFallback className="bg-gradient-to-r from-indigo-500 to-blue-500 text-white text-lg">
+                {(profile.firstName?.[0] || "U").toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            {renderProfileSection()}
           </div>
-          {renderProfileSection()}
-        </div>
 
-        <div className="space-y-4">
-          <AppVersionInfo />
+          <div className="space-y-4">
+            <AppVersionInfo />
 
-          <CollapsibleSection title="Device Information">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600 dark:text-gray-300">Model</span>
-                <span className="font-medium text-gray-900 dark:text-white">
-                  {deviceInfo.model}
-                </span>
+            <CollapsibleSection title="Device Information">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Model</span>
+                  <span className="font-medium text-foreground">
+                    {deviceInfo.model}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Platform</span>
+                  <span className="font-medium text-foreground">
+                    {deviceInfo.platform}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600 dark:text-gray-300">Platform</span>
-                <span className="font-medium text-gray-900 dark:text-white">
-                  {deviceInfo.platform}
-                </span>
+            </CollapsibleSection>
+
+            <div className="border-t border-border pt-4">
+              <h3 className="text-sm font-medium text-muted-foreground mb-2">
+                Activity Summary
+              </h3>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Today&apos;s Activity</span>
+                  <span>{todaysActivityCount}</span>
+                </div>
               </div>
             </div>
-          </CollapsibleSection>
-
-          <div className="border-t dark:border-gray-700 pt-4">
-            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-              Activity Summary
-            </h3>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between dark:text-gray-300">
-                <span className="text-gray-600 dark:text-gray-300">Today's Activity</span>
-                <span>{todaysActivityCount}</span>
-              </div>
-            </div>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
@@ -139,10 +146,10 @@ const AppVersionInfo = () => {
   useEffect(() => {
     if (!Meteor.isCordova) return;
 
-    fetch('/buildInfo.json')
-      .then(res => res.json())
-      .then(data => setBuildInfo(data))
-      .catch(err => console.error('Failed to load build info:', err));
+    fetch("/buildInfo.json")
+      .then((res) => res.json())
+      .then((data) => setBuildInfo(data))
+      .catch((err) => console.error("Failed to load build info:", err));
   }, []);
 
   if (!Meteor.isCordova || !buildInfo) return null;
@@ -153,24 +160,24 @@ const AppVersionInfo = () => {
     <CollapsibleSection title="App Info" defaultOpen={false}>
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-gray-600 dark:text-gray-300">Version</span>
-          <span className="font-mono text-sm font-medium text-gray-900 dark:text-white">
+          <span className="text-muted-foreground">Version</span>
+          <span className="font-mono text-sm font-medium text-foreground">
             {buildInfo.appVersion}
           </span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-gray-600 dark:text-gray-300">Build</span>
+          <span className="text-muted-foreground">Build</span>
           <button
             type="button"
             onClick={() => {
               const userConfirmed = window.confirm(
-                'You will be redirected to GitHub to view this commit.\n\nContinue?'
+                "You will be redirected to GitHub to view this commit.\n\nContinue?",
               );
               if (userConfirmed) {
                 openExternal(commitUrl);
               }
             }}
-            className="font-mono text-sm font-medium text-indigo-600 dark:text-indigo-400 flex items-center gap-1"
+            className="font-mono text-sm font-medium text-primary flex items-center gap-1"
           >
             {buildInfo.buildNumber}
             <ExternalLink className="h-3 w-3" />
@@ -188,24 +195,22 @@ const CollapsibleSection = ({ title, defaultOpen = true, children }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className="border-t dark:border-gray-700 pt-4">
+    <div className="border-t border-border pt-4">
       <button
         type="button"
-        onClick={() => setIsOpen(prev => !prev)}
+        onClick={() => setIsOpen((prev) => !prev)}
         className="flex items-center justify-between w-full text-left mb-2 focus:outline-none"
       >
-        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
-          {title}
-        </h3>
+        <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
         <ChevronDown
-          className={`h-4 w-4 text-gray-400 dark:text-gray-500 transition-transform duration-200 ${
-            isOpen ? 'rotate-180' : ''
+          className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${
+            isOpen ? "rotate-180" : ""
           }`}
         />
       </button>
       <div
         className={`overflow-hidden transition-all duration-200 ease-in-out ${
-          isOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+          isOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
         }`}
       >
         {children}

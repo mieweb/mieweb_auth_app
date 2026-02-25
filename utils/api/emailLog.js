@@ -1,5 +1,5 @@
-import { Meteor } from 'meteor/meteor';
-import { Mongo } from 'meteor/mongo';
+import { Meteor } from "meteor/meteor";
+import { Mongo } from "meteor/mongo";
 
 /**
  * EmailLog collection — tracks every outgoing email sent by the system.
@@ -22,7 +22,7 @@ import { Mongo } from 'meteor/mongo';
  *   error         String   (optional) error message if status === 'failed'
  *   createdAt     Date
  */
-export const EmailLog = new Mongo.Collection('emailLog');
+export const EmailLog = new Mongo.Collection("emailLog");
 
 /**
  * Mask an email address for storage: keep first 2 chars of local part + domain.
@@ -30,14 +30,17 @@ export const EmailLog = new Mongo.Collection('emailLog');
  * Comma-separated lists are masked individually.
  */
 const maskEmail = (addr) => {
-  if (!addr || typeof addr !== 'string') return addr;
-  return addr.split(',').map(a => {
-    const trimmed = a.trim();
-    const at = trimmed.indexOf('@');
-    if (at < 1) return trimmed;
-    const local = trimmed.substring(0, Math.min(2, at));
-    return local + '***' + trimmed.substring(at);
-  }).join(', ');
+  if (!addr || typeof addr !== "string") return addr;
+  return addr
+    .split(",")
+    .map((a) => {
+      const trimmed = a.trim();
+      const at = trimmed.indexOf("@");
+      if (at < 1) return trimmed;
+      const local = trimmed.substring(0, Math.min(2, at));
+      return local + "***" + trimmed.substring(at);
+    })
+    .join(", ");
 };
 
 /**
@@ -45,9 +48,9 @@ const maskEmail = (addr) => {
  * e.g. "johndoe" → "joh***"
  */
 const maskUsername = (name) => {
-  if (!name || typeof name !== 'string') return name;
-  if (name.length <= 3) return name[0] + '***';
-  return name.substring(0, 3) + '***';
+  if (!name || typeof name !== "string") return name;
+  if (name.length <= 3) return name[0] + "***";
+  return name.substring(0, 3) + "***";
 };
 
 /**
@@ -72,9 +75,12 @@ if (Meteor.isServer) {
       await raw.createIndex({ createdAt: -1 });
       await raw.createIndex({ type: 1, createdAt: -1 });
       // TTL index: automatically purge entries older than 90 days
-      await raw.createIndex({ createdAt: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 });
+      await raw.createIndex(
+        { createdAt: 1 },
+        { expireAfterSeconds: 90 * 24 * 60 * 60 },
+      );
     } catch (error) {
-      console.error('Failed to create EmailLog indexes:', error);
+      console.error("Failed to create EmailLog indexes:", error);
     }
   });
 }
