@@ -2,14 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Meteor } from "meteor/meteor";
 import { Session } from "meteor/session";
 import { User, Mail, Edit, ChevronDown, ExternalLink } from "lucide-react";
-import {
-  Button,
-  Input,
-  Avatar,
-  AvatarFallback,
-  Card,
-  CardContent,
-} from "@mieweb/ui";
+import { Button, Input, Avatar, Card, CardContent } from "@mieweb/ui";
 import SuccessToaster from "../Toasters/SuccessToaster";
 import { openExternal } from "../../../../../utils/openExternal";
 
@@ -90,10 +83,8 @@ export const ProfileSection = ({
             onClose={() => setSuccessMessage("")}
           />
           <div className="flex items-center space-x-4 mb-6">
-            <Avatar className="h-16 w-16">
-              <AvatarFallback className="bg-gradient-to-r from-indigo-500 to-blue-500 text-white text-lg">
-                {(profile.firstName?.[0] || "U").toUpperCase()}
-              </AvatarFallback>
+            <Avatar className="h-16 w-16 bg-gradient-to-r from-indigo-500 to-blue-500 text-white text-lg flex items-center justify-center">
+              {(profile.firstName?.[0] || "U").toUpperCase()}
             </Avatar>
             {renderProfileSection()}
           </div>

@@ -1,8 +1,9 @@
+import React from "react";
 import { Button } from "@mieweb/ui";
 import { Home, AlertTriangle } from "lucide-react";
 import { Link } from "react-router-dom";
-import { usePageTitle } from "../../hooks/usePageTitle";
-import Layout from "./components/Layout";
+import { usePageTitle } from "../hooks/usePageTitle";
+import { Layout } from "./components/Layout";
 
 const NotFoundPage = () => {
   usePageTitle("Page Not Found");
