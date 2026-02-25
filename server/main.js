@@ -400,7 +400,10 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
       let statusCode = 500;
 
       const msg = error.message || '';
-      if (msg.includes('Empty request body') || msg.includes('Invalid JSON')) {
+      if (error.isClientSafe && error.reason) {
+        userMessage = error.reason;
+        statusCode = 404;
+      } else if (msg.includes('Empty request body') || msg.includes('Invalid JSON')) {
         userMessage = 'Invalid request format. Please ensure you are sending a valid JSON payload.';
         statusCode = 400;
       } else if (msg.includes('messaging/') || msg.includes('FCM')) {
