@@ -1118,24 +1118,49 @@ Meteor.methods({
       console.log(`### Log Step 5.1: Device registration response: ${JSON.stringify(deviceResp)}`);
 
       if (isFirstDevice && deviceResp.isRequireAdminApproval) {
+        const selfServiceEnabled = process.env.SELF_SERVICE_DEVICE_APPROVAL === 'true';
         try {
           const approvalToken = await Meteor.callAsync('users.generateApprovalToken', userId);
           const approvalUrl = Meteor.absoluteUrl(`api/approve-user?userId=${userId}&token=${approvalToken}`);
-          const adminEmails = process.env.EMAIL_ADMIN;
+          const rejectUrl = Meteor.absoluteUrl(`api/reject-user?userId=${userId}&token=${approvalToken}`);
           const fromEmail = process.env.EMAIL_FROM;
-          
-          if (!adminEmails) {
-            throw new Error("EMAIL_ADMIN is required for sending approval emails");
-          }
+
           if (!fromEmail) {
             throw new Error("EMAIL_FROM is required for sending approval emails");
           }
-          const approvalSubject = `New device approval required for user: ${username}`;
-          await Email.sendAsync({
-            to: adminEmails,
-            from: fromEmail,
-            subject: approvalSubject,
-            html: `
+
+          let recipientEmail, approvalSubject, approvalHtml;
+
+          if (selfServiceEnabled) {
+            // Self-service mode: send confirmation email to the registering user
+            recipientEmail = email;
+            approvalSubject = `Confirm your new device registration`;
+            approvalHtml = `
+            <p>Hello ${firstName} ${lastName},</p>
+            <p>A new device has been registered to your account. Please confirm or reject this registration:</p>
+            <ul>
+              <li><strong>Username:</strong> ${username}</li>
+              <li><strong>Device UUID:</strong> ${sessionDeviceInfo.uuid}</li>
+            </ul>
+            <p>If you initiated this registration, click <strong>Confirm</strong>. If you did not, click <strong>Reject</strong> to remove this device.</p>
+            <p>
+              <a href="${approvalUrl}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block; margin-right: 10px;">
+                Confirm Registration
+              </a>
+              <a href="${rejectUrl}" style="background-color: #f44336; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">
+                Reject Registration
+              </a>
+            </p>
+          `;
+          } else {
+            // Default mode: send approval request to administrator
+            const adminEmails = process.env.EMAIL_ADMIN;
+            if (!adminEmails) {
+              throw new Error("EMAIL_ADMIN is required for sending approval emails");
+            }
+            recipientEmail = adminEmails;
+            approvalSubject = `New device approval required for user: ${username}`;
+            approvalHtml = `
             <p>A new user has registered with the following details:</p>
             <ul>
               <li><strong>Username:</strong> ${username}</li>
@@ -1148,18 +1173,27 @@ Meteor.methods({
               <a href="${approvalUrl}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block; margin-right: 10px;">
                 Approve Registration
               </a>
-              <a href="${Meteor.absoluteUrl(`api/reject-user?userId=${userId}&token=${approvalToken}`)}" style="background-color: #f44336; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">
+              <a href="${rejectUrl}" style="background-color: #f44336; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">
                 Reject Registration
               </a>
             </p>
-          `
-          });
-          await createEmailLog({ type: 'registration_approval', to: adminEmails, from: fromEmail, subject: approvalSubject, userId, username, email, status: 'sent' });
+          `;
+          }
 
-          console.log(`### Log Step 5.4: Sent approval request email to admin for user: ${username}, approval url: ${approvalUrl}`);
+          await Email.sendAsync({
+            to: recipientEmail,
+            from: fromEmail,
+            subject: approvalSubject,
+            html: approvalHtml
+          });
+          await createEmailLog({ type: 'registration_approval', to: recipientEmail, from: fromEmail, subject: approvalSubject, userId, username, email, status: 'sent' });
+
+          console.log(`### Log Step 5.4: Sent approval request email to ${selfServiceEnabled ? 'user' : 'admin'} for user: ${username}, approval url: ${approvalUrl}`);
         } catch (emailError) {
-          console.error('Failed to send admin notification email:', emailError);
-          await createEmailLog({ type: 'registration_approval', to: process.env.EMAIL_ADMIN, from: process.env.EMAIL_FROM, subject: `New device approval required for user: ${username}`, userId, username, email, status: 'failed', error: emailError.message }).catch(() => {});
+          console.error('Failed to send approval notification email:', emailError);
+          const fallbackTo = selfServiceEnabled ? email : process.env.EMAIL_ADMIN;
+          const fallbackSubject = selfServiceEnabled ? `Confirm your new device registration` : `New device approval required for user: ${username}`;
+          await createEmailLog({ type: 'registration_approval', to: fallbackTo, from: process.env.EMAIL_FROM, subject: fallbackSubject, userId, username, email, status: 'failed', error: emailError.message }).catch(() => {});
         }
       }
 
