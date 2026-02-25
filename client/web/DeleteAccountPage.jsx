@@ -117,7 +117,7 @@ export const DeleteAccountPage = () => {
   return (
     <Layout>
       {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-gray-950 via-gray-900 to-gray-950 text-white">
+      <section className="relative overflow-hidden bg-background text-foreground">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(239,68,68,0.1),transparent_60%)]" />
         <div className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 text-center">
           <motion.div
@@ -126,8 +126,8 @@ export const DeleteAccountPage = () => {
             transition={{ duration: 0.5 }}
             className="flex items-center justify-center mb-6"
           >
-            <div className="bg-red-500/20 p-4 rounded-2xl border border-red-500/30">
-              <Trash2 className="w-10 h-10 text-red-400" />
+            <div className="bg-destructive/10 p-4 rounded-2xl border border-destructive/20">
+              <Trash2 className="w-10 h-10 text-destructive" />
             </div>
           </motion.div>
           <motion.h1
@@ -142,7 +142,7 @@ export const DeleteAccountPage = () => {
             initial={prefersReducedMotion ? false : { opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
-            className="mt-4 text-lg text-gray-400 max-w-xl mx-auto"
+            className="mt-4 text-lg text-muted-foreground max-w-xl mx-auto"
           >
             Request permanent deletion of your account and associated data
           </motion.p>
@@ -150,7 +150,7 @@ export const DeleteAccountPage = () => {
       </section>
 
       {/* Form */}
-      <section className="bg-gray-950 pb-20">
+      <section className="bg-background pb-20">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 -mt-4">
           <motion.div
             initial={prefersReducedMotion ? false : { opacity: 0, y: 20 }}
@@ -159,27 +159,15 @@ export const DeleteAccountPage = () => {
           >
             {status.message && (
               <Alert
-                variant={status.type === "success" ? "default" : "destructive"}
-                className={`mb-6 ${
-                  status.type === "success"
-                    ? "border-green-500/30 bg-green-500/10"
-                    : "border-red-500/30 bg-red-500/10"
-                }`}
+                variant={status.type === "success" ? "success" : "danger"}
+                className="mb-6"
               >
                 {status.type === "success" ? (
-                  <CheckCircle className="h-4 w-4 text-green-400" />
+                  <CheckCircle className="h-4 w-4" />
                 ) : (
                   <AlertCircle className="h-4 w-4" />
                 )}
-                <AlertDescription
-                  className={
-                    status.type === "success"
-                      ? "text-green-300"
-                      : "text-red-300"
-                  }
-                >
-                  {status.message}
-                </AlertDescription>
+                <AlertDescription>{status.message}</AlertDescription>
               </Alert>
             )}
 
@@ -187,12 +175,12 @@ export const DeleteAccountPage = () => {
             <Card className="bg-amber-500/10 border-amber-500/20 mb-6">
               <CardContent className="p-5">
                 <div className="flex items-start gap-3">
-                  <AlertTriangle className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
+                  <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
                   <div>
-                    <h3 className="text-sm font-semibold text-amber-300 mb-2">
+                    <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-300 mb-2">
                       Important Information
                     </h3>
-                    <ul className="text-sm text-amber-200/80 space-y-1 list-disc list-inside">
+                    <ul className="text-sm text-amber-900/80 dark:text-amber-200/80 space-y-1 list-disc list-inside">
                       <li>
                         Account deletion is permanent and cannot be undone
                       </li>
@@ -211,15 +199,15 @@ export const DeleteAccountPage = () => {
             </Card>
 
             {/* Form card */}
-            <Card className="bg-white/5 border-white/10">
+            <Card className="bg-card border-border">
               <CardContent className="p-6">
                 <form onSubmit={handleSubmit} className="space-y-6">
                   <div className="space-y-2">
                     <label
                       htmlFor="email"
-                      className="block text-sm font-medium text-gray-300"
+                      className="block text-sm font-medium text-foreground"
                     >
-                      Email Address <span className="text-red-400">*</span>
+                      Email Address <span className="text-destructive">*</span>
                     </label>
                     <Input
                       type="email"
@@ -229,9 +217,9 @@ export const DeleteAccountPage = () => {
                       value={formData.email}
                       onChange={handleChange}
                       placeholder="your.email@example.com"
-                      className="bg-white/5 border-white/10 text-white placeholder:text-gray-600"
+                      className="bg-background border-border text-foreground placeholder:text-muted-foreground"
                     />
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-muted-foreground">
                       The email address associated with your account
                     </p>
                   </div>
@@ -239,9 +227,9 @@ export const DeleteAccountPage = () => {
                   <div className="space-y-2">
                     <label
                       htmlFor="username"
-                      className="block text-sm font-medium text-gray-300"
+                      className="block text-sm font-medium text-foreground"
                     >
-                      Username <span className="text-red-400">*</span>
+                      Username <span className="text-destructive">*</span>
                     </label>
                     <Input
                       type="text"
@@ -251,14 +239,14 @@ export const DeleteAccountPage = () => {
                       value={formData.username}
                       onChange={handleChange}
                       placeholder="Your username"
-                      className="bg-white/5 border-white/10 text-white placeholder:text-gray-600"
+                      className="bg-background border-border text-foreground placeholder:text-muted-foreground"
                     />
                   </div>
 
                   <div className="space-y-2">
                     <label
                       htmlFor="reason"
-                      className="block text-sm font-medium text-gray-300"
+                      className="block text-sm font-medium text-foreground"
                     >
                       Reason for Deletion (Optional)
                     </label>
@@ -269,17 +257,17 @@ export const DeleteAccountPage = () => {
                       value={formData.reason}
                       onChange={handleChange}
                       placeholder="Please tell us why you're deleting your account (optional)"
-                      className="bg-white/5 border-white/10 text-white placeholder:text-gray-600"
+                      className="bg-background border-border text-foreground placeholder:text-muted-foreground"
                     />
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-muted-foreground">
                       Your feedback helps us improve our service
                     </p>
                   </div>
 
-                  <div className="flex items-center justify-between pt-4 border-t border-white/10">
+                  <div className="flex items-center justify-between pt-4 border-t border-border">
                     <a
                       href="/"
-                      className="inline-flex items-center text-sm text-gray-400 hover:text-white transition-colors"
+                      className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors"
                     >
                       <ArrowLeft className="w-4 h-4 mr-1" />
                       Cancel

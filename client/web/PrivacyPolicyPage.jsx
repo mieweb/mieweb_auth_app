@@ -10,9 +10,9 @@ const sections = [
     icon: Eye,
     title: "Overview",
     color: "from-blue-500/20 to-cyan-500/20",
-    iconColor: "text-blue-400",
+    iconColor: "text-blue-600 dark:text-blue-400",
     content: (
-      <p className="text-gray-400">
+      <p className="text-muted-foreground">
         We safeguard user privacy while maintaining the ability to identify
         individuals who use our Services. We do not support anonymous use of our
         systems.
@@ -23,9 +23,9 @@ const sections = [
     icon: Shield,
     title: "Anonymity",
     color: "from-purple-500/20 to-pink-500/20",
-    iconColor: "text-purple-400",
+    iconColor: "text-purple-600 dark:text-purple-400",
     content: (
-      <div className="space-y-3 text-gray-400">
+      <div className="space-y-3 text-muted-foreground">
         <p>
           When you use our Services, we may take reasonable steps to determine
           your identity or, if you are operating through an automated agent, the
@@ -51,9 +51,9 @@ const sections = [
     icon: Lock,
     title: "Privacy and Confidentiality",
     color: "from-green-500/20 to-emerald-500/20",
-    iconColor: "text-green-400",
+    iconColor: "text-green-600 dark:text-green-400",
     content: (
-      <p className="text-gray-400">
+      <p className="text-muted-foreground">
         Once identity is established, the protection of your personal
         information is a priority. We will not disclose data linked to your
         identity without your direction, unless required by a valid court order
@@ -65,9 +65,9 @@ const sections = [
     icon: Database,
     title: "Ownership of Data",
     color: "from-amber-500/20 to-orange-500/20",
-    iconColor: "text-amber-400",
+    iconColor: "text-amber-600 dark:text-amber-400",
     content: (
-      <div className="space-y-3 text-gray-400">
+      <div className="space-y-3 text-muted-foreground">
         <p>
           Data you submit to our Services remains your property. We do not claim
           ownership and will not use it without your permission.
@@ -84,9 +84,9 @@ const sections = [
     icon: Trash2,
     title: "Account Deletion",
     color: "from-red-500/20 to-rose-500/20",
-    iconColor: "text-red-400",
+    iconColor: "text-red-600 dark:text-red-400",
     content: (
-      <div className="space-y-3 text-gray-400">
+      <div className="space-y-3 text-muted-foreground">
         <p>
           You have the right to request deletion of your account and associated
           data at any time.
@@ -95,7 +95,7 @@ const sections = [
           To request account deletion, please visit our{" "}
           <a
             href="/delete-account"
-            className="text-blue-400 hover:text-blue-300 underline transition-colors"
+            className="text-primary hover:text-primary/80 underline transition-colors"
           >
             account deletion page
           </a>
@@ -129,7 +129,7 @@ export const PrivacyPolicyPage = () => {
   return (
     <Layout>
       {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-gray-950 via-gray-900 to-gray-950 text-white">
+      <section className="relative overflow-hidden bg-background text-foreground">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(59,130,246,0.15),transparent_60%)]" />
         <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20 sm:py-28 text-center">
           <motion.div
@@ -138,8 +138,8 @@ export const PrivacyPolicyPage = () => {
             transition={{ duration: 0.5 }}
             className="flex items-center justify-center mb-6"
           >
-            <div className="bg-blue-500/20 p-4 rounded-2xl border border-blue-500/30">
-              <Shield className="w-10 h-10 text-blue-400" />
+            <div className="bg-primary/10 p-4 rounded-2xl border border-primary/20">
+              <Shield className="w-10 h-10 text-primary" />
             </div>
           </motion.div>
           <motion.h1
@@ -154,7 +154,7 @@ export const PrivacyPolicyPage = () => {
             initial={prefersReducedMotion ? false : { opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
-            className="mt-4 text-sm text-gray-500"
+            className="mt-4 text-sm text-muted-foreground"
           >
             Last updated: {new Date().toLocaleDateString()}
           </motion.p>
@@ -162,21 +162,21 @@ export const PrivacyPolicyPage = () => {
       </section>
 
       {/* Sections */}
-      <section className="bg-gray-950 pb-20">
+      <section className="bg-background pb-20">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
           {sections.map((section, i) => {
             const Icon = section.icon;
             return (
               <FadeIn key={i} delay={i * 0.05}>
-                <Card className="bg-white/5 border-white/10">
+                <Card className="bg-card border-border">
                   <CardContent className="p-6">
                     <div className="flex items-center gap-3 mb-4">
                       <div
-                        className={`bg-gradient-to-br ${section.color} p-2.5 rounded-xl border border-white/10`}
+                        className={`bg-gradient-to-br ${section.color} p-2.5 rounded-xl border border-border`}
                       >
                         <Icon className={`w-5 h-5 ${section.iconColor}`} />
                       </div>
-                      <h2 className="text-lg font-semibold text-white">
+                      <h2 className="text-lg font-semibold text-foreground">
                         {section.title}
                       </h2>
                     </div>

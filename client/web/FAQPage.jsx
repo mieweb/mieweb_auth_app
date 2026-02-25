@@ -22,7 +22,7 @@ const faqData = [
     category: "About MIE Auth",
     icon: Shield,
     color: "from-blue-500/20 to-cyan-500/20",
-    iconColor: "text-blue-400",
+    iconColor: "text-blue-600 dark:text-blue-400",
     items: [
       {
         q: "What is MIE Auth?",
@@ -46,7 +46,7 @@ const faqData = [
     category: "How It Works",
     icon: Settings,
     color: "from-purple-500/20 to-pink-500/20",
-    iconColor: "text-purple-400",
+    iconColor: "text-purple-600 dark:text-purple-400",
     items: [
       {
         q: "How does MIE Auth work for SSH with LDAP?",
@@ -70,7 +70,7 @@ const faqData = [
     category: "Authentication Methods",
     icon: Key,
     color: "from-amber-500/20 to-orange-500/20",
-    iconColor: "text-amber-400",
+    iconColor: "text-amber-600 dark:text-amber-400",
     items: [
       {
         q: "Does MIE Auth support TOTP codes as a backup?",
@@ -94,7 +94,7 @@ const faqData = [
     category: "Devices & Enrollment",
     icon: Smartphone,
     color: "from-green-500/20 to-emerald-500/20",
-    iconColor: "text-green-400",
+    iconColor: "text-green-600 dark:text-green-400",
     items: [
       {
         q: "What platforms are supported for the mobile app?",
@@ -118,7 +118,7 @@ const faqData = [
     category: "Security & Recovery",
     icon: AlertTriangle,
     color: "from-red-500/20 to-rose-500/20",
-    iconColor: "text-red-400",
+    iconColor: "text-red-600 dark:text-red-400",
     items: [
       {
         q: "What happens if the phone is offline?",
@@ -138,7 +138,7 @@ const faqData = [
     category: "Operations & Compliance",
     icon: Server,
     color: "from-indigo-500/20 to-violet-500/20",
-    iconColor: "text-indigo-400",
+    iconColor: "text-indigo-600 dark:text-indigo-400",
     items: [
       {
         q: "What auditing and compliance features are available?",
@@ -163,17 +163,19 @@ const FAQItem = ({
   onToggle,
   prefersReducedMotion,
 }) => (
-  <div className="border-b border-white/10 last:border-b-0">
+  <div className="border-b border-border last:border-b-0">
     <button
       onClick={onToggle}
-      className="w-full px-6 py-5 text-left flex items-start justify-between hover:bg-white/5 transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+      className="w-full px-6 py-5 text-left flex items-start justify-between hover:bg-muted/50 transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary"
       aria-expanded={isOpen}
     >
-      <span className="text-base font-medium text-white pr-4">{question}</span>
+      <span className="text-base font-medium text-foreground pr-4">
+        {question}
+      </span>
       {isOpen ? (
-        <ChevronUp className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+        <ChevronUp className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
       ) : (
-        <ChevronDown className="w-5 h-5 text-gray-500 flex-shrink-0 mt-0.5" />
+        <ChevronDown className="w-5 h-5 text-muted-foreground flex-shrink-0 mt-0.5" />
       )}
     </button>
     {isOpen && (
@@ -183,7 +185,9 @@ const FAQItem = ({
         transition={{ duration: 0.2 }}
         className="px-6 pb-5"
       >
-        <p className="text-sm text-gray-400 leading-relaxed">{answer}</p>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          {answer}
+        </p>
       </motion.div>
     )}
   </div>
@@ -237,7 +241,7 @@ export const FAQPage = () => {
   return (
     <Layout>
       {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-gray-950 via-gray-900 to-gray-950 text-white">
+      <section className="relative overflow-hidden bg-background text-foreground">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(59,130,246,0.15),transparent_60%)]" />
         <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20 sm:py-28 text-center">
           <motion.div
@@ -246,8 +250,8 @@ export const FAQPage = () => {
             transition={{ duration: 0.5 }}
             className="flex items-center justify-center mb-6"
           >
-            <div className="bg-blue-500/20 p-4 rounded-2xl border border-blue-500/30">
-              <HelpCircle className="w-10 h-10 text-blue-400" />
+            <div className="bg-primary/10 p-4 rounded-2xl border border-primary/20">
+              <HelpCircle className="w-10 h-10 text-primary" />
             </div>
           </motion.div>
           <motion.h1
@@ -262,7 +266,7 @@ export const FAQPage = () => {
             initial={prefersReducedMotion ? false : { opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
-            className="mt-4 text-lg text-gray-400 max-w-2xl mx-auto"
+            className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto"
           >
             Everything you need to know about MIE Auth — why it exists, how it
             works, and how to get started.
@@ -275,13 +279,13 @@ export const FAQPage = () => {
           >
             <Badge
               variant="secondary"
-              className="bg-white/10 text-gray-300 border-white/20"
+              className="bg-muted text-muted-foreground border-border"
             >
               {faqData.length} Categories
             </Badge>
             <Badge
               variant="secondary"
-              className="bg-white/10 text-gray-300 border-white/20"
+              className="bg-muted text-muted-foreground border-border"
             >
               {totalQuestions} Questions
             </Badge>
@@ -290,7 +294,7 @@ export const FAQPage = () => {
       </section>
 
       {/* Controls */}
-      <div className="bg-gray-950">
+      <div className="bg-background">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex justify-end">
           <Button variant="ghost" size="sm" onClick={handleExpandAll}>
             {expandAll ? "Collapse All" : "Expand All"}
@@ -299,7 +303,7 @@ export const FAQPage = () => {
       </div>
 
       {/* FAQ Sections */}
-      <section className="bg-gray-950 pb-20">
+      <section className="bg-background pb-20">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
           {faqData.map((category, ci) => {
             const Icon = category.icon;
@@ -307,15 +311,15 @@ export const FAQPage = () => {
               <FadeIn key={ci} delay={ci * 0.05}>
                 <div className="flex items-center space-x-3 mb-4">
                   <div
-                    className={`bg-gradient-to-br ${category.color} p-2.5 rounded-xl border border-white/10`}
+                    className={`bg-gradient-to-br ${category.color} p-2.5 rounded-xl border border-border`}
                   >
                     <Icon className={`w-5 h-5 ${category.iconColor}`} />
                   </div>
-                  <h2 className="text-xl font-bold text-white">
+                  <h2 className="text-xl font-bold text-foreground">
                     {category.category}
                   </h2>
                 </div>
-                <Card className="bg-white/5 border-white/10 shadow-lg overflow-hidden">
+                <Card className="bg-card border-border shadow-lg overflow-hidden">
                   <CardContent className="p-0">
                     {category.items.map((item, ii) => {
                       const key = `${ci}-${ii}`;
@@ -338,17 +342,17 @@ export const FAQPage = () => {
 
           {/* Still have questions */}
           <FadeIn delay={0.1}>
-            <Card className="bg-gradient-to-br from-blue-500/10 to-purple-500/10 border-blue-500/20">
+            <Card className="bg-primary/5 border-primary/20">
               <CardContent className="p-8 text-center">
                 <div className="flex items-center justify-center mb-4">
-                  <div className="bg-blue-500/20 p-3 rounded-xl border border-blue-500/30">
-                    <LifeBuoy className="w-6 h-6 text-blue-400" />
+                  <div className="bg-primary/10 p-3 rounded-xl border border-primary/20">
+                    <LifeBuoy className="w-6 h-6 text-primary" />
                   </div>
                 </div>
-                <h3 className="text-lg font-semibold text-white mb-2">
+                <h3 className="text-lg font-semibold text-foreground mb-2">
                   Still have questions?
                 </h3>
-                <p className="text-sm text-gray-400 mb-6">
+                <p className="text-sm text-muted-foreground mb-6">
                   Open an issue on GitHub or reach out to our support team.
                 </p>
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4">

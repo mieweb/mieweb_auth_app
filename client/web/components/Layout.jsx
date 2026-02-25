@@ -1,50 +1,27 @@
-import React, { useState, useCallback } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { Meteor } from "meteor/meteor";
-import { useTracker } from "meteor/react-meteor-data";
-import { SiteHeader, SiteFooter } from "@mieweb/ui";
+import React, { useState, useEffect } from "react";
+import { SiteHeader, SiteFooter, Button } from "@mieweb/ui";
+import { Sun, Moon } from "lucide-react";
 
 export const Layout = ({ children }) => {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [devLoading, setDevLoading] = useState(false);
-
-  const user = useTracker(() => {
-    const meteorUser = Meteor.user();
-    if (!meteorUser) return null;
-    return {
-      id: meteorUser._id,
-      name:
-        [meteorUser.profile?.firstName, meteorUser.profile?.lastName]
-          .filter(Boolean)
-          .join(" ") || meteorUser.username,
-      email: meteorUser.emails?.[0]?.address,
-    };
-  }, []);
-
-  const handleDevLogin = useCallback(async () => {
-    if (devLoading) return;
-    setDevLoading(true);
-    try {
-      const { password, email } = await Meteor.callAsync("users.devLogin");
-      await new Promise((resolve, reject) => {
-        Meteor.loginWithPassword(email, password, (err) => {
-          if (err) reject(err);
-          else resolve();
-        });
-      });
-      navigate("/dashboard");
-    } catch (err) {
-      console.error("[dev] Login failed:", err);
-      alert(`Dev login failed: ${err.reason || err.message}`);
-    } finally {
-      setDevLoading(false);
+  const [theme, setTheme] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("theme") || "light";
     }
-  }, [devLoading, navigate]);
+    return "light";
+  });
 
-  const handleLogout = useCallback(() => {
-    Meteor.logout(() => navigate("/"));
-  }, [navigate]);
+  useEffect(() => {
+    if (theme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "light" ? "dark" : "light"));
+  };
 
   const links = [
     { label: "Home", href: "/" },
@@ -84,24 +61,23 @@ export const Layout = ({ children }) => {
         }}
         links={links}
         variant="white"
-        {...(user
-          ? {
-              user,
-              onLogout: handleLogout,
-              userMenuItems: [{ label: "Dashboard", href: "/dashboard" }],
-            }
-          : Meteor.isDevelopment
-            ? {
-                onLogin: handleDevLogin,
-                signUpHref: "/register",
-              }
-            : {
-                loginHref: "/login",
-                signUpHref: "/register",
-              })}
       />
 
       <main className="flex-grow">{children}</main>
+
+      <Button
+        variant="outline"
+        size="icon"
+        className="fixed bottom-4 right-4 z-50 rounded-full shadow-lg bg-background text-foreground hover:bg-accent hover:text-accent-foreground"
+        onClick={toggleTheme}
+        aria-label="Toggle theme"
+      >
+        {theme === "light" ? (
+          <Moon className="h-5 w-5" />
+        ) : (
+          <Sun className="h-5 w-5" />
+        )}
+      </Button>
 
       <SiteFooter
         logo={{

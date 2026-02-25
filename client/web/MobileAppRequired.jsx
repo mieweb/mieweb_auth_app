@@ -36,7 +36,7 @@ const QRCode = ({ androidUrl, iosUrl }) => {
             className="rounded-lg"
           />
         </div>
-        <span className="text-xs font-semibold text-gray-500">
+        <span className="text-xs font-semibold text-muted-foreground">
           App Store (iOS)
         </span>
       </div>
@@ -50,7 +50,7 @@ const QRCode = ({ androidUrl, iosUrl }) => {
             className="rounded-lg"
           />
         </div>
-        <span className="text-xs font-semibold text-gray-500">
+        <span className="text-xs font-semibold text-muted-foreground">
           Google Play (Android)
         </span>
       </div>
@@ -88,7 +88,7 @@ export const MobileAppRequired = ({ mode = "login" }) => {
 
   return (
     <Layout>
-      <div className="relative min-h-[calc(100vh-140px)] flex items-center overflow-hidden bg-gradient-to-br from-gray-950 via-gray-900 to-blue-950">
+      <div className="relative min-h-[calc(100vh-140px)] flex items-center overflow-hidden bg-background text-foreground">
         {/* Background effects */}
         <div
           className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.03)_1px,transparent_1px)] bg-[size:60px_60px]"
@@ -97,7 +97,7 @@ export const MobileAppRequired = ({ mode = "login" }) => {
         <motion.div
           animate={{ scale: [1, 1.2, 1], opacity: [0.12, 0.2, 0.12] }}
           transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-1/4 -left-32 w-[400px] h-[400px] bg-blue-600 rounded-full blur-[128px]"
+          className="absolute top-1/4 -left-32 w-[400px] h-[400px] bg-primary rounded-full blur-[128px]"
           aria-hidden="true"
         />
         <motion.div
@@ -108,7 +108,7 @@ export const MobileAppRequired = ({ mode = "login" }) => {
             ease: "easeInOut",
             delay: 2,
           }}
-          className="absolute bottom-1/4 -right-32 w-[300px] h-[300px] bg-indigo-500 rounded-full blur-[128px]"
+          className="absolute bottom-1/4 -right-32 w-[300px] h-[300px] bg-primary/50 rounded-full blur-[128px]"
           aria-hidden="true"
         />
 
@@ -120,7 +120,7 @@ export const MobileAppRequired = ({ mode = "login" }) => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
-                className="inline-flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm font-medium px-4 py-1.5 rounded-full mb-6"
+                className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary text-sm font-medium px-4 py-1.5 rounded-full mb-6"
               >
                 <Smartphone className="w-4 h-4" />
                 Mobile App Required
@@ -130,19 +130,19 @@ export const MobileAppRequired = ({ mode = "login" }) => {
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.7, delay: 0.1 }}
-                className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white leading-[1.1] mb-6"
+                className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-foreground leading-[1.1] mb-6"
               >
                 {isLogin ? (
                   <>
                     Sign in with the{" "}
-                    <span className="bg-gradient-to-r from-blue-400 via-cyan-400 to-indigo-400 bg-clip-text text-transparent">
+                    <span className="bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent">
                       mobile app
                     </span>
                   </>
                 ) : (
                   <>
                     Get started on{" "}
-                    <span className="bg-gradient-to-r from-blue-400 via-cyan-400 to-indigo-400 bg-clip-text text-transparent">
+                    <span className="bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent">
                       your phone
                     </span>
                   </>
@@ -153,7 +153,7 @@ export const MobileAppRequired = ({ mode = "login" }) => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.2 }}
-                className="text-lg text-gray-400 max-w-lg mx-auto lg:mx-0 mb-8 leading-relaxed"
+                className="text-lg text-muted-foreground max-w-lg mx-auto lg:mx-0 mb-8 leading-relaxed"
               >
                 {isLogin
                   ? "MIE Auth uses biometric authentication and push notifications, which require the mobile app. Download it to sign in securely."
@@ -166,7 +166,7 @@ export const MobileAppRequired = ({ mode = "login" }) => {
                 transition={{ duration: 0.6, delay: 0.3 }}
               >
                 <AppStoreButtons
-                  variant="light"
+                  variant="default"
                   className="justify-center lg:justify-start"
                 />
               </motion.div>
@@ -180,7 +180,7 @@ export const MobileAppRequired = ({ mode = "login" }) => {
                 <Button
                   variant="link"
                   onClick={() => navigate("/")}
-                  className="text-gray-400 hover:text-white"
+                  className="text-muted-foreground hover:text-foreground"
                 >
                   <ArrowLeft className="w-4 h-4 mr-1" />
                   Back to home
@@ -197,7 +197,7 @@ export const MobileAppRequired = ({ mode = "login" }) => {
                 transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
                 aria-hidden="true"
               >
-                <div className="w-56 sm:w-64 h-[400px] sm:h-[440px] bg-gray-900 rounded-[3rem] border-[6px] border-gray-700 shadow-2xl shadow-blue-500/20 flex flex-col overflow-hidden relative">
+                <div className="w-56 sm:w-64 h-[400px] sm:h-[440px] bg-card rounded-[3rem] border-[6px] border-border shadow-2xl shadow-primary/20 flex flex-col overflow-hidden relative">
                   {/* Notch */}
                   <div className="absolute top-0 w-full h-6 bg-gray-900 z-20 flex justify-center">
                     <div className="w-20 h-4 bg-black rounded-b-2xl" />
@@ -285,8 +285,8 @@ export const MobileAppRequired = ({ mode = "login" }) => {
                 className="text-center"
               >
                 <div className="flex items-center gap-2 justify-center mb-4">
-                  <QrCode className="w-4 h-4 text-gray-400" />
-                  <span className="text-sm font-semibold text-gray-400">
+                  <QrCode className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm font-semibold text-muted-foreground">
                     Scan to download
                   </span>
                 </div>
@@ -308,13 +308,15 @@ export const MobileAppRequired = ({ mode = "login" }) => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.9 + i * 0.1 }}
-                className="bg-white/5 border border-white/10 rounded-xl p-5 hover:bg-white/10 transition-colors text-center"
+                className="bg-card border border-border rounded-xl p-5 hover:bg-muted/50 transition-colors text-center"
               >
-                <feature.icon className="w-6 h-6 text-blue-400 mx-auto mb-3" />
-                <h3 className="text-sm font-bold text-white mb-1">
+                <feature.icon className="w-6 h-6 text-primary mx-auto mb-3" />
+                <h3 className="text-sm font-bold text-foreground mb-1">
                   {feature.title}
                 </h3>
-                <p className="text-xs text-gray-400">{feature.description}</p>
+                <p className="text-xs text-muted-foreground">
+                  {feature.description}
+                </p>
               </motion.div>
             ))}
           </motion.div>

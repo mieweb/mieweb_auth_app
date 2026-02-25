@@ -32,7 +32,7 @@ export const SupportPage = () => {
   return (
     <Layout>
       {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-gray-950 via-gray-900 to-gray-950 text-white">
+      <section className="relative overflow-hidden bg-background text-foreground">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(59,130,246,0.15),transparent_60%)]" />
         <div className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-20 sm:py-28 text-center">
           <motion.div
@@ -41,8 +41,8 @@ export const SupportPage = () => {
             transition={{ duration: 0.5 }}
             className="flex items-center justify-center mb-6"
           >
-            <div className="bg-blue-500/20 p-4 rounded-2xl border border-blue-500/30">
-              <LifeBuoy className="w-10 h-10 text-blue-400" />
+            <div className="bg-primary/10 p-4 rounded-2xl border border-primary/20">
+              <LifeBuoy className="w-10 h-10 text-primary" />
             </div>
           </motion.div>
           <motion.h1
@@ -57,7 +57,7 @@ export const SupportPage = () => {
             initial={prefersReducedMotion ? false : { opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
-            className="mt-4 text-lg text-gray-400 max-w-xl mx-auto"
+            className="mt-4 text-lg text-muted-foreground max-w-xl mx-auto"
           >
             To request help or report a bug, please open an issue on our GitHub
             repository.
@@ -66,7 +66,7 @@ export const SupportPage = () => {
       </section>
 
       {/* Content */}
-      <section className="bg-gray-950 pb-20">
+      <section className="bg-background pb-20">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
           {/* Report issue card */}
           <motion.div
@@ -74,9 +74,9 @@ export const SupportPage = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
           >
-            <Card className="bg-white/5 border-white/10">
+            <Card className="bg-card border-border">
               <CardContent className="p-6 space-y-5">
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-muted-foreground">
                   Opening an issue helps us track progress and respond publicly.
                   Please include steps to reproduce and any relevant
                   screenshots.
@@ -97,22 +97,22 @@ export const SupportPage = () => {
                   href={GITHUB_REPO_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/5 p-4 hover:bg-white/10 transition-colors group"
+                  className="flex items-center justify-between gap-4 rounded-xl border border-border bg-muted/50 p-4 hover:bg-muted transition-colors group"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 border border-white/10">
-                      <Github className="h-5 w-5 text-gray-300" />
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-background border border-border">
+                      <Github className="h-5 w-5 text-muted-foreground" />
                     </div>
                     <div className="min-w-0">
-                      <div className="text-sm font-medium text-white">
+                      <div className="text-sm font-medium text-foreground">
                         Repository
                       </div>
-                      <div className="text-xs text-gray-500 truncate">
+                      <div className="text-xs text-muted-foreground truncate">
                         {GITHUB_REPO_URL}
                       </div>
                     </div>
                   </div>
-                  <ExternalLink className="w-4 h-4 text-gray-500 group-hover:text-blue-400 transition-colors shrink-0" />
+                  <ExternalLink className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
                 </a>
               </CardContent>
             </Card>
@@ -124,17 +124,17 @@ export const SupportPage = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.4 }}
           >
-            <Card className="bg-white/5 border-white/10">
+            <Card className="bg-card border-border">
               <CardContent className="p-6">
                 <div className="flex items-start gap-3 mb-4">
-                  <div className="bg-red-500/20 p-2 rounded-xl border border-red-500/30">
-                    <Trash2 className="w-4 h-4 text-red-400" />
+                  <div className="bg-destructive/10 p-2 rounded-xl border border-destructive/20">
+                    <Trash2 className="w-4 h-4 text-destructive" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-white">
+                    <h3 className="text-sm font-semibold text-foreground">
                       Account Management
                     </h3>
-                    <p className="text-sm text-gray-400 mt-1">
+                    <p className="text-sm text-muted-foreground mt-1">
                       Need to delete your account? You can request account
                       deletion and we'll process your request within 30 days.
                     </p>
@@ -142,7 +142,7 @@ export const SupportPage = () => {
                 </div>
                 <a
                   href="/delete-account"
-                  className="inline-flex items-center text-sm text-red-400 hover:text-red-300 font-medium transition-colors"
+                  className="inline-flex items-center text-sm text-destructive hover:text-destructive/80 font-medium transition-colors"
                 >
                   Request Account Deletion
                   <ArrowRight className="w-4 h-4 ml-1" />
@@ -158,34 +158,34 @@ export const SupportPage = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.5 }}
             >
-              <Card className="bg-white/5 border-white/10">
+              <Card className="bg-card border-border">
                 <CardContent className="p-6">
                   <div className="flex items-center gap-2 mb-4">
-                    <Info className="w-4 h-4 text-gray-500" />
-                    <h3 className="text-sm font-semibold text-white">
+                    <Info className="w-4 h-4 text-muted-foreground" />
+                    <h3 className="text-sm font-semibold text-foreground">
                       App Information
                     </h3>
                   </div>
                   <dl className="space-y-3">
                     <div className="flex justify-between items-center text-sm">
-                      <dt className="text-gray-400">Version</dt>
+                      <dt className="text-muted-foreground">Version</dt>
                       <dd>
                         <Badge
                           variant="secondary"
-                          className="bg-white/10 text-gray-300 border-white/20 font-mono"
+                          className="bg-muted text-muted-foreground border-border font-mono"
                         >
                           {buildInfo.appVersion}
                         </Badge>
                       </dd>
                     </div>
                     <div className="flex justify-between items-center text-sm">
-                      <dt className="text-gray-400">Build Number</dt>
+                      <dt className="text-muted-foreground">Build Number</dt>
                       <dd>
                         <a
                           href={`${GITHUB_REPO_URL}/commit/${buildInfo.buildNumber}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="font-mono text-blue-400 hover:text-blue-300 transition-colors text-xs"
+                          className="font-mono text-primary hover:text-primary/80 transition-colors text-xs"
                         >
                           {buildInfo.buildNumber}
                         </a>
