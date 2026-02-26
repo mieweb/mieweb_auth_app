@@ -1,209 +1,200 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { openSupportLink } from '../../../../utils/openExternal';
-import { FiUser, FiMail, FiLock } from 'react-icons/fi';
-import { motion } from 'framer-motion';
-import { Meteor } from 'meteor/meteor';
-import { Session } from 'meteor/session';
-import BiometricRegistrationModal from './Modal/BiometricRegistrationModal';
-import { Random } from 'meteor/random';
+import React, { useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { openSupportLink } from "../../../../utils/openExternal";
+import {
+  Mail,
+  User,
+  KeyRound,
+  Clock,
+  Home,
+  CircleDot,
+  Circle,
+  Shield,
+  Fingerprint,
+  Bell,
+  Smartphone,
+} from "lucide-react";
+import { motion } from "framer-motion";
+import { Meteor } from "meteor/meteor";
+import { Session } from "meteor/session";
+import BiometricRegistrationModal from "./Modal/BiometricRegistrationModal";
+import { Random } from "meteor/random";
+import { Input, Button, Alert, AlertDescription, Badge } from "@mieweb/ui";
+
+const marketingFeatures = [
+  {
+    icon: Fingerprint,
+    title: "Biometric Authentication",
+    description:
+      "Face ID, Touch ID, and fingerprint login — authenticate in milliseconds.",
+  },
+  {
+    icon: Bell,
+    title: "Push Notification 2FA",
+    description:
+      "Approve or reject login requests with a single tap on your device.",
+  },
+  {
+    icon: Smartphone,
+    title: "Multi-Device Support",
+    description:
+      "Register multiple devices with primary/secondary cross-device approval.",
+  },
+  {
+    icon: Shield,
+    title: "Enterprise-Grade Security",
+    description:
+      "Bcrypt hashing, timing-safe comparisons, and defense-in-depth.",
+  },
+];
 
 export const RegistrationPage = ({ deviceDetails }) => {
   const [formData, setFormData] = useState({
-    email: '',
-    username: '',
-    firstName: '',
-    lastName: '',
-    pin: ''
+    email: "",
+    username: "",
+    firstName: "",
+    lastName: "",
+    pin: "",
   });
   const [loading, setLoading] = useState(false);
   const [showBiometricModal, setShowBiometricModal] = useState(false);
   const [registeredUser, setRegisteredUser] = useState(null);
   const [error, setError] = useState(null);
-  const [registrationStatus, setRegistrationStatus] = useState(null);
+  const [_registrationStatus, setRegistrationStatus] = useState(null);
   const [showPendingScreen, setShowPendingScreen] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    console.log('### Log Step 4 : RegistrationPage mounted');
-    return () => console.log('### Log: RegistrationPage unmounted');
-  }, []);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (loading) return;
 
-  const inputFields = useMemo(() => [
-    { name: 'email', icon: FiMail, type: 'email', placeholder: 'Enter your email' },
-    { name: 'username', icon: FiUser, type: 'text', placeholder: 'Enter your username', autoCapitalize: 'none' },
-    { name: 'firstName', icon: FiUser, type: 'text', placeholder: 'First Name' },
-    { name: 'lastName', icon: FiUser, type: 'text', placeholder: 'Last Name' },
-    { 
-      name: 'pin', 
-      icon: FiLock, 
-      type: 'password', 
-      placeholder: 'Create a PIN (4-6 digits)',
-      minLength: "4",
-      maxLength: "6",
-      pattern: "[0-9]*",
-      inputMode: "numeric"
-    }
-  ], []);
+    setError(null);
+    setLoading(true);
 
- const handleSubmit = async (e) => {
-  e.preventDefault();
-  console.log('### Log Step 4.1 : Form submission initiated');
-  
-  if (loading) return;
+    try {
+      const sessionDeviceInfo = Session.get("capturedDeviceInfo");
+      const fcmDeviceToken = Session.get("deviceToken");
 
-  setError(null);
-  setLoading(true);
+      if (!sessionDeviceInfo?.uuid || !fcmDeviceToken) {
+        throw new Error("Device information or FCM token not available");
+      }
 
-  try {
-    const sessionDeviceInfo = Session.get('capturedDeviceInfo');
-    const fcmDeviceToken = Session.get('deviceToken');
-    console.log('### Log Step 4.2: Session data:', JSON.stringify({
-      sessionDeviceInfo,
-      fcmDeviceToken
-    }));
+      if (sessionDeviceInfo.uuid !== deviceDetails) {
+        throw new Error("Device UUID mismatch");
+      }
 
-    if (!sessionDeviceInfo?.uuid || !fcmDeviceToken) {
-      throw new Error('Device information or FCM token not available');
-    }
+      const biometricSecret = Random.secret(32);
 
-    if (sessionDeviceInfo.uuid !== deviceDetails) {
-      throw new Error('Device UUID mismatch');
-    }
+      const registerUser = await Meteor.callAsync("users.register", {
+        ...formData,
+        sessionDeviceInfo,
+        fcmDeviceToken,
+        biometricSecret,
+      });
 
-    const biometricSecret = Random.secret(32);
-    console.log('### Log Step 4.3: Generated biometric secret');
+      // Handle secondary device approval flow
+      if (registerUser?.userAction && registerUser.isSecondaryDevice) {
+        if (registerUser.userAction === "approve") {
+          // Approved by primary device - proceed biometric modal or app flow
+          const userPayload = {
+            userId: registerUser.userId,
+            email: formData.email,
+            username: formData.username,
+            biometricSecret,
+            isFirstDevice: false,
+            registrationStatus: "approved",
+          };
+          setRegisteredUser(userPayload);
 
-    console.log('### Log Step 4.4: Calling users.register method...');
-    const registerUser = await Meteor.callAsync('users.register', {
-      ...formData,
-      sessionDeviceInfo,
-      fcmDeviceToken,
-      biometricSecret
-    });
+          setTimeout(() => {
+            setShowBiometricModal(true);
+          }, 0);
+        } else if (registerUser.userAction === "reject") {
+          setError(
+            "Your secondary device registration was rejected by the primary device.",
+          );
+        } else if (registerUser.userAction === "timeout") {
+          setError(
+            "Secondary device approval request timed out. Please try again later.",
+          );
+        }
+        // Stop further flow here
+        return;
+      }
 
-    console.log('### Log Step 4.5: Registration response:', JSON.stringify(registerUser));
-
-    // Handle secondary device approval flow
-    if (registerUser?.userAction && registerUser.isSecondaryDevice) {
-      console.log('### Log Step 4.5.1: Secondary device registration, userAction:', registerUser.userAction);
-
-      if (registerUser.userAction === 'approve') {
-        // Approved by primary device - proceed biometric modal or app flow
+      // Handle first device / regular flow
+      if (registerUser?.userId) {
         const userPayload = {
           userId: registerUser.userId,
           email: formData.email,
           username: formData.username,
           biometricSecret,
-          isFirstDevice: false,
-          registrationStatus: 'approved'
+          isFirstDevice: registerUser.isFirstDevice,
+          registrationStatus: registerUser.registrationStatus,
         };
+
         setRegisteredUser(userPayload);
 
+        // Open biometric modal immediately after successful registration
         setTimeout(() => {
-          console.log('### Opening biometric modal for secondary device after approval');
           setShowBiometricModal(true);
         }, 0);
+      } else if (registerUser?.registrationStatus) {
+        const regStatus = registerUser.registrationStatus;
 
-      } else if (registerUser.userAction === 'reject') {
-        setError('Your secondary device registration was rejected by the primary device.');
-      } else if (registerUser.userAction === 'timeout') {
-        setError('Secondary device approval request timed out. Please try again later.');
-      }
-      // Stop further flow here
-      return;
-    }
-
-    // Handle first device / regular flow
-    if (registerUser?.userId) {
-      console.log('### Log Step 4.6: Registration successful');
-
-      const userPayload = {
-        userId: registerUser.userId,
-        email: formData.email,
-        username: formData.username,
-        biometricSecret,
-        isFirstDevice: registerUser.isFirstDevice,
-        registrationStatus: registerUser.registrationStatus
-      };
-
-      setRegisteredUser(userPayload);
-
-      // Open biometric modal immediately after successful registration
-      setTimeout(() => {
-        console.log('### Opening biometric modal for first device');
-        setShowBiometricModal(true);
-      }, 0);
-
-    } else if (registerUser?.registrationStatus) {
-      const regStatus = registerUser.registrationStatus;
-
-      if (regStatus === 'pending') {
-        console.log('### Log Step 4.8: First device registration pending approval');
-        setRegistrationStatus('pending');
-        setShowPendingScreen(true);
-
-      } else if (regStatus === 'approved') {
-        console.log('### Log Step 4.9: Registration fully completed, redirecting to login');
-        navigate('/login');
-
-      } else if (regStatus === 'rejected') {
-        console.log('### Log Step 4.10: Registration rejected, redirecting to rejection screen or showing error');
-        setError('Your registration has been rejected. Please contact support.');
-        // Optionally navigate('/rejectedRegistration');
-
+        if (regStatus === "pending") {
+          setRegistrationStatus("pending");
+          setShowPendingScreen(true);
+        } else if (regStatus === "approved") {
+          navigate("/login");
+        } else if (regStatus === "rejected") {
+          setError(
+            "Your registration has been rejected. Please contact support.",
+          );
+        } else {
+          navigate("/login");
+        }
       } else {
-        // Fallback if user data is missing or unknown status
-        console.log('### Log Step 4.11: Unknown registration status, redirecting to login');
-        navigate('/login');
+        navigate("/login");
       }
-    } else {
-      // Fallback if no userId or registrationStatus at all
-      console.log('### Log Step 4.12: No valid user data found after registration, redirecting to login');
-      navigate('/login');
+    } catch (err) {
+      setError(err.reason || err.message || "Registration failed");
+    } finally {
+      setLoading(false);
     }
+  };
 
-  } catch (err) {
-    console.error('### Log Step ERROR:', err);
-    setError(err.reason || err.message || 'Registration failed');
-  } finally {
-    setLoading(false);
-  }
-};
+  const handleBiometricComplete = useCallback(
+    (_wasSuccessful) => {
+      setShowBiometricModal(false);
 
-
-
-
-  const handleBiometricComplete = useCallback((wasSuccessful) => {
-  console.log('### Log Step 4.7: Biometric completion:', wasSuccessful);
-  setShowBiometricModal(false);
- 
-    //Now check registration status after biometric handling is done
-  if (registeredUser) {
-    if (registeredUser.isFirstDevice && registeredUser.registrationStatus === 'pending') {
-      console.log('### Log Step 4.8: First device registration pending approval');
-        setRegistrationStatus('pending');
-        setShowPendingScreen(true);
+      //Now check registration status after biometric handling is done
+      if (registeredUser) {
+        if (
+          registeredUser.isFirstDevice &&
+          registeredUser.registrationStatus === "pending"
+        ) {
+          setRegistrationStatus("pending");
+          setShowPendingScreen(true);
+        } else {
+          navigate("/login");
+        }
       } else {
-        console.log('### Log Step 4.9: Registration fully completed, redirecting to login');
-        navigate('/login');
+        navigate("/login");
       }
-    } else {
-      // Fallback if user data is missing
-      console.log('### Log Step 4.10: No user data found, redirecting to login');
-      navigate('/login');
-    }
-  }, [navigate, registeredUser]);
+    },
+    [navigate, registeredUser],
+  );
 
   const goToLogin = useCallback(() => {
-    navigate('/login');
+    navigate("/login");
   }, [navigate]);
 
   // If showing the pending screen
   if (showPendingScreen) {
     return (
-      <motion.div 
-        initial={{ opacity: 0 }} 
+      <motion.div
+        initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         className="min-h-screen flex flex-col items-center justify-center p-4"
       >
@@ -211,37 +202,42 @@ export const RegistrationPage = ({ deviceDetails }) => {
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.2 }}
-          className="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-lg"
+          className="max-w-md w-full space-y-6 bg-card text-card-foreground p-8 rounded-3xl shadow-xl border border-border"
         >
-          <div className="text-center space-y-4">
-            <motion.h2 
-              initial={{ y: -20 }}
-              animate={{ y: 0 }}
-              className="text-3xl font-bold text-gray-900"
-            >
-              Registration Pending
-            </motion.h2>
-            <div className="flex justify-center">
-              <div className="animate-pulse w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center">
-                <FiUser className="text-3xl text-blue-500" />
-              </div>
+          {/* Header */}
+          <div className="text-center space-y-3">
+            <div className="mx-auto w-14 h-14 bg-warning/10 rounded-2xl flex items-center justify-center">
+              <Clock className="h-7 w-7 text-warning" />
             </div>
-            <p className="text-gray-600">
-              Since this is your first device registered with us, your account needs to be approved by an administrator.
-            </p>
-            <p className="text-gray-600">
-              You will receive a notification once your registration has been processed.
-            </p>
+            <h2 className="text-2xl font-bold text-foreground">
+              Registration Pending
+            </h2>
+            <Badge variant="warning" size="sm">
+              Awaiting Approval
+            </Badge>
           </div>
 
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+          {/* Status message */}
+          <Alert variant="warning">
+            <AlertDescription>
+              <p>
+                Since this is your first device registered with us, your account
+                needs to be approved by an administrator.
+              </p>
+              <p className="mt-1 text-xs opacity-75">
+                You will receive a notification once your registration has been
+                processed.
+              </p>
+            </AlertDescription>
+          </Alert>
+
+          <Button
             onClick={goToLogin}
-            className="w-full py-3 px-4 rounded-xl text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 transition-colors"
+            fullWidth
+            leftIcon={<Home className="h-4 w-4" />}
           >
             Back to Login
-          </motion.button>
+          </Button>
         </motion.div>
       </motion.div>
     );
@@ -249,97 +245,348 @@ export const RegistrationPage = ({ deviceDetails }) => {
 
   // Regular registration form
   return (
-    <motion.div 
-      initial={{ opacity: 0 }} 
+    <motion.div
+      initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="min-h-screen flex flex-col items-center justify-center p-4"
+      className="min-h-screen flex flex-col lg:flex-row"
     >
-      <motion.div
-        initial={{ y: 20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ delay: 0.2 }}
-        className="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-lg"
-      >
-        <div className="text-center space-y-2">
-          <motion.h2 
-            initial={{ y: -20 }}
-            animate={{ y: 0 }}
-            className="text-3xl font-bold text-gray-900"
+      {/* ===== LEFT: Marketing Panel (desktop only) ===== */}
+      <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-gray-950 via-gray-900 to-blue-950 text-white overflow-hidden">
+        {/* Glow orbs */}
+        <div
+          className="absolute top-1/4 -left-32 w-[400px] h-[400px] bg-blue-600 rounded-full blur-[128px] opacity-20"
+          aria-hidden="true"
+        />
+        <div
+          className="absolute bottom-1/4 -right-32 w-[300px] h-[300px] bg-indigo-500 rounded-full blur-[128px] opacity-15"
+          aria-hidden="true"
+        />
+        {/* Grid pattern */}
+        <div
+          className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.03)_1px,transparent_1px)] bg-[size:60px_60px]"
+          aria-hidden="true"
+        />
+
+        <div className="relative z-10 flex flex-col justify-center px-12 xl:px-16 py-16 max-w-xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
           >
-            Create Account
-          </motion.h2>
-          <p className="text-gray-600">Join our community today</p>
-        </div>
+            <div className="flex items-center gap-3 mb-10">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/30">
+                <img
+                  src="/logo.png"
+                  alt=""
+                  className="h-7 w-7 brightness-0 invert"
+                />
+              </div>
+              <span className="text-xl font-bold">MIE Auth</span>
+            </div>
+          </motion.div>
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
-            <span className="block sm:inline">{error}</span>
-          </div>
-        )}
+          <motion.h1
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3, duration: 0.7 }}
+            className="text-4xl xl:text-5xl font-black tracking-tight leading-tight mb-4"
+          >
+            Authentication{" "}
+            <span className="bg-gradient-to-r from-blue-400 via-cyan-400 to-indigo-400 bg-clip-text text-transparent">
+              reimagined.
+            </span>
+          </motion.h1>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {inputFields.map((field, index) => (
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4, duration: 0.6 }}
+            className="text-gray-400 text-lg leading-relaxed mb-12"
+          >
+            Secure your applications with biometric login, push notification
+            2FA, and multi-device management — all open source and free.
+          </motion.p>
+
+          {/* Feature list */}
+          <div className="space-y-6">
+            {marketingFeatures.map((feature, i) => (
               <motion.div
-                key={field.name}
-                initial={{ x: -20, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                transition={{ delay: index * 0.1 }}
-                className={field.name === 'email' ? 'md:col-span-2' : ''}
+                key={feature.title}
+                initial={{ opacity: 0, x: -30 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.5 + i * 0.1, duration: 0.5 }}
+                className="flex items-start gap-4"
               >
-                <label className="text-sm font-medium text-gray-700">
-                  {field.name.charAt(0).toUpperCase() + field.name.slice(1)}
-                </label>
-                <div className="mt-1 relative">
-                  <field.icon className="absolute top-3 left-3 text-gray-400" />
-                  <input
-                    name={field.name}
-                    type={field.type}
-                    placeholder={field.placeholder}
-                    required
-                    value={formData[field.name]}
-                    onChange={e => setFormData(prev => ({
-                      ...prev,
-                      [e.target.name]: e.target.value
-                    }))}
-                    className="w-full pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500"
-                    pattern={field.pattern}
-                    inputMode={field.inputMode}
-                    minLength={field.minLength}
-                    maxLength={field.maxLength}
-                    autoCapitalize={field.autoCapitalize}
-                  />
+                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
+                  <feature.icon className="w-5 h-5 text-blue-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-white">
+                    {feature.title}
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    {feature.description}
+                  </p>
                 </div>
               </motion.div>
             ))}
           </div>
 
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 px-4 rounded-xl text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 transition-colors"
+          {/* Social proof / stats */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1 }}
+            className="mt-14 pt-8 border-t border-white/10 grid grid-cols-3 gap-4"
           >
-            {loading ? 'Creating Account...' : 'Create Account'}
-          </motion.button>
+            {[
+              { value: "100%", label: "Open Source" },
+              { value: "< 1s", label: "Auth Speed" },
+              { value: "2", label: "Platforms" },
+            ].map((stat) => (
+              <div key={stat.label} className="text-center">
+                <div className="text-xl font-black bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+                  {stat.value}
+                </div>
+                <div className="text-xs text-gray-500 mt-1">{stat.label}</div>
+              </div>
+            ))}
+          </motion.div>
+        </div>
+      </div>
 
-          <div className="text-center text-sm text-gray-600">
-            Need help?{' '}
-            <button
-              type="button"
-              onClick={() => openSupportLink()}
-              className="text-blue-600 hover:text-blue-800 font-medium"
+      {/* ===== RIGHT: Registration Form ===== */}
+      <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-8 bg-gradient-to-b from-background to-muted/30 lg:bg-background lg:overflow-y-auto">
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.2 }}
+          className="max-w-lg w-full bg-card text-card-foreground p-8 rounded-2xl shadow-lg border border-border lg:shadow-none lg:border-0 lg:bg-transparent"
+        >
+          {/* Header with logo */}
+          <div className="text-center lg:text-left space-y-3 mb-8">
+            {/* Show logo on mobile only */}
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
+              className="mx-auto lg:hidden w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center"
             >
-              Contact Support
-            </button>
+              <img src="/logo.png" alt="MIE Auth" className="h-8 w-8" />
+            </motion.div>
+            <h2 className="text-2xl font-bold text-foreground">
+              Create your account
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Get started with MIE Auth in just a few steps
+            </p>
           </div>
-        </form>
-      </motion.div>
+
+          {error && (
+            <Alert variant="danger" className="mb-6">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Section: Account */}
+            <fieldset className="space-y-4">
+              <legend className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+                <Mail className="h-3.5 w-3.5" />
+                Account
+              </legend>
+              <motion.div
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: 0.1 }}
+              >
+                <Input
+                  name="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  required
+                  value={formData.email}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, email: e.target.value }))
+                  }
+                  label="Email"
+                  autoComplete="email"
+                />
+              </motion.div>
+              <motion.div
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: 0.15 }}
+              >
+                <Input
+                  name="username"
+                  type="text"
+                  placeholder="Choose a username"
+                  required
+                  value={formData.username}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      username: e.target.value,
+                    }))
+                  }
+                  label="Username"
+                  autoCapitalize="none"
+                  autoComplete="username"
+                />
+              </motion.div>
+            </fieldset>
+
+            {/* Divider */}
+            <div className="border-t border-border" />
+
+            {/* Section: Personal Info */}
+            <fieldset className="space-y-4">
+              <legend className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+                <User className="h-3.5 w-3.5" />
+                Personal Info
+              </legend>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <motion.div
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 0.2 }}
+                >
+                  <Input
+                    name="firstName"
+                    type="text"
+                    placeholder="First name"
+                    required
+                    value={formData.firstName}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        firstName: e.target.value,
+                      }))
+                    }
+                    label="First Name"
+                    autoComplete="given-name"
+                  />
+                </motion.div>
+                <motion.div
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 0.25 }}
+                >
+                  <Input
+                    name="lastName"
+                    type="text"
+                    placeholder="Last name"
+                    required
+                    value={formData.lastName}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        lastName: e.target.value,
+                      }))
+                    }
+                    label="Last Name"
+                    autoComplete="family-name"
+                  />
+                </motion.div>
+              </div>
+            </fieldset>
+
+            {/* Divider */}
+            <div className="border-t border-border" />
+
+            {/* Section: Security */}
+            <fieldset className="space-y-4">
+              <legend className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+                <KeyRound className="h-3.5 w-3.5" />
+                Security
+              </legend>
+              <motion.div
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: 0.3 }}
+              >
+                <Input
+                  name="pin"
+                  type="password"
+                  placeholder="4–6 digit PIN"
+                  required
+                  value={formData.pin}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, pin: e.target.value }))
+                  }
+                  label="PIN"
+                  pattern="[0-9]*"
+                  inputMode="numeric"
+                  minLength="4"
+                  maxLength="6"
+                />
+                {/* PIN strength dots */}
+                <div className="flex items-center gap-1.5 mt-2">
+                  {[...Array(6)].map((_, i) => (
+                    <div key={i}>
+                      {i < formData.pin.length ? (
+                        <CircleDot className="h-3 w-3 text-primary" />
+                      ) : (
+                        <Circle className="h-3 w-3 text-muted-foreground/30" />
+                      )}
+                    </div>
+                  ))}
+                  <span className="text-xs text-muted-foreground ml-1">
+                    {formData.pin.length === 0 && "4–6 digits required"}
+                    {formData.pin.length > 0 &&
+                      formData.pin.length < 4 &&
+                      `${4 - formData.pin.length} more digit${4 - formData.pin.length > 1 ? "s" : ""} needed`}
+                    {formData.pin.length >= 4 &&
+                      formData.pin.length < 6 &&
+                      "Good"}
+                    {formData.pin.length === 6 && "Maximum length"}
+                  </span>
+                </div>
+              </motion.div>
+            </fieldset>
+
+            <motion.div
+              initial={{ y: 10, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.4 }}
+            >
+              <Button
+                type="submit"
+                disabled={loading}
+                fullWidth
+                isLoading={loading}
+                loadingText="Creating Account..."
+                size="lg"
+              >
+                Create Account
+              </Button>
+            </motion.div>
+
+            <div className="text-center text-sm text-muted-foreground space-y-2">
+              <p>
+                Already have an account?{" "}
+                <Button variant="link" type="button" onClick={goToLogin}>
+                  Log in
+                </Button>
+              </p>
+              <p>
+                Need help?{" "}
+                <Button
+                  variant="link"
+                  type="button"
+                  onClick={() => openSupportLink()}
+                >
+                  Contact Support
+                </Button>
+              </p>
+            </div>
+          </form>
+        </motion.div>
+      </div>
 
       {showBiometricModal && (
         <BiometricRegistrationModal
-          key={Date.now()}
           isOpen={showBiometricModal}
           onClose={() => setShowBiometricModal(false)}
           userData={registeredUser}
