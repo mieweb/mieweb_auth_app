@@ -72,7 +72,7 @@ export const Layout = ({ children }) => {
       <Button
         variant="outline"
         size="icon"
-        className="fixed bottom-4 right-4 z-50 rounded-full shadow-lg bg-background text-foreground hover:bg-accent hover:text-accent-foreground"
+        className="fixed top-1/2 -translate-y-1/2 right-4 z-50 rounded-full shadow-lg bg-background text-foreground hover:bg-accent hover:text-accent-foreground"
         onClick={toggleTheme}
         aria-label="Toggle theme"
       >
