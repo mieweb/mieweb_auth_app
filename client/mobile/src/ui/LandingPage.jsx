@@ -12,26 +12,37 @@ import { useSessionTimeout } from "./hooks/useSessionTimeout";
 // Import Components
 import { DashboardHeader } from "./components/DashboardHeader";
 import { ProfileSection } from "./components/ProfileSection";
-import { NotificationFilters } from "./components/NotificationFilters";
 import { NotificationList } from "./components/NotificationList";
 import Pagination from "./Pagination/Pagination";
 import ActionsModal from "./Modal/ActionsModal";
 import ResultModal from "./Modal/ResultModal";
-import { Clock } from "lucide-react";
+import {
+  Shield,
+  Activity,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Search,
+} from "lucide-react";
 import { useNavigate } from "react-router";
+import {
+  Card,
+  CardContent,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+  Input,
+} from "@mieweb/ui";
 
 export const LandingPage = () => {
-  // Get initial user info from Session (needed by hooks)
   const userProfileData = Session.get("userProfile") || {};
   const userId = userProfileData._id;
   const username = userProfileData.username;
 
   const navigate = useNavigate();
 
-  // Use Custom Hooks
   const { isDarkMode, toggleDarkMode } = useDarkMode();
-
-  // Session management - automatically logs out when returning to app after screen lock
   useSessionTimeout();
 
   const {
@@ -49,13 +60,12 @@ export const LandingPage = () => {
   const {
     notifications,
     isLoading: isLoadingHistory,
-    error: historyError,
     filter,
     searchTerm,
     currentPage,
     totalPages,
     todaysActivityCount,
-    fetchNotificationHistory,
+    statusCounts,
     handleFilterChange,
     handleSearchChange,
     handlePageChange,
@@ -73,37 +83,105 @@ export const LandingPage = () => {
     handleCloseResultModal,
     handleCloseActionModal,
     openNotificationModal,
-  } = useNotificationHandler(userId, username, fetchNotificationHistory);
+  } = useNotificationHandler(userId, username);
 
-  const handleTimeout = async () => {
+  const handleTimeout = () => {
     handleCloseActionModal();
   };
 
-  // Logout Function
   const handleLogout = () => {
-    Meteor.logout((err) => {
-      if (err) {
-        console.error("Logout failed:", err);
-      } else {
-        navigate("/login");
-      }
+    Meteor.logout(() => {
+      navigate("/login");
     });
   };
+
+  const firstName = profile.firstName || "User";
+  const greeting = getGreeting();
+
+  const stats = [
+    {
+      label: "Today's Activity",
+      value: todaysActivityCount,
+      icon: <Activity className="h-5 w-5" />,
+      color: "text-blue-500 bg-blue-500/10",
+    },
+    {
+      label: "Pending",
+      value: statusCounts?.pending || 0,
+      icon: <Clock className="h-5 w-5" />,
+      color: "text-amber-500 bg-amber-500/10",
+    },
+    {
+      label: "Approved",
+      value: statusCounts?.approve || 0,
+      icon: <CheckCircle className="h-5 w-5" />,
+      color: "text-emerald-500 bg-emerald-500/10",
+    },
+    {
+      label: "Rejected",
+      value: statusCounts?.reject || 0,
+      icon: <XCircle className="h-5 w-5" />,
+      color: "text-rose-500 bg-rose-500/10",
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeader
-        title="MIEWeb Auth"
+        title="MIE Auth"
         isDarkMode={isDarkMode}
         toggleDarkMode={toggleDarkMode}
-        onRefresh={fetchNotificationHistory}
         onLogout={handleLogout}
       />
 
-      <main className="max-w-7xl mx-auto px-4 py-6">
-        <div className="container mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column (Profile & Device) */}
-          <div className="lg:col-span-1 space-y-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        {/* Welcome Banner */}
+        <div
+          className="relative overflow-hidden rounded-2xl p-6 sm:p-8 text-white"
+          style={{
+            background:
+              "linear-gradient(135deg, var(--color-primary-600, #4f6daa) 0%, var(--color-primary-800, #2d4373) 100%)",
+          }}
+        >
+          <div className="relative z-10">
+            <p className="text-primary-100 text-sm font-medium">{greeting}</p>
+            <h1 className="text-2xl sm:text-3xl font-bold mt-1">{firstName}</h1>
+            <p className="text-primary-200 mt-2 text-sm max-w-lg">
+              Manage your authentication requests and keep your account secure.
+            </p>
+          </div>
+          <div className="absolute -right-6 -top-6 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
+          <div className="absolute -right-2 -bottom-10 h-32 w-32 rounded-full bg-white/5 blur-xl" />
+          <Shield className="absolute right-6 bottom-6 h-20 w-20 text-white/10" />
+        </div>
+
+        {/* Stats Row */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          {stats.map((stat) => (
+            <Card key={stat.label} className="relative overflow-hidden">
+              <CardContent className="flex items-center gap-3 p-4">
+                <div
+                  className={`flex items-center justify-center h-10 w-10 rounded-xl ${stat.color}`}
+                >
+                  {stat.icon}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-2xl font-bold text-foreground leading-none">
+                    {stat.value}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1 truncate">
+                    {stat.label}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Profile Column */}
+          <div className="lg:col-span-1">
             <ProfileSection
               profile={profile}
               isEditing={isEditing}
@@ -118,32 +196,65 @@ export const LandingPage = () => {
             />
           </div>
 
-          {/* Right Column (Notifications) */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="flex items-center space-x-2 mx-2">
-              <Clock className="h-5 w-5 text-primary" />
-              <h2 className="text-lg font-semibold text-foreground">History</h2>
-            </div>
-            <NotificationFilters
-              filter={filter}
-              searchTerm={searchTerm}
-              onFilterChange={handleFilterChange}
-              onSearchChange={handleSearchChange}
-            />
-            <NotificationList
-              notifications={notifications}
-              isLoading={isLoadingHistory}
-              error={historyError}
-              onNotificationClick={openNotificationModal}
-              isActionsModalOpen={isActionsModalOpen}
-            />
-            {totalPages > 1 && (
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={handlePageChange}
-              />
-            )}
+          {/* Notifications Column */}
+          <div className="lg:col-span-2 space-y-4">
+            <Card>
+              <CardContent className="p-0">
+                <Tabs value={filter} onValueChange={handleFilterChange}>
+                  <div className="px-4 pt-4 sm:px-6 sm:pt-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-1">
+                      <h2 className="text-lg font-semibold text-foreground">
+                        Activity History
+                      </h2>
+                      <div className="relative w-full sm:w-64">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                        <Input
+                          type="text"
+                          placeholder="Search requests..."
+                          value={searchTerm}
+                          onChange={(e) => handleSearchChange(e.target.value)}
+                          className="pl-9"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="px-4 sm:px-6">
+                    <TabsList>
+                      <TabsTrigger value="all">All</TabsTrigger>
+                      <TabsTrigger value="pending">
+                        Pending
+                        {statusCounts?.pending > 0
+                          ? ` (${statusCounts.pending})`
+                          : ""}
+                      </TabsTrigger>
+                      <TabsTrigger value="approve">Approved</TabsTrigger>
+                      <TabsTrigger value="reject">Rejected</TabsTrigger>
+                    </TabsList>
+                  </div>
+                  {["all", "pending", "approve", "reject"].map((tab) => (
+                    <TabsContent
+                      key={tab}
+                      value={tab}
+                      className="mt-0 px-2 sm:px-4 pb-4"
+                    >
+                      <NotificationList
+                        notifications={notifications}
+                        isLoading={isLoadingHistory}
+                        onNotificationClick={openNotificationModal}
+                        isActionsModalOpen={isActionsModalOpen}
+                      />
+                      {totalPages > 1 && (
+                        <Pagination
+                          currentPage={currentPage}
+                          totalPages={totalPages}
+                          onPageChange={handlePageChange}
+                        />
+                      )}
+                    </TabsContent>
+                  ))}
+                </Tabs>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </main>
@@ -167,3 +278,10 @@ export const LandingPage = () => {
     </div>
   );
 };
+
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning,";
+  if (hour < 18) return "Good afternoon,";
+  return "Good evening,";
+}

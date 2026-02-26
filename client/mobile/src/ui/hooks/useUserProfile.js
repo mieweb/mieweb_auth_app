@@ -31,10 +31,11 @@ export const useUserProfile = () => {
             lastName: userDoc.lastName || "",
             email: userDoc.email || "",
           });
+        } else if (isMounted) {
+          setErrorMessage("User profile not found.");
         }
-      } catch (error) {
+      } catch {
         if (isMounted) {
-          console.error("Error fetching user details:", error);
           setErrorMessage("Failed to fetch profile.");
         }
       }
@@ -68,8 +69,7 @@ export const useUserProfile = () => {
       setSuccessMessage("Profile updated successfully!");
       setIsEditing(false);
       // Optionally re-fetch profile or update Session
-    } catch (error) {
-      console.error("Error updating profile:", error);
+    } catch {
       setErrorMessage("Failed to update profile. Please try again.");
     } finally {
       setIsSaving(false);

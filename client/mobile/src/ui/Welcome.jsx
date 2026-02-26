@@ -18,7 +18,7 @@ export const WelcomePage = () => {
             MIE Auth
           </h1>
           <p className="text-indigo-300/80 text-sm">
-            Your secure mobile companion
+            Secure, open-source two-factor authentication
           </p>
         </div>
 
@@ -26,17 +26,21 @@ export const WelcomePage = () => {
         <div className="space-y-3">
           <Button
             onClick={() => navigate("/login")}
-            className="w-full gap-2 py-3.5 text-base font-semibold rounded-2xl shadow-lg shadow-indigo-500/30 active:scale-[0.98]"
+            size="lg"
+            fullWidth
+            leftIcon={<LogIn className="h-5 w-5" />}
           >
-            <LogIn className="h-5 w-5" /> Sign In
+            Sign In
           </Button>
 
           <Button
-            variant="outline"
             onClick={() => navigate("/register")}
-            className="w-full gap-2 py-3.5 text-base font-semibold rounded-2xl text-indigo-300 border-indigo-400/30 bg-white/5 backdrop-blur-sm hover:bg-white/10 active:scale-[0.98]"
+            variant="outline"
+            size="lg"
+            fullWidth
+            leftIcon={<UserPlus className="h-5 w-5" />}
           >
-            <UserPlus className="h-5 w-5" /> Create Account
+            Create Account
           </Button>
         </div>
       </div>

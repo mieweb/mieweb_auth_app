@@ -1,7 +1,8 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { Meteor } from "meteor/meteor";
 import { useTracker } from "meteor/react-meteor-data";
-import { NotificationHistory } from "../../../../../utils/api/notificationHistory.js";
+import { NotificationHistory } from "../../../../../utils/api/notificationHistory";
+import { DeviceDetails } from "../../../../../utils/api/deviceDetails";
 
 const PAGE_SIZE = 5;
 
@@ -10,21 +11,46 @@ export const useNotificationData = (userId) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Reactive subscription + query via useTracker
+  // Real-time reactive data via Meteor subscriptions
   const { allNotifications, isLoading } = useTracker(() => {
-    if (!userId) return { allNotifications: [], isLoading: false };
+    if (!userId) {
+      return { allNotifications: [], isLoading: false };
+    }
 
-    const handle = Meteor.subscribe("notificationHistory.byUser", userId);
+    const notifHandle = Meteor.subscribe("notificationHistory.byUser", userId);
+    const deviceHandle = Meteor.subscribe("deviceDetails.byUser", userId);
 
-    return {
-      isLoading: !handle.ready(),
-      allNotifications: handle.ready()
-        ? NotificationHistory.find(
-            { userId },
-            { sort: { createdAt: -1 } },
-          ).fetch()
-        : [],
-    };
+    const isLoading = !notifHandle.ready() || !deviceHandle.ready();
+
+    // Reactively query Minimongo — automatically re-runs when data changes
+    const notifications = NotificationHistory.find(
+      { userId },
+      { sort: { createdAt: -1 }, limit: 50 },
+    ).fetch();
+
+    // Get device details from Minimongo for enrichment
+    const userDeviceDoc = DeviceDetails.findOne({ userId });
+    const devices = userDeviceDoc?.devices || [];
+
+    const deviceInfoMap = {};
+    devices.forEach((device) => {
+      if (device.appId) {
+        deviceInfoMap[device.appId] = {
+          deviceModel: device.deviceModel || "Unknown",
+          devicePlatform: device.devicePlatform || "Unknown",
+        };
+      }
+    });
+
+    // Enrich notifications with device info
+    const enrichedNotifications = notifications.map((notification) => ({
+      ...notification,
+      deviceModel: deviceInfoMap[notification.appId]?.deviceModel || "Unknown",
+      devicePlatform:
+        deviceInfoMap[notification.appId]?.devicePlatform || "Unknown",
+    }));
+
+    return { allNotifications: enrichedNotifications, isLoading };
   }, [userId]);
 
   const filteredNotifications = useMemo(() => {
@@ -59,8 +85,26 @@ export const useNotificationData = (userId) => {
       .length;
   }, [allNotifications]);
 
+  // Calculate counts per status
+  const statusCounts = useMemo(() => {
+    const counts = {
+      pending: 0,
+      approve: 0,
+      reject: 0,
+      total: allNotifications.length,
+    };
+    allNotifications.forEach((n) => {
+      if (n.status === "pending") counts.pending++;
+      else if (n.status === "approve") counts.approve++;
+      else if (n.status === "reject") counts.reject++;
+    });
+    return counts;
+  }, [allNotifications]);
+
   const handlePageChange = (newPage) => {
-    if (newPage >= 1 && newPage <= totalPages) setCurrentPage(newPage);
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPage(newPage);
+    }
   };
 
   const handleFilterChange = (newFilter) => {
@@ -73,20 +117,15 @@ export const useNotificationData = (userId) => {
     setCurrentPage(1);
   };
 
-  // Keep fetchNotificationHistory as a no-op for callers that still reference it.
-  // With reactive subscriptions the data auto-updates — no manual refetch needed.
-  const fetchNotificationHistory = useCallback(() => {}, []);
-
   return {
     notifications: paginatedNotifications,
     isLoading,
-    error: null,
     filter,
     searchTerm,
     currentPage,
     totalPages,
     todaysActivityCount,
-    fetchNotificationHistory,
+    statusCounts,
     handleFilterChange,
     handleSearchChange,
     handlePageChange,

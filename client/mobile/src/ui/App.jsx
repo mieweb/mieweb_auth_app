@@ -3,13 +3,12 @@ import { useDeviceRegistration } from "./hooks/useDeviceRegistration";
 import { AppRoutes } from "./components/AppRoutes";
 import { openSupportLink } from "../../../../utils/openExternal";
 import { Spinner, Button, Card, CardContent } from "@mieweb/ui";
-import { AlertTriangle, RefreshCw } from "lucide-react";
 
 const LoadingState = () => (
   <div className="flex flex-col items-center justify-center min-h-screen bg-background space-y-6">
-    <Spinner className="h-12 w-12" />
+    <Spinner size="xl" />
     <p className="text-primary font-medium text-lg text-center px-4">
-      Checking Device Status...
+      Checking Device Status ...
     </p>
   </div>
 );
@@ -18,9 +17,9 @@ const ConnectionError = ({ onRetry }) => {
   return (
     <div className="min-h-screen bg-background flex items-center p-6">
       <Card className="max-w-xs mx-auto">
-        <CardContent className="p-6 space-y-6">
+        <CardContent className="space-y-6">
           <div className="text-center space-y-3">
-            <AlertTriangle className="h-12 w-12 text-destructive mx-auto" />
+            <div className="text-red-500 text-5xl">⚠️</div>
             <h1 className="text-2xl font-bold text-foreground">
               Connection Issues
             </h1>
@@ -28,35 +27,31 @@ const ConnectionError = ({ onRetry }) => {
 
           <div className="space-y-4 text-muted-foreground">
             <div className="flex items-start gap-3">
-              <div className="text-primary">1.</div>
+              <div className="text-blue-500">1.</div>
               <p>Check your internet connection</p>
             </div>
             <div className="flex items-start gap-3">
-              <div className="text-primary">2.</div>
+              <div className="text-blue-500">2.</div>
               <p>Refresh the application</p>
             </div>
             <div className="flex items-start gap-3">
-              <div className="text-primary">3.</div>
+              <div className="text-blue-500">3.</div>
               <p>Manually close and reopen if needed</p>
             </div>
             <div className="flex items-start gap-3">
-              <div className="text-primary">4.</div>
+              <div className="text-blue-500">4.</div>
               <p>Contact support if unresolved</p>
             </div>
           </div>
 
-          <Button onClick={onRetry} className="w-full gap-2">
-            <RefreshCw className="h-4 w-4" />
-            Refresh Now
+          <Button onClick={onRetry} fullWidth>
+            ↻ Refresh Now
           </Button>
 
           <div className="text-center text-sm text-muted-foreground">
-            <button
-              onClick={() => openSupportLink()}
-              className="text-primary hover:underline font-medium"
-            >
+            <Button variant="link" onClick={() => openSupportLink()}>
               Contact Support
-            </button>
+            </Button>
           </div>
         </CardContent>
       </Card>

@@ -4,13 +4,11 @@ import { openSupportLink } from "../../../../utils/openExternal";
 import { Meteor } from "meteor/meteor";
 import { Session } from "meteor/session";
 import {
-  Mail,
-  Lock,
-  AlertCircle,
   Fingerprint as FingerprintIcon,
   KeyRound,
+  AlertCircle,
 } from "lucide-react";
-import { Button, Input, Spinner } from "@mieweb/ui";
+import { Input, Button, Alert, AlertDescription } from "@mieweb/ui";
 
 // ── Lock Screen (biometric auto-trigger) ────────────────────────────────────
 const LockScreen = ({
@@ -21,53 +19,46 @@ const LockScreen = ({
   isAuthenticating,
 }) => {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-gray-50 to-indigo-50">
-      <div className="max-w-md w-full space-y-6 bg-white p-8 rounded-3xl shadow-xl border border-gray-100">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
+      <div className="max-w-md w-full space-y-6 bg-card text-card-foreground p-8 rounded-3xl shadow-xl border border-border">
         {/* Header */}
         <div className="text-center space-y-3">
-          <div className="mx-auto w-14 h-14 bg-indigo-100 rounded-2xl flex items-center justify-center">
-            <FingerprintIcon className="h-7 w-7 text-indigo-600" />
+          <div className="mx-auto w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center">
+            <FingerprintIcon className="h-7 w-7 text-primary" />
           </div>
           <h2 className="text-2xl font-bold text-foreground">Welcome Back!</h2>
-          {email && <p className="text-sm text-gray-500">{email}</p>}
+          {email && <p className="text-sm text-muted-foreground">{email}</p>}
         </div>
 
         {/* Error */}
         {error && (
-          <div className="flex items-center gap-2 text-destructive text-sm bg-destructive/10 border border-destructive/20 p-3 rounded-xl">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            <span>{error}</span>
-          </div>
+          <Alert variant="danger" icon={<AlertCircle className="h-4 w-4" />}>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
 
         {/* Biometric button */}
-        <button
+        <Button
           onClick={onBiometricSuccess}
           disabled={isAuthenticating}
           aria-label="Authenticate with biometrics"
-          className="w-full py-3 rounded-xl text-white font-medium bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 disabled:opacity-50 transition-all transform hover:scale-[1.01] active:scale-[0.99] shadow-lg shadow-indigo-200 flex items-center justify-center gap-2"
+          fullWidth
+          isLoading={isAuthenticating}
+          loadingText="Authenticating…"
+          leftIcon={<FingerprintIcon className="h-5 w-5" />}
         >
-          {isAuthenticating ? (
-            <span className="flex items-center justify-center gap-2">
-              <Spinner className="h-5 w-5" />
-              Authenticating…
-            </span>
-          ) : (
-            <>
-              <FingerprintIcon className="h-5 w-5" />
-              Unlock with Biometrics
-            </>
-          )}
-        </button>
+          Unlock with Biometrics
+        </Button>
 
         {/* PIN fallback */}
-        <button
+        <Button
           onClick={onShowPinFallback}
-          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-indigo-200 text-indigo-600 text-sm font-medium hover:bg-indigo-50 transition"
+          variant="outline"
+          fullWidth
+          leftIcon={<KeyRound className="h-4 w-4" />}
         >
-          <KeyRound className="h-4 w-4" />
           Use PIN Instead
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -94,18 +85,18 @@ export const LoginPage = ({ deviceDetails }) => {
 
   // ── Connection monitor ──────────────────────────────────────────────────
   useEffect(() => {
-    if (!deviceDetails) console.warn("No device details available");
-
     const connectionCheck = setInterval(() => {
       if (!Meteor.status().connected) {
         setError("Connection to server lost. Reconnecting…");
-      } else if (error.includes("Connection to server lost")) {
-        setError("");
+      } else {
+        setError((prev) =>
+          prev === "Connection to server lost. Reconnecting…" ? "" : prev,
+        );
       }
     }, 3000);
 
     return () => clearInterval(connectionCheck);
-  }, [deviceDetails, error]);
+  }, []);
 
   // ── Registration check helper ───────────────────────────────────────────
   const checkRegistrationStatus = async (userId, emailAddress) => {
@@ -151,7 +142,7 @@ export const LoginPage = ({ deviceDetails }) => {
       await new Promise((resolve, reject) => {
         Fingerprint.loadBiometricSecret(
           {
-            description: "Authenticate to unlock MieSecure",
+            description: "Authenticate to unlock MIE Auth",
             disableBackup: true,
           },
           async () => {
@@ -185,7 +176,6 @@ export const LoginPage = ({ deviceDetails }) => {
         );
       });
     } catch (err) {
-      console.error("Biometric login error:", err);
       setError(err.message || "Biometric login failed. Use PIN instead.");
       // Don't auto-open PIN – let user decide
     } finally {
@@ -272,135 +262,111 @@ export const LoginPage = ({ deviceDetails }) => {
 
   // ── PIN fallback form ──────────────────────────────────────────────────
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-gray-50 to-indigo-50">
-      <div className="max-w-md w-full space-y-6 bg-white p-8 rounded-3xl shadow-xl border border-gray-100">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
+      <div className="max-w-md w-full space-y-6 bg-card text-card-foreground p-8 rounded-3xl shadow-xl border border-border">
         {/* Header */}
         <div className="text-center space-y-3">
-          <div className="mx-auto w-14 h-14 bg-indigo-100 rounded-2xl flex items-center justify-center">
-            <KeyRound className="h-7 w-7 text-indigo-600" />
+          <div className="mx-auto w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center">
+            <KeyRound className="h-7 w-7 text-primary" />
           </div>
           <h2 className="text-2xl font-bold text-foreground">
             {isReturningUser ? "Welcome Back!" : "Sign In"}
           </h2>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-muted-foreground">
             {isReturningUser ? email : "Enter your credentials to continue"}
           </p>
         </div>
 
         <form onSubmit={handlePinLogin} className="space-y-5">
           {error && (
-            <div className="flex items-center gap-2 text-destructive text-sm bg-destructive/10 border border-destructive/20 p-3 rounded-xl">
-              <AlertCircle className="h-4 w-4 shrink-0" />
-              <span>{error}</span>
-            </div>
+            <Alert variant="danger" icon={<AlertCircle className="h-4 w-4" />}>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
 
           {/* Email field */}
           <div>
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-foreground/70 mb-1"
-            >
-              Email
-            </label>
-            <div className="relative">
-              <Mail className="absolute top-3 left-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="pl-10 rounded-xl"
-                placeholder="Enter your email"
-                autoComplete="email"
-                disabled={isLoggingIn || checkingStatus}
-              />
-            </div>
+            <Input
+              id="email"
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              label="Email"
+              placeholder="Enter your email"
+              autoComplete="email"
+              disabled={isLoggingIn || checkingStatus}
+            />
             {isReturningUser && (
-              <button
+              <Button
+                variant="link"
+                size="sm"
                 type="button"
                 onClick={() => {
                   localStorage.removeItem("lastLoggedInEmail");
                   setEmail("");
                   setIsReturningUser(false);
                 }}
-                className="text-xs text-indigo-600 hover:underline mt-1"
               >
                 Not you? Use a different account
-              </button>
+              </Button>
             )}
           </div>
 
           {/* PIN field */}
-          <div>
-            <label
-              htmlFor="pin"
-              className="block text-sm font-medium text-foreground/70 mb-1"
-            >
-              PIN
-            </label>
-            <div className="relative">
-              <Lock className="absolute top-3 left-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="pin"
-                type="password"
-                required
-                value={pin}
-                onChange={(e) => setPin(e.target.value)}
-                className="pl-10 rounded-xl"
-                placeholder="Enter your PIN"
-                maxLength={6}
-                minLength={4}
-                pattern="[0-9]*"
-                inputMode="numeric"
-                autoComplete="current-password"
-                disabled={isLoggingIn || checkingStatus}
-              />
-            </div>
-          </div>
+          <Input
+            id="pin"
+            type="password"
+            required
+            value={pin}
+            onChange={(e) => setPin(e.target.value)}
+            label="PIN"
+            placeholder="Enter your PIN"
+            maxLength={6}
+            minLength={4}
+            pattern="[0-9]*"
+            inputMode="numeric"
+            autoComplete="current-password"
+            disabled={isLoggingIn || checkingStatus}
+          />
 
           {/* Submit */}
           <Button
             type="submit"
             disabled={isLoggingIn || checkingStatus}
-            className="w-full py-3 rounded-xl font-medium shadow-lg shadow-indigo-200 active:scale-[0.99]"
+            fullWidth
+            isLoading={isLoggingIn || checkingStatus}
+            loadingText={checkingStatus ? "Verifying…" : "Signing In…"}
           >
-            {isLoggingIn || checkingStatus ? (
-              <span className="flex items-center justify-center gap-2">
-                <Spinner className="h-5 w-5" />
-                {checkingStatus ? "Verifying…" : "Signing In…"}
-              </span>
-            ) : (
-              "Sign In with PIN"
-            )}
+            Sign In with PIN
           </Button>
 
-          <div className="text-center text-sm text-gray-600">
+          <div className="text-center text-sm text-muted-foreground">
             Need help?{" "}
-            <button
+            <Button
+              variant="link"
               type="button"
               onClick={() => openSupportLink()}
-              className="text-blue-600 hover:text-blue-800 font-medium"
             >
               Contact Support
-            </button>
+            </Button>
           </div>
         </form>
 
         {/* Back to biometric if available */}
         {hasBiometricCredentials && (
-          <button
+          <Button
             onClick={() => {
               setError("");
               setShowPinForm(false);
               biometricTriggered.current = false;
             }}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-indigo-200 text-indigo-600 text-sm font-medium hover:bg-indigo-50 transition"
+            variant="outline"
+            fullWidth
+            leftIcon={<FingerprintIcon className="h-4 w-4" />}
           >
-            <FingerprintIcon className="h-4 w-4" />
             Use Biometrics Instead
-          </button>
+          </Button>
         )}
       </div>
     </div>

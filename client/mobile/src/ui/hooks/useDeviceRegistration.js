@@ -27,8 +27,7 @@ export const useDeviceRegistration = () => {
         {
           onStop: (error) => {
             if (error) {
-              console.error("Subscription error (hook):", error);
-              setIsLoading(false); // loading stops on error
+              setIsLoading(false);
             }
           },
           onReady: () => {
@@ -52,7 +51,7 @@ export const useDeviceRegistration = () => {
     return () => {
       sessionTracker.stop();
     };
-  }, []); // only run on mount
+  }, []);
 
   return { capturedDeviceUuid, boolRegisteredDevice, isLoading };
 };

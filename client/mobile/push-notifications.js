@@ -11,7 +11,6 @@ const validateSessionWithRetry = (callback, retries = 3, interval = 1000) => {
       attempts++;
       setTimeout(checkSession, interval);
     } else {
-      console.warn("Session validation failed after retries");
       Session.set("notificationReceivedId", {
         appId: notification.additionalData.appId,
         status: "pending",
@@ -29,7 +28,6 @@ const sendUserAction = (appId, action) => {
       action,
       (error, result) => {
         if (error) {
-          console.error("Action failed:", error);
           Session.set("notificationReceivedId", {
             appId,
             status: "error",
@@ -50,7 +48,7 @@ const sendUserAction = (appId, action) => {
 const createNotificationChannel = () => {
   PushNotification.createChannel(
     () => {},
-    (error) => console.error("Channel error:", error),
+    () => {},
     {
       id: "default",
       name: "Approval Channel",
@@ -130,7 +128,6 @@ const setupNotificationHandler = (push) => {
 
 const setupErrorHandler = (push) => {
   push.on("error", (error) => {
-    console.error("Push system error:", error);
     Session.set("pushError", {
       message: error.message,
       code: error.code,
@@ -154,13 +151,9 @@ export const initializePushNotifications = () => {
 
     // Ensure default channel exists every 30 seconds
     setInterval(() => {
-      console.warn(
-        "Re-creating default notification channel to ensure it exists",
-      );
       createNotificationChannel();
     }, 30000);
   } catch (error) {
-    console.error("Critical push initialization error:", error);
     Session.set("pushInitError", error.toString());
   }
 };

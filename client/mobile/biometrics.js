@@ -8,7 +8,6 @@ export const initializeBiometrics = () => {
     },
     function (error) {
       Session.set("Biometrics", false);
-      console.error("Biometric not available:", error);
     },
   );
 };

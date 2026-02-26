@@ -4,11 +4,7 @@ import { Session } from "meteor/session";
 import { Tracker } from "meteor/tracker";
 import { isNotificationExpired } from "../../../../../utils/utils.js";
 
-export const useNotificationHandler = (
-  userId,
-  username,
-  fetchNotificationHistory,
-) => {
+export const useNotificationHandler = (userId, username) => {
   const [isActionsModalOpen, setIsActionsModalOpen] = useState(false);
   const [isResultModalOpen, setIsResultModalOpen] = useState(false);
   const [currentAction, setCurrentAction] = useState(null);
@@ -28,8 +24,7 @@ export const useNotificationHandler = (
       return latestNotification?.status === "pending"
         ? latestNotification
         : null;
-    } catch (error) {
-      console.error("Error getting latest notification:", error);
+    } catch {
       return null;
     }
   }, [userId]);
@@ -75,8 +70,8 @@ export const useNotificationHandler = (
           setNotificationIdForAction(latestPending.notificationId);
           setIsActionsModalOpen(true);
         }
-      } catch (error) {
-        console.error("Notification handling error:", error);
+      } catch {
+        // Silently handled — reactive tracker will retry
       }
     });
 
@@ -96,7 +91,7 @@ export const useNotificationHandler = (
         const deviceInfo = Session.get("capturedDeviceInfo") || {};
         const deviceUUID = deviceInfo.uuid || null;
 
-        const result = await Meteor.callAsync(
+        await Meteor.callAsync(
           "notifications.handleResponse",
           userId,
           action,
@@ -110,15 +105,14 @@ export const useNotificationHandler = (
           setTimeout(() => setIsResultModalOpen(false), 3000);
         }
 
-        // Force refresh notifications list
-        Meteor.setTimeout(fetchNotificationHistory, 500);
+        // Subscription handles real-time updates automatically
       } catch (error) {
         setActionError(`Failed to ${action}: ${error.reason || error.message}`);
       } finally {
         setIsProcessingAction(false);
       }
     },
-    [notificationIdForAction, username, fetchNotificationHistory],
+    [notificationIdForAction, username],
   );
 
   // Modal state cleanup
@@ -129,67 +123,57 @@ export const useNotificationHandler = (
     setNotificationIdForAction(null);
     setCurrentNotificationDetails(null);
     setActionError(null);
-    fetchNotificationHistory();
-  }, [fetchNotificationHistory]);
+  }, []);
 
   // Manually open modal for a specific notification
-  const openNotificationModal = useCallback(
-    (notification) => {
-      // Guard checks
-      if (!notification) {
-        console.warn("Cannot open modal: notification is null or undefined");
-        return;
-      }
+  const openNotificationModal = useCallback((notification) => {
+    // Guard checks
+    if (!notification) {
+      return;
+    }
 
-      if (notification.status !== "pending") {
-        return;
-      }
+    if (notification.status !== "pending") {
+      return;
+    }
 
-      // Check if notification is expired
-      if (isNotificationExpired(notification.createdAt)) {
-        console.warn("Cannot open modal: notification has expired");
-        // Mark as timed out
-        Meteor.callAsync(
-          "notificationHistory.updateStatus",
-          notification.notificationId,
-          "timeout",
-        )
-          .then(() => {
-            fetchNotificationHistory();
-          })
-          .catch((error) => {
-            console.error("Failed to update expired notification:", error);
-          });
-        return;
-      }
+    // Check if notification is expired
+    if (isNotificationExpired(notification.createdAt)) {
+      // Mark as timed out
+      Meteor.callAsync(
+        "notificationHistory.updateStatus",
+        notification.notificationId,
+        "timeout",
+      )
+        .then(() => {})
+        .catch(() => {});
+      return;
+    }
 
-      // Set notification details in state
-      setCurrentNotificationDetails(notification);
-      setNotificationIdForAction(notification.notificationId);
-      setIsActionsModalOpen(true);
+    // Set notification details in state
+    setCurrentNotificationDetails(notification);
+    setNotificationIdForAction(notification.notificationId);
+    setIsActionsModalOpen(true);
 
-      // Persist to localStorage for app resume consistency
-      if (
-        notification.appId &&
-        notification.notificationId &&
-        notification.createdAt
-      ) {
-        localStorage.setItem(
-          "pendingNotification",
-          JSON.stringify({
-            appId: notification.appId,
-            notificationId: notification.notificationId,
-            createdAt: notification.createdAt,
-          }),
-        );
-      }
+    // Persist to localStorage for app resume consistency
+    if (
+      notification.appId &&
+      notification.notificationId &&
+      notification.createdAt
+    ) {
+      localStorage.setItem(
+        "pendingNotification",
+        JSON.stringify({
+          appId: notification.appId,
+          notificationId: notification.notificationId,
+          createdAt: notification.createdAt,
+        }),
+      );
+    }
 
-      // Note: We intentionally do NOT set Session.set('notificationReceivedId') here
-      // to avoid triggering the Tracker.autorun which would fetch the latest notification
-      // and potentially replace the manually selected one
-    },
-    [fetchNotificationHistory],
-  );
+    // Note: We intentionally do NOT set Session.set('notificationReceivedId') here
+    // to avoid triggering the Tracker.autorun which would fetch the latest notification
+    // and potentially replace the manually selected one
+  }, []);
 
   return {
     isActionsModalOpen,

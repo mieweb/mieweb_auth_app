@@ -1,5 +1,6 @@
 import { useEffect, useCallback } from "react";
 import { Meteor } from "meteor/meteor";
+import { Session } from "meteor/session";
 import { useNavigate } from "react-router-dom";
 
 const STORAGE_KEY = "appWasPaused";
@@ -15,11 +16,7 @@ export const useSessionTimeout = () => {
 
   // Handle logout when app resumes after screen lock
   const handleLogout = useCallback(() => {
-    Meteor.logout((err) => {
-      if (err) {
-        console.error("Error during automatic logout:", err);
-      }
-
+    Meteor.logout(() => {
       // Clear pause flag (keep lastLoggedInEmail & biometricUserId for seamless re-auth)
       localStorage.removeItem(STORAGE_KEY);
 
@@ -31,11 +28,15 @@ export const useSessionTimeout = () => {
   // Handle app lifecycle events (Cordova pause/resume)
   useEffect(() => {
     // Only set up listeners for Cordova (mobile) apps with logged-in users
-    if (!Meteor.isCordova || !Meteor.userId()) {
+    if (
+      !Meteor.isCordova ||
+      (!Meteor.userId() && !Session.get("userProfile"))
+    ) {
       return;
     }
 
     const handlePause = () => {
+      // Mark that app went to background
       localStorage.setItem(STORAGE_KEY, "true");
     };
 
