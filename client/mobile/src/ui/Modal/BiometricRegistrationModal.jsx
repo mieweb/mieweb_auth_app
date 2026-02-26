@@ -4,7 +4,7 @@ import {
   XCircle,
   CheckCircle,
 } from "lucide-react";
-import { Button } from "@mieweb/ui";
+import { Modal, ModalBody, Button } from "@mieweb/ui";
 
 const BiometricRegistrationModal = ({
   isOpen,
@@ -72,8 +72,14 @@ const BiometricRegistrationModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-card rounded-2xl shadow-2xl w-11/12 max-w-md p-6 text-center">
+    <Modal
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      size="sm"
+    >
+      <ModalBody className="text-center">
         {status === "processing" && (
           <>
             <div className="flex justify-center mb-4">
@@ -93,7 +99,7 @@ const BiometricRegistrationModal = ({
         {status === "success" && (
           <>
             <div className="flex justify-center mb-4">
-              <div className="w-16 h-16 flex items-center justify-center bg-green-500/10 rounded-full">
+              <div className="w-16 h-16 flex items-center justify-center bg-green-500/15 rounded-full">
                 <CheckCircle className="h-10 w-10 text-green-500" />
               </div>
             </div>
@@ -109,8 +115,8 @@ const BiometricRegistrationModal = ({
         {status === "error" && (
           <>
             <div className="flex justify-center mb-4">
-              <div className="w-16 h-16 flex items-center justify-center bg-destructive/10 rounded-full">
-                <XCircle className="h-10 w-10 text-destructive" />
+              <div className="w-16 h-16 flex items-center justify-center bg-red-500/15 rounded-full">
+                <XCircle className="h-10 w-10 text-red-500" />
               </div>
             </div>
             <h2 className="text-lg font-bold text-foreground mb-2">
@@ -119,20 +125,21 @@ const BiometricRegistrationModal = ({
             <p className="text-muted-foreground mb-4">
               {errorMessage || "Unable to register biometrics"}
             </p>
-            <Button onClick={handleRetry} className="w-full">
+            <Button onClick={handleRetry} fullWidth>
               Try Again
             </Button>
             <Button
-              variant="secondary"
               onClick={handleSkip}
-              className="w-full mt-2"
+              variant="secondary"
+              fullWidth
+              className="mt-2"
             >
               Skip for Now
             </Button>
           </>
         )}
-      </div>
-    </div>
+      </ModalBody>
+    </Modal>
   );
 };
 

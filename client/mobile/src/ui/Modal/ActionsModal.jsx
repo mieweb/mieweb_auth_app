@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Meteor } from "meteor/meteor";
 import { Check, X, ShieldCheck, Clock } from "lucide-react";
 import { TIMEOUT_DURATION_MS } from "../../../../../utils/constants";
+import { Button, Alert, AlertDescription } from "@mieweb/ui";
 
 const ActionsModal = ({
   isOpen,
@@ -64,6 +65,7 @@ const ActionsModal = ({
           notification.notificationId,
           "timeout",
         );
+        console.log("Notification marked as timeout");
       } catch (error) {
         console.error(
           "Failed to update notification status to timeout:",
@@ -128,7 +130,7 @@ const ActionsModal = ({
       onClick={onClose}
     >
       <div
-        className="bg-card rounded-3xl w-full max-w-[340px] shadow-2xl animate-modal-in"
+        className="bg-card text-card-foreground rounded-3xl w-full max-w-[340px] shadow-2xl animate-modal-in"
         role="dialog"
         aria-modal="true"
         aria-labelledby="actions-modal-title"
@@ -199,37 +201,52 @@ const ActionsModal = ({
 
         {/* Error message */}
         {error && (
-          <div className="mx-6 mb-3 bg-destructive/10 border border-destructive/20 rounded-xl px-4 py-2.5">
-            <p className="text-sm text-destructive text-center">{error}</p>
+          <div className="mx-6 mb-3">
+            <Alert variant="danger">
+              <AlertDescription className="text-center">
+                {error}
+              </AlertDescription>
+            </Alert>
           </div>
         )}
 
         {/* Actions */}
         <div className="px-6 pb-6 space-y-2.5">
-          <button
+          <Button
             onClick={onApprove}
             disabled={isLoading}
-            className="w-full flex items-center justify-center space-x-2 bg-[#34c759] active:bg-[#2da44e] dark:bg-[#30b350] dark:active:bg-[#2a9d46] text-white py-[14px] rounded-[14px] active:scale-[0.98] transition-all font-semibold text-[15px] disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-green-600/20 dark:shadow-green-500/10"
+            fullWidth
+            size="lg"
+            leftIcon={<Check className="h-5 w-5" strokeWidth={2.5} />}
+            isLoading={isLoading}
+            loadingText="Processing..."
+            className="h-[52px] rounded-[14px] text-[15px] shadow-md shadow-green-600/20 dark:shadow-green-500/10"
+            style={{ backgroundColor: "#34c759", color: "#fff" }}
           >
-            <Check className="h-5 w-5" strokeWidth={2.5} />
-            <span>{isLoading ? "Processing..." : "Approve"}</span>
-          </button>
+            Approve
+          </Button>
 
-          <button
+          <Button
             onClick={onReject}
             disabled={isLoading}
-            className="w-full flex items-center justify-center space-x-2 bg-[#ff3b30] active:bg-[#d63027] dark:bg-[#e8342a] dark:active:bg-[#c42d24] text-white py-[14px] rounded-[14px] active:scale-[0.98] transition-all font-semibold text-[15px] disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-red-600/20 dark:shadow-red-500/10"
+            variant="danger"
+            fullWidth
+            size="lg"
+            leftIcon={<X className="h-5 w-5" strokeWidth={2.5} />}
+            className="h-[52px] rounded-[14px] text-[15px] shadow-md shadow-red-600/20 dark:shadow-red-500/10"
           >
-            <X className="h-5 w-5" strokeWidth={2.5} />
-            <span>Deny</span>
-          </button>
+            Deny
+          </Button>
 
-          <button
+          <Button
             onClick={onClose}
-            className="w-full text-center text-[13px] font-medium text-muted-foreground py-1.5 active:text-foreground transition-colors"
+            variant="ghost"
+            fullWidth
+            size="sm"
+            className="text-[13px] text-muted-foreground"
           >
             Dismiss
-          </button>
+          </Button>
         </div>
       </div>
 

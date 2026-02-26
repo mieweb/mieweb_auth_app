@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Meteor } from "meteor/meteor";
 import { useTracker } from "meteor/react-meteor-data";
 import { NotificationHistory } from "../../../../../utils/api/notificationHistory";
@@ -10,6 +10,11 @@ export const useNotificationData = (userId) => {
   const [filter, setFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const refresh = useCallback(() => {
+    setRefreshKey((prev) => prev + 1);
+  }, []);
 
   // Real-time reactive data via Meteor subscriptions
   const { allNotifications, isLoading } = useTracker(() => {
@@ -51,7 +56,7 @@ export const useNotificationData = (userId) => {
     }));
 
     return { allNotifications: enrichedNotifications, isLoading };
-  }, [userId]);
+  }, [userId, refreshKey]);
 
   const filteredNotifications = useMemo(() => {
     return allNotifications.filter((notification) => {
@@ -129,5 +134,6 @@ export const useNotificationData = (userId) => {
     handleFilterChange,
     handleSearchChange,
     handlePageChange,
+    refresh,
   };
 };
