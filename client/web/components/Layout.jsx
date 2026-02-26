@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from "react";
+import { Meteor } from "meteor/meteor";
 import { SiteHeader, SiteFooter, Button } from "@mieweb/ui";
 import { Sun, Moon } from "lucide-react";
 
 export const Layout = ({ children }) => {
   const [theme, setTheme] = useState(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("darkMode") === "true" ? "dark" : "light";
+      return window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light";
     }
     return "light";
   });
@@ -19,8 +22,16 @@ export const Layout = ({ children }) => {
       document.documentElement.classList.remove("dark");
       document.documentElement.setAttribute("data-theme", "light");
     }
-    localStorage.setItem("darkMode", String(isDark));
   }, [theme]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = (e) => {
+      setTheme(e.matches ? "dark" : "light");
+    };
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
@@ -64,24 +75,34 @@ export const Layout = ({ children }) => {
         }}
         links={links}
         variant="white"
-        showSignUp={false}
+        showSignUp={!Meteor.isCordova}
+        loginHref={!Meteor.isCordova ? "/login" : undefined}
+        signUpHref={!Meteor.isCordova ? "/register" : undefined}
       />
 
       <main className="flex-grow">{children}</main>
 
-      <Button
-        variant="outline"
-        size="icon"
-        className="fixed top-1/2 -translate-y-1/2 right-4 z-50 rounded-full shadow-lg bg-background text-foreground hover:bg-accent hover:text-accent-foreground"
-        onClick={toggleTheme}
-        aria-label="Toggle theme"
-      >
-        {theme === "light" ? (
-          <Moon className="h-5 w-5" />
-        ) : (
-          <Sun className="h-5 w-5" />
-        )}
-      </Button>
+      <div className="flex justify-end px-4 sm:px-6 lg:px-8 py-4 bg-background">
+        <Button
+          variant="outline"
+          size="sm"
+          className="rounded-full shadow-sm bg-background text-foreground hover:bg-accent hover:text-accent-foreground flex items-center gap-2"
+          onClick={toggleTheme}
+          aria-label="Toggle theme"
+        >
+          {theme === "light" ? (
+            <>
+              <Moon className="h-4 w-4" />
+              <span className="text-sm">Dark Mode</span>
+            </>
+          ) : (
+            <>
+              <Sun className="h-4 w-4" />
+              <span className="text-sm">Light Mode</span>
+            </>
+          )}
+        </Button>
+      </div>
 
       <SiteFooter
         logo={{
