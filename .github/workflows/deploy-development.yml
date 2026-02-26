@@ -254,7 +254,7 @@ jobs:
       - name: Generate beta icons
         run: |
           pip3 install --break-system-packages Pillow
-          python3 generate_app_resources.py public/resources/icon-beta.png
+          python3 generate_app_resources.py public/icon-beta.png public/resources
 
       # Dev Android uses 'com.mieweb.mieauth.dev' to separate from production
       - name: Patch mobile-config.js for Dev Android bundle ID
@@ -369,7 +369,7 @@ jobs:
       - name: Generate beta icons
         run: |
           pip3 install --break-system-packages Pillow
-          python3 generate_app_resources.py public/icon-beta.png
+          python3 generate_app_resources.py public/icon-beta.png public/resources
 
       # Dev iOS uses 'org.mieweb.os.dev' to separate from production
       # Note: macOS (BSD sed) requires -i '' unlike Linux's -i
