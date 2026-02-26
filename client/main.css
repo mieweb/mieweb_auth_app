@@ -6,16 +6,6 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Hide SiteHeader auth buttons */
-header .flex.items-center.gap-2 > .hidden.md\:block {
-  display: none !important;
-}
-
-/* Hide MobileMenuPanel auth buttons */
-.fixed.z-50.w-80 .absolute.bottom-0 .grid.grid-cols-2 {
-  display: none !important;
-}
-
 @keyframes slide-up {
   from {
     opacity: 0;

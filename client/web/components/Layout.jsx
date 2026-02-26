@@ -5,18 +5,21 @@ import { Sun, Moon } from "lucide-react";
 export const Layout = ({ children }) => {
   const [theme, setTheme] = useState(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("theme") || "light";
+      return localStorage.getItem("darkMode") === "true" ? "dark" : "light";
     }
     return "light";
   });
 
   useEffect(() => {
-    if (theme === "dark") {
+    const isDark = theme === "dark";
+    if (isDark) {
       document.documentElement.classList.add("dark");
+      document.documentElement.setAttribute("data-theme", "dark");
     } else {
       document.documentElement.classList.remove("dark");
+      document.documentElement.setAttribute("data-theme", "light");
     }
-    localStorage.setItem("theme", theme);
+    localStorage.setItem("darkMode", String(isDark));
   }, [theme]);
 
   const toggleTheme = () => {
@@ -51,7 +54,7 @@ export const Layout = ({ children }) => {
   ];
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col overflow-x-hidden">
       <SiteHeader
         logo={{
           src: "/logo.png",
@@ -61,6 +64,7 @@ export const Layout = ({ children }) => {
         }}
         links={links}
         variant="white"
+        showSignUp={false}
       />
 
       <main className="flex-grow">{children}</main>
@@ -68,7 +72,7 @@ export const Layout = ({ children }) => {
       <Button
         variant="outline"
         size="icon"
-        className="fixed bottom-4 right-4 z-50 rounded-full shadow-lg bg-background text-foreground hover:bg-accent hover:text-accent-foreground"
+        className="fixed top-1/2 -translate-y-1/2 right-4 z-50 rounded-full shadow-lg bg-background text-foreground hover:bg-accent hover:text-accent-foreground"
         onClick={toggleTheme}
         aria-label="Toggle theme"
       >
