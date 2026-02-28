@@ -1,4 +1,4 @@
-@havesource/cordova-plugin-push@5.0.5
+@havesource/cordova-plugin-push@7.0.0
 cordova-plugin-device@3.0.0
 cordova-plugin-fingerprint-aio@6.0.0
 cordova-plugin-inappbrowser@6.0.0
