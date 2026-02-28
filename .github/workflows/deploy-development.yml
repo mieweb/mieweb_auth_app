@@ -3,6 +3,15 @@ name: Deploy Development - Server, Android & iOS (Dev)
 # ─────────────────────────────────────────────────────────
 # Triggers when a release with tag 'dev-v*' is created
 # Deploys server, builds Android & iOS in parallel
+#
+# Selective deployment:
+#   Add [server], [android], [ios] labels in the release
+#   title or body to run ONLY those jobs.
+#   No labels = all jobs run (default behavior).
+#   Examples:
+#     dev-v1.2.3 [server]           → server only
+#     dev-v1.2.3 [android] [ios]    → android + iOS only
+#     dev-v1.2.3                    → all jobs
 # ─────────────────────────────────────────────────────────
 on:
   release:
@@ -46,6 +55,9 @@ jobs:
       app_version: ${{ steps.version.outputs.app_version }}
       build_date: ${{ steps.version.outputs.build_date }}
       tag_name: ${{ steps.version.outputs.tag_name }}
+      run_server: ${{ steps.platforms.outputs.run_server }}
+      run_android: ${{ steps.platforms.outputs.run_android }}
+      run_ios: ${{ steps.platforms.outputs.run_ios }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -94,6 +106,35 @@ jobs:
           git commit -m "ci: bump dev version to ${{ steps.version.outputs.app_version }} [skip ci]" || echo "No changes to commit"
           git push origin development || echo "Nothing to push"
 
+      - name: Determine which platforms to build
+        id: platforms
+        run: |
+          TITLE="${{ github.event.release.name }}"
+          BODY="${{ github.event.release.body }}"
+          COMBINED=$(echo "${TITLE} ${BODY}" | tr '[:upper:]' '[:lower:]')
+
+          HAS_SERVER=false
+          HAS_ANDROID=false
+          HAS_IOS=false
+
+          if echo "$COMBINED" | grep -q '\[server\]'; then HAS_SERVER=true; fi
+          if echo "$COMBINED" | grep -q '\[android\]'; then HAS_ANDROID=true; fi
+          if echo "$COMBINED" | grep -q '\[ios\]'; then HAS_IOS=true; fi
+
+          # If no labels found, run everything (backward compatible)
+          if [ "$HAS_SERVER" = false ] && [ "$HAS_ANDROID" = false ] && [ "$HAS_IOS" = false ]; then
+            echo "No platform labels found — running ALL jobs"
+            HAS_SERVER=true
+            HAS_ANDROID=true
+            HAS_IOS=true
+          fi
+
+          echo "run_server=${HAS_SERVER}" >> "$GITHUB_OUTPUT"
+          echo "run_android=${HAS_ANDROID}" >> "$GITHUB_OUTPUT"
+          echo "run_ios=${HAS_IOS}" >> "$GITHUB_OUTPUT"
+
+          echo "Platform selection: server=${HAS_SERVER} android=${HAS_ANDROID} ios=${HAS_IOS}"
+
       - name: Upload workspace for downstream jobs
         uses: actions/upload-artifact@v4
         with:
@@ -112,7 +153,7 @@ jobs:
   deploy-server:
     needs: prepare
     runs-on: ubuntu-latest
-    if: ${{ !cancelled() && needs.prepare.result == 'success' }}
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.prepare.outputs.run_server == 'true' }}
     steps:
       - name: Setup SSH
         run: |
@@ -209,6 +250,7 @@ jobs:
   build-android-dev:
     needs: prepare
     runs-on: ubuntu-latest
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.prepare.outputs.run_android == 'true' }}
     env:
       APP_VERSION: ${{ needs.prepare.outputs.app_version }}
       BUILD_DATE: ${{ needs.prepare.outputs.build_date }}
@@ -330,7 +372,7 @@ jobs:
   build-ios-dev:
     needs: prepare
     runs-on: macos-latest
-    if: ${{ !cancelled() && needs.prepare.result == 'success' }}
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.prepare.outputs.run_ios == 'true' }}
     env:
       APP_VERSION: ${{ needs.prepare.outputs.app_version }}
       TAG_NAME: ${{ needs.prepare.outputs.tag_name }}
@@ -570,9 +612,18 @@ jobs:
           ANDROID="${{ needs.build-android-dev.result }}"
           IOS="${{ needs.build-ios-dev.result }}"
 
-          STATUS_SERVER=$( [ "$SERVER" = "success" ] && echo "✅ deployed" || echo "❌ FAILED" )
-          STATUS_ANDROID=$( [ "$ANDROID" = "success" ] && echo "✅ built" || echo "❌ FAILED" )
-          STATUS_IOS=$( [ "$IOS" = "success" ] && echo "✅ uploaded" || echo "❌ FAILED" )
+          status_label() {
+            local result="$1" success_text="$2"
+            case "$result" in
+              success) echo "✅ ${success_text}" ;;
+              skipped) echo "⏭️ skipped" ;;
+              *) echo "❌ FAILED" ;;
+            esac
+          }
+
+          STATUS_SERVER=$(status_label "$SERVER" "deployed")
+          STATUS_ANDROID=$(status_label "$ANDROID" "built")
+          STATUS_IOS=$(status_label "$IOS" "uploaded")
 
           echo "server=${STATUS_SERVER}" >> "$GITHUB_OUTPUT"
           echo "android=${STATUS_ANDROID}" >> "$GITHUB_OUTPUT"
