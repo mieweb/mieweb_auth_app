@@ -25,3 +25,4 @@ accounts-base
 check
 session
 sha
+mieweb:auth             # Mieweb Authentication Package
