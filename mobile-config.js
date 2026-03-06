@@ -1,11 +1,11 @@
 App.info({
-  id: 'org.mieweb.opensource',
-  name: 'MIEAuth',
-  description: 'MIEAuth - Secure Two-Factor Authentication Made Simple',
-  author: 'Anshul Abrol',
-  email: 'abrol.anshul10@gmail.com',
-  website: 'https://mieauth-prod.os.mieweb.org',
-  version: '1.2.11',
+  id: "org.mieweb.opensource",
+  name: "MIEAuth",
+  description: "MIEAuth - Secure Two-Factor Authentication Made Simple",
+  author: "Anshul Abrol",
+  email: "abrol.anshul10@gmail.com",
+  website: "https://mieauth-prod.os.mieweb.org",
+  version: "1.2.11",
 });
 
 App.setPreference("android-targetSdkVersion", "35");
@@ -80,6 +80,9 @@ App.configurePlugin("@havesource/cordova-plugin-push", {
 });
 
 App.configurePlugin("cordova-plugin-inappbrowser", {});
+App.configurePlugin("cordova-plugin-customurlscheme", {
+  URL_SCHEME: "mieauth",
+});
 
 App.addResourceFile(
   "private/android/google-services.json",

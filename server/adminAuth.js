@@ -511,8 +511,7 @@ export const validateCredentials = async (username, password) => {
  * Sets req.adminUser on success.
  */
 export const requireAdminAuth = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  const token = getBearerToken(req);
 
   if (!token) {
     res.writeHead(401, { "Content-Type": "application/json" });
@@ -532,6 +531,11 @@ export const requireAdminAuth = (req, res, next) => {
 };
 
 // ─── Utility helpers (unchanged) ────────────────────────────────
+
+export const getBearerToken = (req) => {
+  const authHeader = req.headers.authorization;
+  return authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
+};
 
 /** Parse JSON body from request (rejects if payload exceeds maxBytes) */
 export const parseJsonBody = (req, maxBytes = 1024 * 1024) =>

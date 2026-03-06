@@ -1,5 +1,5 @@
-import React from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useMemo } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import {
   AppStoreButtons,
@@ -84,7 +84,15 @@ const features = [
 
 export const MobileAppRequired = ({ mode = "login" }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const isLogin = mode === "login";
+  const inviteToken = useMemo(
+    () => new URLSearchParams(location.search).get("token")?.trim() || "",
+    [location.search],
+  );
+  const openInAppUrl = inviteToken
+    ? `mieauth://register?token=${encodeURIComponent(inviteToken)}`
+    : "mieauth://register";
 
   return (
     <Layout>
@@ -157,8 +165,26 @@ export const MobileAppRequired = ({ mode = "login" }) => {
               >
                 {isLogin
                   ? "MIE Auth uses biometric authentication and push notifications, which require the mobile app. Download it to sign in securely."
-                  : "Registration requires the MIE Auth mobile app for device enrollment, biometric setup, and push notification configuration. Scan a QR code below or tap to download."}
+                  : inviteToken
+                    ? "This invite must be completed in the MIE Auth mobile app. If the app is already installed, open it with the button below. Otherwise, download it and then reopen your invite email link."
+                    : "Registration requires the MIE Auth mobile app for device enrollment, biometric setup, and push notification configuration. Scan a QR code below or tap to download."}
               </motion.p>
+
+              {inviteToken && !isLogin && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.25 }}
+                  className="mb-6"
+                >
+                  <a
+                    href={openInAppUrl}
+                    className="inline-flex items-center justify-center w-full sm:w-auto rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground no-underline shadow-sm transition-colors hover:bg-primary/90"
+                  >
+                    Open in MIE Auth
+                  </a>
+                </motion.div>
+              )}
 
               <motion.div
                 initial={{ opacity: 0, y: 20 }}

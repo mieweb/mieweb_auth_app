@@ -3,7 +3,7 @@ import { Email } from "meteor/email";
 import { WebApp } from "meteor/webapp";
 import { sendNotification, sendDeviceApprovalNotification } from "./firebase";
 import { Accounts } from "meteor/accounts-base";
-import { check } from "meteor/check";
+import { check, Match } from "meteor/check";
 import { Random } from "meteor/random";
 import { DeviceDetails } from "../utils/api/deviceDetails.js";
 import { NotificationHistory } from "../utils/api/notificationHistory.js";
@@ -11,6 +11,17 @@ import { ApprovalTokens } from "../utils/api/approvalTokens";
 import { PendingResponses } from "../utils/api/pendingResponses.js";
 import { EmailLog, createEmailLog } from "../utils/api/emailLog.js";
 import "../utils/api/apiKeys.js"; // Import for side effects (Meteor methods registration)
+import {
+  Invites,
+  buildInviteLockFields,
+  createInviteRecord,
+  findInviteByToken,
+  getInviteTokenStatus,
+  markInviteConsumed,
+  normalizeInviteEmail,
+  normalizeInviteName,
+  normalizeInviteUsername,
+} from "../utils/api/invites.js";
 import "./adminApi"; // Admin REST API endpoints
 import { adminPageTemplate } from "./templates/admin";
 import { APPROVAL_TOKEN_EXPIRY_MS } from "../utils/constants.js";
@@ -26,6 +37,7 @@ import {
   previouslyUsedTemplate,
 } from "./templates/email";
 import { INTERNAL_SERVER_SECRET } from "./internalSecret.js";
+import { getBearerToken, parseJsonBody, sendJson } from "./adminAuth";
 import dotenv from "dotenv";
 
 //load the env to process.env
@@ -74,6 +86,142 @@ const saveUserNotificationHistory = async (notification) => {
     console.error("Error saving notification history:", error);
     return null;
   }
+};
+
+const escapeHtml = (unsafe = "") =>
+  String(unsafe)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
+const sanitizeInviteInput = (payload = {}) => ({
+  email: String(payload.email || "").trim(),
+  username: String(payload.username || "").trim(),
+  firstName: String(payload.firstname || payload.firstName || "").trim(),
+  lastName: String(payload.lastname || payload.lastName || "").trim(),
+});
+
+const getInviteErrorDetails = async (token) => {
+  const { status } = await getInviteTokenStatus(token);
+
+  switch (status) {
+    case "expired":
+      return {
+        code: "invite-expired",
+        message: "This invite has expired. Please request a new invite.",
+      };
+    case "used":
+      return {
+        code: "invite-used",
+        message:
+          "This invite has already been used. Please request a new invite.",
+      };
+    default:
+      return {
+        code: "invite-invalid",
+        message: "This invite is invalid. Please request a new invite.",
+      };
+  }
+};
+
+const validateInviteRegistrationData = (invite, details) => {
+  if (normalizeInviteEmail(details.email) !== invite.normalizedEmail) {
+    throw new Meteor.Error(
+      "invite-email-mismatch",
+      "The submitted email does not match this invite.",
+    );
+  }
+
+  if (
+    invite.username &&
+    normalizeInviteUsername(details.username) !== invite.normalizedUsername
+  ) {
+    throw new Meteor.Error(
+      "invite-username-mismatch",
+      "The submitted username does not match this invite.",
+    );
+  }
+
+  if (
+    invite.firstName &&
+    normalizeInviteName(details.firstName) !== invite.firstName
+  ) {
+    throw new Meteor.Error(
+      "invite-firstname-mismatch",
+      "The submitted first name does not match this invite.",
+    );
+  }
+
+  if (
+    invite.lastName &&
+    normalizeInviteName(details.lastName) !== invite.lastName
+  ) {
+    throw new Meteor.Error(
+      "invite-lastname-mismatch",
+      "The submitted last name does not match this invite.",
+    );
+  }
+};
+
+const getExistingUserForRegistration = async ({ email, username }) => {
+  const userByEmail = await Meteor.users.findOneAsync(
+    { "emails.address": email },
+    { collation: { locale: "en", strength: 2 } },
+  );
+  const userByUsername = await Meteor.users.findOneAsync(
+    { username },
+    { collation: { locale: "en", strength: 2 } },
+  );
+
+  if (userByEmail && userByUsername && userByEmail._id !== userByUsername._id) {
+    throw new Meteor.Error(
+      "registration-conflict",
+      "The submitted email and username belong to different accounts.",
+    );
+  }
+
+  return userByEmail || userByUsername || null;
+};
+
+const sendInviteEmail = async ({
+  email,
+  username,
+  firstName,
+  lastName,
+  inviteUrl,
+}) => {
+  const fromEmail = process.env.EMAIL_FROM;
+
+  if (!fromEmail) {
+    throw new Error("EMAIL_FROM is required for sending invite emails");
+  }
+
+  const safeUsername = escapeHtml(username || "Not provided");
+  const safeFirstName = escapeHtml(firstName || "");
+  const safeLastName = escapeHtml(lastName || "");
+  const safeName = `${safeFirstName} ${safeLastName}`.trim() || "there";
+
+  await Email.sendAsync({
+    to: email,
+    from: fromEmail,
+    subject: "Complete your MIE Auth registration",
+    html: `
+      <p>Hello ${safeName},</p>
+      <p>You have been invited to register with MIE Auth.</p>
+      <ul>
+        <li><strong>Email:</strong> ${escapeHtml(email)}</li>
+        <li><strong>Username:</strong> ${safeUsername}</li>
+      </ul>
+      <p>
+        <a href="${inviteUrl}" style="background-color: #27AAE1; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">
+          Complete Registration
+        </a>
+      </p>
+      <p>This invite expires in 48 hours and can only be used once.</p>
+    `,
+  });
 };
 
 /**
@@ -126,6 +274,110 @@ const sendSyncNotificationToDevices = async (
     // Don't throw error to prevent disrupting the main flow
   }
 };
+
+WebApp.connectHandlers.use("/api/invite", async (req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization",
+  );
+
+  if (req.method === "OPTIONS") {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+
+  if (req.method !== "POST") {
+    sendJson(res, 405, { error: "Method not allowed" });
+    return;
+  }
+
+  const bearerToken = getBearerToken(req);
+
+  if (!bearerToken) {
+    sendJson(res, 401, { error: "Authorization required" });
+    return;
+  }
+
+  const verificationResult = await Meteor.callAsync(
+    "apiKeys.verify",
+    bearerToken,
+  );
+
+  if (!verificationResult?.isValid) {
+    sendJson(res, 401, { error: "Invalid API token" });
+    return;
+  }
+
+  let requestBody;
+
+  try {
+    requestBody = await parseJsonBody(req);
+  } catch (error) {
+    const statusCode = error.message === "Payload too large" ? 413 : 400;
+    sendJson(res, statusCode, { error: error.message });
+    return;
+  }
+
+  const inviteInput = sanitizeInviteInput(requestBody);
+
+  if (!inviteInput.email) {
+    sendJson(res, 400, { error: "Email is required" });
+    return;
+  }
+
+  let inviteDoc = null;
+
+  try {
+    const { token, inviteDoc: createdInviteDoc } = await createInviteRecord({
+      ...inviteInput,
+      createdByClientId: verificationResult.clientId,
+    });
+    inviteDoc = createdInviteDoc;
+
+    const inviteUrl = Meteor.absoluteUrl(
+      `register?token=${encodeURIComponent(token)}`,
+    );
+
+    await sendInviteEmail({
+      ...inviteInput,
+      inviteUrl,
+    });
+
+    await createEmailLog({
+      type: "registration_invite",
+      to: inviteInput.email,
+      from: process.env.EMAIL_FROM,
+      subject: "Complete your MIE Auth registration",
+      email: inviteInput.email,
+      username: inviteInput.username,
+      status: "sent",
+    });
+
+    sendJson(res, 201, {
+      success: true,
+      expiresAt: inviteDoc.expiresAt.toISOString(),
+    });
+  } catch (error) {
+    console.error("Failed to create invite:", error);
+    if (inviteDoc?._id) {
+      await Invites.removeAsync({ _id: inviteDoc._id }).catch(() => {});
+    }
+    await createEmailLog({
+      type: "registration_invite",
+      to: inviteInput.email,
+      from: process.env.EMAIL_FROM,
+      subject: "Complete your MIE Auth registration",
+      email: inviteInput.email,
+      username: inviteInput.username,
+      status: "failed",
+      error: error.message,
+    }).catch(() => {});
+    sendJson(res, 500, { error: "Failed to create invite" });
+  }
+});
 
 // Handle notification endpoint
 WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
@@ -754,6 +1006,27 @@ WebApp.connectHandlers.use("/api/pending-responses", (req, res, next) => {
 
 // Meteor methods
 Meteor.methods({
+  async "invites.getDetails"(inviteToken) {
+    check(inviteToken, String);
+
+    const trimmedInviteToken = inviteToken.trim();
+    const { status, invite } = await getInviteTokenStatus(trimmedInviteToken);
+
+    if (status !== "valid" || !invite) {
+      const errorDetails = await getInviteErrorDetails(trimmedInviteToken);
+      throw new Meteor.Error(errorDetails.code, errorDetails.message);
+    }
+
+    return {
+      email: invite.email,
+      username: invite.username,
+      firstName: invite.firstName,
+      lastName: invite.lastName,
+      expiresAt: invite.expiresAt,
+      lockedFields: buildInviteLockFields(invite),
+    };
+  },
+
   async sendSupportTicket(data) {
     check(data, {
       name: String,
@@ -1052,17 +1325,23 @@ Meteor.methods({
     if (respondingDeviceUUID) check(respondingDeviceUUID, String);
 
     // Fetch user to get the username
-    const user = await Meteor.users.findOneAsync({ _id: userId });
+    const user = await Meteor.users.findOneAsync(
+      { $or: [{ _id: userId }, { username: userId }] },
+      { collation: { locale: "en", strength: 2 } },
+    );
     if (!user || !user.username) {
       console.log("User not found or missing username");
       return { success: false, message: "User not found or missing username" };
     }
 
     const username = user.username;
+    const resolvedUserId = user._id;
 
     // Check if the responding device is approved
     if (respondingDeviceUUID) {
-      const userDeviceDoc = await DeviceDetails.findOneAsync({ userId });
+      const userDeviceDoc = await DeviceDetails.findOneAsync({
+        userId: resolvedUserId,
+      });
       if (userDeviceDoc && userDeviceDoc.devices) {
         const respondingDevice = userDeviceDoc.devices.find(
           (d) => d.deviceUUID === respondingDeviceUUID,
@@ -1083,7 +1362,7 @@ Meteor.methods({
     }
 
     const targetNotification = await NotificationHistory.findOneAsync({
-      userId,
+      userId: { $in: [userId, resolvedUserId] },
       notificationId: notificationIdForAction,
     });
 
@@ -1119,7 +1398,7 @@ Meteor.methods({
 
       try {
         await sendSyncNotificationToDevices(
-          userId,
+          resolvedUserId,
           targetNotification.notificationId,
           action,
         );
@@ -1151,7 +1430,9 @@ Meteor.methods({
 
     // If we have the responding device's UUID, look up its appId and update
     if (respondingDeviceUUID) {
-      const userDeviceDoc = await DeviceDetails.findOneAsync({ userId });
+      const userDeviceDoc = await DeviceDetails.findOneAsync({
+        userId: resolvedUserId,
+      });
       if (userDeviceDoc && userDeviceDoc.devices) {
         const respondingDevice = userDeviceDoc.devices.find(
           (d) => d.deviceUUID === respondingDeviceUUID,
@@ -1176,7 +1457,7 @@ Meteor.methods({
 
     try {
       await sendSyncNotificationToDevices(
-        userId,
+        resolvedUserId,
         targetNotification.notificationId,
         action,
       );
@@ -1295,6 +1576,7 @@ Meteor.methods({
       sessionDeviceInfo: Object,
       fcmDeviceToken: String,
       biometricSecret: String,
+      inviteToken: Match.Maybe(String),
     });
 
     const {
@@ -1306,85 +1588,123 @@ Meteor.methods({
       sessionDeviceInfo,
       fcmDeviceToken,
       biometricSecret,
+      inviteToken,
     } = userDetails;
 
     try {
-      // Use collation for case-insensitive matching (safe from ReDoS unlike user-supplied regex)
-      const existingUser = await Meteor.users.findOneAsync(
-        {
-          $or: [{ "emails.address": email }, { username: username }],
-        },
-        { collation: { locale: "en", strength: 2 } },
-      );
+      const normalizedRegistration = {
+        email: normalizeInviteEmail(email),
+        username: username.trim(),
+        firstName: normalizeInviteName(firstName),
+        lastName: normalizeInviteName(lastName),
+      };
+
+      const trimmedInviteToken = inviteToken?.trim() || "";
+      let inviteRecord = null;
+
+      if (trimmedInviteToken) {
+        inviteRecord = await findInviteByToken(trimmedInviteToken);
+
+        if (
+          !inviteRecord ||
+          inviteRecord.usedAt ||
+          inviteRecord.expiresAt <= new Date()
+        ) {
+          const errorDetails = await getInviteErrorDetails(trimmedInviteToken);
+          throw new Meteor.Error(errorDetails.code, errorDetails.message);
+        }
+
+        validateInviteRegistrationData(inviteRecord, normalizedRegistration);
+      }
+
+      const existingUser = await getExistingUserForRegistration({
+        email: normalizedRegistration.email,
+        username: normalizedRegistration.username,
+      });
+
+      if (
+        inviteRecord &&
+        existingUser &&
+        normalizeInviteEmail(existingUser.emails?.[0]?.address || "") !==
+          inviteRecord.normalizedEmail
+      ) {
+        throw new Meteor.Error(
+          "registration-conflict",
+          "The submitted invite conflicts with an existing account.",
+        );
+      }
 
       let userId,
         isFirstDevice = true,
         isSecondaryDevice = false,
         userAction = null;
-      let deviceRegistrationStatus = "pending";
+      const autoApproveFromInvite = Boolean(inviteRecord);
+      const registrationStatus = autoApproveFromInvite ? "approved" : "pending";
 
       if (existingUser) {
         const regStatus = existingUser.profile?.registrationStatus;
 
-        // Block secondary devices if first device not approved yet
-        if (regStatus === "pending") {
+        if (regStatus === "pending" && !autoApproveFromInvite) {
           return { registrationStatus: "pending" };
         }
-        if (regStatus !== "approved") {
+        if (regStatus !== "approved" && regStatus !== "pending") {
           return { registrationStatus: "rejected" };
         }
 
         userId = existingUser._id;
         isFirstDevice = false;
         isSecondaryDevice = true;
-      } else {
-        // Create new user with callback style (original)
-        userId = await Accounts.createUser(
-          {
-            email,
-            username,
-            password: pin,
-            profile: {
-              firstName,
-              lastName,
-              registrationStatus: "pending",
+
+        if (autoApproveFromInvite) {
+          await Meteor.users.updateAsync(
+            { _id: userId },
+            {
+              $set: {
+                username: normalizedRegistration.username,
+                "emails.0.address": normalizedRegistration.email,
+                "profile.firstName": normalizedRegistration.firstName,
+                "profile.lastName": normalizedRegistration.lastName,
+                "profile.registrationStatus": "approved",
+              },
             },
+          );
+        }
+      } else {
+        userId = await Accounts.createUserAsync({
+          email: normalizedRegistration.email,
+          username: normalizedRegistration.username,
+          password: pin,
+          profile: {
+            firstName: normalizedRegistration.firstName,
+            lastName: normalizedRegistration.lastName,
+            registrationStatus,
           },
-          (err) => {
-            if (err) {
-              console.error("Error creating user:", err);
-              reject(err);
-            } else {
-              const newUser = Accounts.findUserByEmail(email);
-              if (!newUser) {
-                reject(
-                  new Meteor.Error(
-                    "user-creation-failed",
-                    "Failed to create user",
-                  ),
-                );
-              } else {
-                resolve(newUser._id);
-              }
-            }
-          },
-        );
+        });
       }
 
       const deviceResp = await Meteor.callAsync("deviceDetails", {
-        username,
+        username: normalizedRegistration.username,
         biometricSecret,
         userId,
-        email,
+        email: normalizedRegistration.email,
         deviceUUID: sessionDeviceInfo.uuid,
         fcmToken: fcmDeviceToken,
-        firstName,
-        lastName,
+        firstName: normalizedRegistration.firstName,
+        lastName: normalizedRegistration.lastName,
         isFirstDevice,
         isSecondaryDevice,
         deviceModel: sessionDeviceInfo.model,
         devicePlatform: sessionDeviceInfo.platform,
+        autoApprove: autoApproveFromInvite,
       });
+
+      if (autoApproveFromInvite) {
+        await markInviteConsumed({
+          inviteId: inviteRecord._id,
+          userId,
+          deviceUUID: sessionDeviceInfo.uuid,
+        });
+      }
 
       if (isFirstDevice && deviceResp.isRequireAdminApproval) {
         try {
@@ -1458,7 +1778,7 @@ Meteor.methods({
         }
       }
 
-      if (isSecondaryDevice) {
+      if (isSecondaryDevice && !autoApproveFromInvite) {
         try {
           const res = await sendDeviceApprovalNotification(
             userId,
@@ -1527,8 +1847,7 @@ Meteor.methods({
         success: true,
         userId,
         isFirstDevice,
-        registrationStatus:
-          deviceResp.deviceRegistrationStatus || deviceRegistrationStatus,
+        registrationStatus,
         userAction,
         isSecondaryDevice,
       };
@@ -1933,10 +2252,9 @@ Meteor.methods({
     let cleanedTokensCount = 0;
 
     try {
-      // Find all expired tokens that haven't been used
+      // Find all expired tokens so they can be cleaned up regardless of use state
       const expiredTokens = await ApprovalTokens.find({
         expiresAt: { $lt: now },
-        used: false,
       }).fetchAsync();
 
       console.log(`Found ${expiredTokens.length} expired tokens to clean up`);
@@ -1944,9 +2262,13 @@ Meteor.methods({
       for (const token of expiredTokens) {
         const { userId } = token;
 
-        // Check if user is still pending (not approved) - extra safety check
+        // Check if user is still pending (not approved) and token was unused - extra safety check
         const user = await Meteor.users.findOneAsync({ _id: userId });
-        if (user && user.profile?.registrationStatus === "pending") {
+        if (
+          !token.used &&
+          user &&
+          user.profile?.registrationStatus === "pending"
+        ) {
           console.log(`Removing user ${userId} with expired approval token`);
 
           // Remove user from Meteor.users collection

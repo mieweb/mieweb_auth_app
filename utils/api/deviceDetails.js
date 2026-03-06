@@ -1,5 +1,5 @@
 import { Mongo } from "meteor/mongo";
-import { check } from "meteor/check";
+import { check, Match } from "meteor/check";
 import { SHA256 } from "meteor/sha";
 
 // Initialize collection
@@ -72,19 +72,18 @@ Meteor.methods({
         isSecondaryDevice: Match.Maybe(Boolean),
         deviceModel: Match.Maybe(String),
         devicePlatform: Match.Maybe(String),
+        autoApprove: Match.Maybe(Boolean),
       }),
     );
 
     // Generate appId
     const creationTime = new Date().toISOString();
     const appId = generateAppId(data.deviceUUID, data.username, creationTime);
+    const deviceRegistrationStatus = data.autoApprove ? "approved" : "pending";
     console.log(
       " ### Log Step 6.1 : Inside deviceDetails.js, generating app Id",
       JSON.stringify({ appId }),
     );
-    let isRequireAdminApproval,
-      isRequireSecondaryDeviceApproval = null;
-
     // Check if this is the first device
     if (data.isFirstDevice) {
       // First device registration for first time user
@@ -109,7 +108,7 @@ Meteor.methods({
             isFirstDevice: true,
             isPrimary: true,
             isSecondaryDevice: false,
-            deviceRegistrationStatus: "pending",
+            deviceRegistrationStatus,
             lastUpdated: new Date(),
           },
         ],
@@ -117,7 +116,10 @@ Meteor.methods({
         lastUpdated: new Date(),
       });
 
-      return { appId, isRequireAdminApproval: true };
+      return {
+        appId,
+        isRequireAdminApproval: !data.autoApprove,
+      };
     } else {
       // Not the first device, set isSecondaryDevice = true
 
@@ -168,7 +170,7 @@ Meteor.methods({
               [`devices.${existingDeviceIndex}.devicePlatform`]:
                 data.devicePlatform || "Unknown",
               [`devices.${existingDeviceIndex}.deviceRegistrationStatus`]:
-                "pending",
+                deviceRegistrationStatus,
               [`devices.${existingDeviceIndex}.isFirstDevice`]: false,
               [`devices.${existingDeviceIndex}.isPrimary`]: false,
               [`devices.${existingDeviceIndex}.isSecondaryDevice`]: true,
@@ -178,7 +180,7 @@ Meteor.methods({
         );
         return {
           appId: existingDevices.devices[existingDeviceIndex].appId,
-          isRequireSecondaryDeviceApproval: true,
+          isRequireSecondaryDeviceApproval: !data.autoApprove,
         };
       } else {
         // Add new device to existing user document
@@ -196,7 +198,7 @@ Meteor.methods({
                 fcmToken: data.fcmToken,
                 deviceModel: data.deviceModel || "Unknown",
                 devicePlatform: data.devicePlatform || "Unknown",
-                deviceRegistrationStatus: "pending",
+                deviceRegistrationStatus,
                 isFirstDevice: false,
                 isPrimary: false,
                 isSecondaryDevice: true,
@@ -212,7 +214,10 @@ Meteor.methods({
             },
           },
         );
-        return { appId, isRequireSecondaryDeviceApproval: true };
+        return {
+          appId,
+          isRequireSecondaryDeviceApproval: !data.autoApprove,
+        };
       }
     }
   },
