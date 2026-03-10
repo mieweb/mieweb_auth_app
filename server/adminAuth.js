@@ -472,23 +472,59 @@ export const validateCredentials = async (username, password) => {
     console.log(
       `${LOG_PREFIX} Pre-auth: checking group membership via anonymous search`,
     );
-    const isMember = await withAnonymousLdap(async (client) => {
-      return isGroupMember(client, cfg, username);
-    });
-    if (!isMember) {
-      const groupErr = new Error("User is not a member of the admin group");
-      groupErr.ldapTag = "NOT_IN_GROUP";
-      throw groupErr;
+    let preAuthMember = false;
+    let anonSearchFailed = false;
+    try {
+      preAuthMember = await withAnonymousLdap(async (client) => {
+        return isGroupMember(client, cfg, username);
+      });
+    } catch (anonErr) {
+      // Anonymous search may fail on some Node.js versions / LDAP configs.
+      // Log and fall through to authenticated check below.
+      console.warn(
+        `${LOG_PREFIX} Anonymous pre-auth search failed: ${anonErr.message} — will verify after credential bind`,
+      );
+      anonSearchFailed = true;
     }
 
-    // 2. User is in the admin group — now bind as them to validate password.
-    //    This is the step that may trigger push notifications / MFA.
-    console.log(
-      `${LOG_PREFIX} Group membership confirmed, proceeding with credential verification`,
-    );
-    await withLdapClient(userDn, password, async () => {
-      // Bind succeeded — password is valid, nothing else to do
-    });
+    if (preAuthMember) {
+      // Pre-auth confirmed membership — bind to validate password.
+      console.log(
+        `${LOG_PREFIX} Group membership confirmed (pre-auth), proceeding with credential verification`,
+      );
+      await withLdapClient(userDn, password, async () => {
+        // Bind succeeded — password is valid, nothing else to do
+      });
+    } else if (anonSearchFailed || !preAuthMember) {
+      // Anonymous search returned no results (possible Node.js TLS/stream
+      // incompatibility with ldapjs, e.g. Node v22.22+) or explicitly failed.
+      // Fallback: bind with user credentials first, then check group membership
+      // on the authenticated connection.
+      if (!anonSearchFailed) {
+        console.warn(
+          `${LOG_PREFIX} Anonymous pre-auth returned no membership — falling back to authenticated group check`,
+        );
+      }
+      console.log(
+        `${LOG_PREFIX} Attempting credential bind + authenticated group membership check`,
+      );
+      const authenticatedMember = await withLdapClient(
+        userDn,
+        password,
+        async (client) => {
+          // Bind succeeded — now check group membership on the authenticated connection
+          return isGroupMember(client, cfg, username);
+        },
+      );
+      if (!authenticatedMember) {
+        const groupErr = new Error("User is not a member of the admin group");
+        groupErr.ldapTag = "NOT_IN_GROUP";
+        throw groupErr;
+      }
+      console.log(
+        `${LOG_PREFIX} Group membership confirmed (post-auth fallback)`,
+      );
+    }
   } catch (err) {
     // Normalise the error with a tag if it doesn't already have one
     if (!err.ldapTag) {
