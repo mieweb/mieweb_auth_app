@@ -9,6 +9,7 @@ App.info({
 });
 
 App.setPreference("android-targetSdkVersion", "35");
+App.setPreference("android-compileSdkVersion", "35");
 // Preferences per latest Meteor docs
 App.setPreference("BackgroundColor", "#000000ff");
 App.setPreference("HideKeyboardFormAccessoryBar", true);
