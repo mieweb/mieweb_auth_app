@@ -440,9 +440,15 @@ jobs:
           fi
           echo "Using workspace: ${WORKSPACE_PATH}"
 
-          # Scheme matches the app name set in mobile-config.js
-          SCHEME="MIEAuth"
-          echo "Using scheme: ${SCHEME}"
+          # Dynamically discover the scheme from the generated Xcode workspace
+          echo "Available schemes:"
+          xcodebuild -workspace "$WORKSPACE_PATH" -list 2>/dev/null || true
+          SCHEME=$(xcodebuild -workspace "$WORKSPACE_PATH" -list 2>/dev/null | awk '/Schemes:/{found=1;next} found && /^[[:space:]]+[^[:space:]]/{gsub(/^[[:space:]]+|[[:space:]]+$/,""); print; exit}')
+          if [ -z "$SCHEME" ]; then
+            echo "ERROR: No scheme found in workspace"
+            exit 1
+          fi
+          echo "Using discovered scheme: ${SCHEME}"
 
           xcodebuild archive \
             -workspace "$WORKSPACE_PATH" \
