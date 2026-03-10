@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { openSupportLink } from "../../../../utils/openExternal";
 import {
   Mail,
@@ -62,11 +62,77 @@ export const RegistrationPage = ({ deviceDetails }) => {
   const [error, setError] = useState(null);
   const [_registrationStatus, setRegistrationStatus] = useState(null);
   const [showPendingScreen, setShowPendingScreen] = useState(false);
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [lockedFields, setLockedFields] = useState({
+    email: false,
+    username: false,
+    firstName: false,
+    lastName: false,
+  });
   const navigate = useNavigate();
+  const location = useLocation();
+  const inviteToken = useMemo(
+    () => new URLSearchParams(location.search).get("token")?.trim() || "",
+    [location.search],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!inviteToken) {
+      setInviteLoading(false);
+      setLockedFields({
+        email: false,
+        username: false,
+        firstName: false,
+        lastName: false,
+      });
+      return undefined;
+    }
+
+    const loadInviteDetails = async () => {
+      setInviteLoading(true);
+
+      try {
+        const inviteDetails = await Meteor.callAsync(
+          "invites.getDetails",
+          inviteToken,
+        );
+
+        if (cancelled) {
+          return;
+        }
+
+        setLockedFields(inviteDetails.lockedFields);
+        setFormData((previous) => ({
+          ...previous,
+          email: inviteDetails.email || previous.email,
+          username: inviteDetails.username || previous.username,
+          firstName: inviteDetails.firstName || previous.firstName,
+          lastName: inviteDetails.lastName || previous.lastName,
+        }));
+        setError(null);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err.reason || err.message || "Unable to load invite");
+        }
+      } finally {
+        if (!cancelled) {
+          setInviteLoading(false);
+        }
+      }
+    };
+
+    loadInviteDetails();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [inviteToken]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (loading) return;
+    if (loading || inviteLoading) return;
 
     setError(null);
     setLoading(true);
@@ -90,6 +156,7 @@ export const RegistrationPage = ({ deviceDetails }) => {
         sessionDeviceInfo,
         fcmDeviceToken,
         biometricSecret,
+        inviteToken: inviteToken || undefined,
       });
 
       // Handle secondary device approval flow
@@ -382,6 +449,16 @@ export const RegistrationPage = ({ deviceDetails }) => {
             </p>
           </div>
 
+          {inviteToken && (
+            <Alert variant="warning" className="mb-6">
+              <AlertDescription>
+                {inviteLoading
+                  ? "Loading your invite details..."
+                  : "Your organization pre-filled this registration link. Locked fields cannot be changed."}
+              </AlertDescription>
+            </Alert>
+          )}
+
           {error && (
             <Alert variant="danger" className="mb-6">
               <AlertDescription>{error}</AlertDescription>
@@ -405,6 +482,7 @@ export const RegistrationPage = ({ deviceDetails }) => {
                   type="email"
                   placeholder="you@example.com"
                   required
+                  disabled={lockedFields.email}
                   value={formData.email}
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, email: e.target.value }))
@@ -423,6 +501,7 @@ export const RegistrationPage = ({ deviceDetails }) => {
                   type="text"
                   placeholder="Choose a username"
                   required
+                  disabled={lockedFields.username}
                   value={formData.username}
                   onChange={(e) =>
                     setFormData((prev) => ({
@@ -457,6 +536,7 @@ export const RegistrationPage = ({ deviceDetails }) => {
                     type="text"
                     placeholder="First name"
                     required
+                    disabled={lockedFields.firstName}
                     value={formData.firstName}
                     onChange={(e) =>
                       setFormData((prev) => ({
@@ -478,6 +558,7 @@ export const RegistrationPage = ({ deviceDetails }) => {
                     type="text"
                     placeholder="Last name"
                     required
+                    disabled={lockedFields.lastName}
                     value={formData.lastName}
                     onChange={(e) =>
                       setFormData((prev) => ({
@@ -553,7 +634,7 @@ export const RegistrationPage = ({ deviceDetails }) => {
             >
               <Button
                 type="submit"
-                disabled={loading}
+                disabled={loading || inviteLoading}
                 fullWidth
                 isLoading={loading}
                 loadingText="Creating Account..."

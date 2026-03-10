@@ -5,6 +5,7 @@ import "./main.css";
 import { App } from "./mobile/src/ui/App";
 import { captureDeviceInfo } from "./mobile/capture-device-info";
 import { initializeBiometrics } from "./mobile/biometrics";
+import { initializeDeepLinks } from "./mobile/deep-links";
 import { initializePushNotifications } from "./mobile/push-notifications";
 
 Meteor.startup(() => {
@@ -17,6 +18,7 @@ Meteor.startup(() => {
       () => {
         captureDeviceInfo();
         initializeBiometrics();
+        initializeDeepLinks();
         initializePushNotifications();
       },
       false,

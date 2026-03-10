@@ -12,6 +12,7 @@ import { ProtectedRoute } from "./ProtectedRoute";
 // --- Eagerly loaded (always needed) ---
 import { LoginPage } from "../Login";
 import { RegistrationPage } from "../Registration";
+import { RegistrationOnboardingPage } from "../RegistrationOnboarding";
 import { WelcomePage } from "../Welcome";
 
 // --- Lazy-loaded mobile pages ---
@@ -82,7 +83,7 @@ export const AppRoutes = ({ isRegistered, deviceUuid }) => {
                 isRegistered ? (
                   <Navigate to="/login" replace />
                 ) : (
-                  <Navigate to="/register" replace />
+                  <Navigate to="/onboarding" replace />
                 )
               ) : (
                 <WebLandingPage />
@@ -109,9 +110,23 @@ export const AppRoutes = ({ isRegistered, deviceUuid }) => {
             }
           />
           <Route
+            path="/onboarding"
+            element={
+              isRegistered ? (
+                <Navigate to="/login" replace />
+              ) : isMobile ? (
+                <RegistrationOnboardingPage />
+              ) : (
+                <MobileAppRequired mode="register" />
+              )
+            }
+          />
+          <Route
             path="/register"
             element={
-              isMobile ? (
+              isRegistered ? (
+                <Navigate to="/login" replace />
+              ) : isMobile ? (
                 <RegistrationPage deviceDetails={deviceUuid} />
               ) : (
                 <MobileAppRequired mode="register" />
