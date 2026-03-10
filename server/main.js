@@ -358,6 +358,7 @@ WebApp.connectHandlers.use("/api/invite", async (req, res) => {
 
     sendJson(res, 201, {
       success: true,
+      inviteUrl,
       expiresAt: inviteDoc.expiresAt.toISOString(),
     });
   } catch (error) {
