@@ -537,7 +537,7 @@ jobs:
           <plist version="1.0">
           <dict>
               <key>method</key>
-              <string>app-store-connect</string>
+              <string>app-store</string>
               <key>provisioningProfiles</key>
               <dict>
                   <key>org.mieweb.os.dev</key>
@@ -551,7 +551,7 @@ jobs:
           mkdir -p ~/private_keys
           echo "${{ secrets.APPLE_API_KEY_P8_BASE64 }}" | base64 --decode > ~/private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
 
-          # Export with API authentication (required for Xcode 16+ app-store-connect method)
+          # Export with API authentication for App Store / TestFlight distribution
           xcodebuild -exportArchive \
             -archivePath $RUNNER_TEMP/MIEAuth.xcarchive \
             -exportPath $RUNNER_TEMP/export \

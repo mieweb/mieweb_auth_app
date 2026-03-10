@@ -443,6 +443,17 @@ const ldapCompare = (client, dn, attr, value) =>
     });
   });
 
+const shouldFallbackToAuthenticatedGroupCheck = (err) => {
+  const tag = err?.ldapTag || ldapErrorMessage(err || {});
+
+  return (
+    tag === "INSUFFICIENT_ACCESS" ||
+    tag === "UNKNOWN" ||
+    err?.name === "OtherError" ||
+    err?.code === 50
+  );
+};
+
 /**
  * Check whether `username` is a member of the admin group.
  * Uses LDAP Compare on the group entry's memberUid (or custom attr).
@@ -508,9 +519,27 @@ export const validateCredentials = async (username, password) => {
     console.log(
       `${LOG_PREFIX} Pre-auth: checking group membership via anonymous compare`,
     );
-    const isMember = await withAnonymousLdap(async (client) => {
-      return isGroupMember(client, cfg, username);
-    });
+    let isMember;
+    let usedAuthenticatedFallback = false;
+
+    try {
+      isMember = await withAnonymousLdap(async (client) => {
+        return isGroupMember(client, cfg, username);
+      });
+    } catch (err) {
+      if (!shouldFallbackToAuthenticatedGroupCheck(err)) {
+        throw err;
+      }
+
+      console.warn(
+        `${LOG_PREFIX} Anonymous group check unavailable (${err.name || err.code || "unknown error"}: ${err.message}) — falling back to authenticated group check`,
+      );
+
+      usedAuthenticatedFallback = true;
+      await withLdapClient(userDn, password, async (client) => {
+        isMember = await isGroupMember(client, cfg, username);
+      });
+    }
 
     if (!isMember) {
       const groupErr = new Error("User is not a member of the admin group");
@@ -522,10 +551,13 @@ export const validateCredentials = async (username, password) => {
       `${LOG_PREFIX} Group membership confirmed, proceeding with credential verification`,
     );
 
-    // 2. Bind as the user to validate the password
-    await withLdapClient(userDn, password, async () => {
-      // Bind succeeded — password is valid
-    });
+    // 2. Bind as the user to validate the password, unless step 1 already
+    //    used an authenticated bind as a fallback.
+    if (!usedAuthenticatedFallback) {
+      await withLdapClient(userDn, password, async () => {
+        // Bind succeeded — password is valid
+      });
+    }
   } catch (err) {
     // Normalise the error with a tag if it doesn't already have one
     if (!err.ldapTag) {
