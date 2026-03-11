@@ -30,3 +30,20 @@
 @utility animate-draw-check {
   animation: draw-check 0.5s ease-out forwards;
 }
+
+/*
+ * Applied to <html> while the native Cordova QR scanner is active.
+ * Every layer must be fully transparent so the camera preview
+ * (rendered behind the webview by the plugin) is visible.
+ */
+html.qr-scanner-active,
+html.qr-scanner-active body,
+html.qr-scanner-active #react-target,
+html.qr-scanner-active #react-target > *,
+html.qr-scanner-active #react-target > * > *,
+html.qr-scanner-active #react-target > * > * > *,
+html.qr-scanner-active #react-target > * > * > * > * {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+}

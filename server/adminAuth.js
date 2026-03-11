@@ -411,29 +411,6 @@ const ldapSearchOne = (client, baseDn, filter, scope = "sub") =>
     });
   });
 
-const ldapCompare = (client, dn, attr, value) =>
-  new Promise((resolve, reject) => {
-    console.log(
-      `${LOG_PREFIX} Compare: dn="${dn}" attr="${attr}" value="${value}"`,
-    );
-    client.compare(dn, attr, value, (err, matched) => {
-      if (err) {
-        if (err.code === 32) {
-          console.warn(
-            `${LOG_PREFIX} Compare: group "${dn}" does not exist (LDAP error 32)`,
-          );
-          return resolve(false);
-        }
-        console.error(
-          `${LOG_PREFIX} Compare error: ${err.name} – ${err.message}`,
-        );
-        return reject(err);
-      }
-      console.log(`${LOG_PREFIX} Compare result: ${matched}`);
-      resolve(matched);
-    });
-  });
-
 /**
  * Check whether `username` is a member of the admin group.
  * Searches the group entry for the memberUid (or custom attr) matching the username.
@@ -495,29 +472,9 @@ export const validateCredentials = async (username, password) => {
     console.log(
       `${LOG_PREFIX} Pre-auth: checking group membership via anonymous search`,
     );
-    let isMember = await withAnonymousLdap(async (client) => {
+    const isMember = await withAnonymousLdap(async (client) => {
       return isGroupMember(client, cfg, username);
     });
-
-    // Some runtime / LDAP combinations can return a false negative for the
-    // anonymous search even though the user is in the group. Fall back to an
-    // authenticated compare on the already-known group entry before rejecting.
-    let usedAuthenticatedFallback = false;
-    if (!isMember) {
-      console.warn(
-        `${LOG_PREFIX} Anonymous group search returned no match — retrying with authenticated compare`,
-      );
-      usedAuthenticatedFallback = true;
-      isMember = await withLdapClient(userDn, password, async (client) => {
-        return ldapCompare(
-          client,
-          cfg.adminGroupDn,
-          cfg.groupMemberAttr,
-          username,
-        );
-      });
-    }
-
     if (!isMember) {
       const groupErr = new Error("User is not a member of the admin group");
       groupErr.ldapTag = "NOT_IN_GROUP";
@@ -529,11 +486,9 @@ export const validateCredentials = async (username, password) => {
     console.log(
       `${LOG_PREFIX} Group membership confirmed, proceeding with credential verification`,
     );
-    if (!usedAuthenticatedFallback) {
-      await withLdapClient(userDn, password, async () => {
-        // Bind succeeded — password is valid, nothing else to do
-      });
-    }
+    await withLdapClient(userDn, password, async () => {
+      // Bind succeeded — password is valid, nothing else to do
+    });
   } catch (err) {
     // Normalise the error with a tag if it doesn't already have one
     if (!err.ldapTag) {
@@ -556,7 +511,8 @@ export const validateCredentials = async (username, password) => {
  * Sets req.adminUser on success.
  */
 export const requireAdminAuth = (req, res, next) => {
-  const token = getBearerToken(req);
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
 
   if (!token) {
     res.writeHead(401, { "Content-Type": "application/json" });
@@ -576,11 +532,6 @@ export const requireAdminAuth = (req, res, next) => {
 };
 
 // ─── Utility helpers (unchanged) ────────────────────────────────
-
-export const getBearerToken = (req) => {
-  const authHeader = req.headers.authorization;
-  return authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
-};
 
 /** Parse JSON body from request (rejects if payload exceeds maxBytes) */
 export const parseJsonBody = (req, maxBytes = 1024 * 1024) =>
