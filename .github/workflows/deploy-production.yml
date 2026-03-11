@@ -440,15 +440,18 @@ jobs:
           fi
           echo "Using workspace: ${WORKSPACE_PATH}"
 
-          # Dynamically discover the scheme from the generated Xcode workspace
+          # Derive the app scheme from the workspace name
+          # Cordova names the workspace after the app (e.g. "MIEAuth.xcworkspace")
           echo "Available schemes:"
           xcodebuild -workspace "$WORKSPACE_PATH" -list 2>/dev/null || true
-          SCHEME=$(xcodebuild -workspace "$WORKSPACE_PATH" -list 2>/dev/null | awk '/Schemes:/{found=1;next} found && /^[[:space:]]+[^[:space:]]/{gsub(/^[[:space:]]+|[[:space:]]+$/,""); print; exit}')
-          if [ -z "$SCHEME" ]; then
-            echo "ERROR: No scheme found in workspace"
+          SCHEME=$(basename "$WORKSPACE_PATH" .xcworkspace)
+          echo "Using app scheme: ${SCHEME}"
+
+          # Verify the scheme exists in the workspace
+          if ! xcodebuild -workspace "$WORKSPACE_PATH" -list 2>/dev/null | grep -qF "$SCHEME"; then
+            echo "ERROR: Scheme '${SCHEME}' not found in workspace"
             exit 1
           fi
-          echo "Using discovered scheme: ${SCHEME}"
 
           xcodebuild archive \
             -workspace "$WORKSPACE_PATH" \
