@@ -1,5 +1,4 @@
 import React, { useMemo, useState } from "react";
-import { Meteor } from "meteor/meteor";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -7,6 +6,7 @@ import {
   Link as LinkIcon,
   UserPlus,
   ScanLine,
+  ArrowLeft,
   ArrowRight,
 } from "lucide-react";
 import {
@@ -78,21 +78,6 @@ export const RegistrationOnboardingPage = () => {
     goToInviteRegistration(inviteInput);
   };
 
-  if (isScannerOpen && Meteor.isCordova) {
-    return (
-      <div className="min-h-screen">
-        <InviteQrScanner
-          onScan={handleScanResult}
-          onError={handleScanError}
-          onClose={() => {
-            setLoading(false);
-            setIsScannerOpen(false);
-          }}
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/30 p-4 sm:p-6 flex items-center justify-center">
       <motion.div
@@ -109,11 +94,14 @@ export const RegistrationOnboardingPage = () => {
                   Device setup
                 </div>
                 <h1 className="text-3xl font-bold text-foreground">
-                  Set up MIE Auth your way
+                  {isScannerOpen
+                    ? "Scan your invite"
+                    : "Set up MIE Auth your way"}
                 </h1>
                 <p className="text-muted-foreground">
-                  Use your invite for the fastest setup, or continue with manual
-                  registration if needed.
+                  {isScannerOpen
+                    ? "Point your camera at the QR code from the manager portal or email."
+                    : "Use your invite for the fastest setup, or continue with manual registration if needed."}
                 </p>
               </div>
 
@@ -123,80 +111,94 @@ export const RegistrationOnboardingPage = () => {
                 </Alert>
               )}
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={handleScanQrCode}
-                  disabled={loading && !isScannerOpen}
-                  className="text-left rounded-2xl border border-border bg-card p-5 transition-colors hover:bg-muted/60 disabled:opacity-60"
-                >
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="rounded-xl bg-primary/10 p-3 text-primary">
-                      <QrCode className="h-5 w-5" />
+              {isScannerOpen ? (
+                <div className="space-y-4">
+                  <InviteQrScanner
+                    onScan={handleScanResult}
+                    onError={handleScanError}
+                    onClose={() => {
+                      setLoading(false);
+                      setIsScannerOpen(false);
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    fullWidth
+                    onClick={() => {
+                      setLoading(false);
+                      setIsScannerOpen(false);
+                    }}
+                    leftIcon={<ArrowLeft className="h-4 w-4" />}
+                  >
+                    Back to options
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={handleScanQrCode}
+                    disabled={loading && !isScannerOpen}
+                    className="text-left rounded-2xl border border-border bg-card p-5 transition-colors hover:bg-muted/60 disabled:opacity-60"
+                  >
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="rounded-xl bg-primary/10 p-3 text-primary">
+                        <QrCode className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h2 className="font-semibold text-foreground">
+                          Scan QR code
+                        </h2>
+                        <p className="text-sm text-muted-foreground">
+                          Fastest option for invited users
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h2 className="font-semibold text-foreground">
-                        Scan QR code
-                      </h2>
-                      <p className="text-sm text-muted-foreground">
-                        Fastest option for invited users
-                      </p>
+                    <p className="text-sm text-muted-foreground">
+                      Scan the QR code from the manager portal to load your
+                      invite details instantly.
+                    </p>
+                    <div className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-primary">
+                      <ScanLine className="h-4 w-4" />
+                      Open scanner
                     </div>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Scan the QR code from the manager portal to load your invite
-                    details instantly.
-                  </p>
-                  <div className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-primary">
-                    <ScanLine className="h-4 w-4" />
-                    {isScannerOpen ? "Scanner is open" : "Open scanner"}
-                  </div>
-                </button>
+                  </button>
 
-                <div className="rounded-2xl border border-border bg-card p-5">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="rounded-xl bg-primary/10 p-3 text-primary">
-                      <LinkIcon className="h-5 w-5" />
+                  <div className="rounded-2xl border border-border bg-card p-5">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="rounded-xl bg-primary/10 p-3 text-primary">
+                        <LinkIcon className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h2 className="font-semibold text-foreground">
+                          Paste invite link
+                        </h2>
+                        <p className="text-sm text-muted-foreground">
+                          Works with email or copied portal links
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h2 className="font-semibold text-foreground">
-                        Paste invite link
-                      </h2>
-                      <p className="text-sm text-muted-foreground">
-                        Works with email or copied portal links
-                      </p>
+                    <div className="space-y-3">
+                      <Input
+                        value={inviteInput}
+                        onChange={(event) => setInviteInput(event.target.value)}
+                        placeholder="Paste the invite link or token"
+                        label="Invite link"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                      />
+                      <Button
+                        type="button"
+                        onClick={handlePasteInviteLink}
+                        disabled={!normalizedToken}
+                        fullWidth
+                      >
+                        Continue with invite
+                      </Button>
                     </div>
-                  </div>
-                  <div className="space-y-3">
-                    <Input
-                      value={inviteInput}
-                      onChange={(event) => setInviteInput(event.target.value)}
-                      placeholder="Paste the invite link or token"
-                      label="Invite link"
-                      autoCapitalize="none"
-                      autoCorrect="off"
-                    />
-                    <Button
-                      type="button"
-                      onClick={handlePasteInviteLink}
-                      disabled={!normalizedToken}
-                      fullWidth
-                    >
-                      Continue with invite
-                    </Button>
                   </div>
                 </div>
-              </div>
-
-              {isScannerOpen && !Meteor.isCordova && (
-                <InviteQrScanner
-                  onScan={handleScanResult}
-                  onError={handleScanError}
-                  onClose={() => {
-                    setLoading(false);
-                    setIsScannerOpen(false);
-                  }}
-                />
               )}
             </CardContent>
           </Card>
