@@ -412,62 +412,17 @@ const ldapSearchOne = (client, baseDn, filter, scope = "sub") =>
   });
 
 /**
- * LDAP compare: check whether the group entry has `attr=value`.
- * Returns true (compareTrue) or false (compareFalse / error).
- *
- * Uses the LDAP Compare operation instead of Search, which avoids the
- * ldapjs searchEntry event bug on Node v22.22+ where SearchResultEntry
- * messages are silently dropped.
- */
-const ldapCompare = (client, dn, attr, value) =>
-  new Promise((resolve, reject) => {
-    console.log(
-      `${LOG_PREFIX} Compare: dn="${dn}" attr="${attr}" value="${value}"`,
-    );
-    client.compare(dn, attr, value, (err, matched) => {
-      if (err) {
-        // LDAP_NO_SUCH_OBJECT (32) means the group DN doesn't exist — treat as "not a member"
-        if (err.code === 32) {
-          console.warn(
-            `${LOG_PREFIX} Compare: group "${dn}" does not exist (LDAP error 32)`,
-          );
-          return resolve(false);
-        }
-        console.error(
-          `${LOG_PREFIX} Compare error: ${err.name} – ${err.message}`,
-        );
-        return reject(err);
-      }
-      console.log(`${LOG_PREFIX} Compare result: ${matched}`);
-      resolve(matched);
-    });
-  });
-
-const shouldFallbackToAuthenticatedGroupCheck = (err) => {
-  const tag = err?.ldapTag || ldapErrorMessage(err || {});
-
-  return (
-    tag === "INSUFFICIENT_ACCESS" ||
-    tag === "UNKNOWN" ||
-    err?.name === "OtherError" ||
-    err?.code === 50
-  );
-};
-
-/**
  * Check whether `username` is a member of the admin group.
- * Uses LDAP Compare on the group entry's memberUid (or custom attr).
+ * Searches the group entry for the memberUid (or custom attr) matching the username.
  */
 const isGroupMember = async (client, cfg, username) => {
+  const safeUser = escapeLdapFilter(username);
+  const filter = `(&(objectClass=*)(${cfg.groupMemberAttr}=${safeUser}))`;
   console.log(
     `${LOG_PREFIX} Checking group membership: group="${cfg.adminGroupDn}" attr=${cfg.groupMemberAttr} user="${username}"`,
   );
-  const isMember = await ldapCompare(
-    client,
-    cfg.adminGroupDn,
-    cfg.groupMemberAttr,
-    username,
-  );
+  const entry = await ldapSearchOne(client, cfg.adminGroupDn, filter, "base");
+  const isMember = !!entry;
   console.log(
     `${LOG_PREFIX} Group membership result: ${isMember ? "MEMBER" : "NOT A MEMBER"}`,
   );
@@ -512,52 +467,28 @@ export const validateCredentials = async (username, password) => {
   console.log(`${LOG_PREFIX} Admin group: ${cfg.adminGroupDn}`);
 
   try {
-    // 1. Check group membership FIRST (anonymous compare) — reject non-admins
+    // 1. Check group membership FIRST (anonymous search) — reject non-admins
     //    before binding as the user, which may trigger push notifications.
-    //    Uses LDAP Compare (not Search) to avoid the ldapjs searchEntry bug
-    //    on Node v22.22+ where SearchResultEntry messages are silently dropped.
     console.log(
-      `${LOG_PREFIX} Pre-auth: checking group membership via anonymous compare`,
+      `${LOG_PREFIX} Pre-auth: checking group membership via anonymous search`,
     );
-    let isMember;
-    let usedAuthenticatedFallback = false;
-
-    try {
-      isMember = await withAnonymousLdap(async (client) => {
-        return isGroupMember(client, cfg, username);
-      });
-    } catch (err) {
-      if (!shouldFallbackToAuthenticatedGroupCheck(err)) {
-        throw err;
-      }
-
-      console.warn(
-        `${LOG_PREFIX} Anonymous group check unavailable (${err.name || err.code || "unknown error"}: ${err.message}) — falling back to authenticated group check`,
-      );
-
-      usedAuthenticatedFallback = true;
-      await withLdapClient(userDn, password, async (client) => {
-        isMember = await isGroupMember(client, cfg, username);
-      });
-    }
-
+    const isMember = await withAnonymousLdap(async (client) => {
+      return isGroupMember(client, cfg, username);
+    });
     if (!isMember) {
       const groupErr = new Error("User is not a member of the admin group");
       groupErr.ldapTag = "NOT_IN_GROUP";
       throw groupErr;
     }
 
+    // 2. User is in the admin group — now bind as them to validate password.
+    //    This is the step that may trigger push notifications / MFA.
     console.log(
       `${LOG_PREFIX} Group membership confirmed, proceeding with credential verification`,
     );
-
-    // 2. Bind as the user to validate the password, unless step 1 already
-    //    used an authenticated bind as a fallback.
-    if (!usedAuthenticatedFallback) {
-      await withLdapClient(userDn, password, async () => {
-        // Bind succeeded — password is valid
-      });
-    }
+    await withLdapClient(userDn, password, async () => {
+      // Bind succeeded — password is valid, nothing else to do
+    });
   } catch (err) {
     // Normalise the error with a tag if it doesn't already have one
     if (!err.ldapTag) {

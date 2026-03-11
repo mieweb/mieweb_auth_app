@@ -91,7 +91,7 @@ jobs:
         run: |
           CURRENT_VERSION=$(grep -oP "version:\s*['\"]\\K[^'\"]*" mobile-config.js | head -1)
           NEW_VERSION="${{ steps.version.outputs.app_version }}"
-          sed -i "s/version: '${CURRENT_VERSION}'/version: '${NEW_VERSION}'/" mobile-config.js
+          sed -i "s/version: ['\"]${CURRENT_VERSION}['\"]/version: '${NEW_VERSION}'/" mobile-config.js
           echo "Updated version: ${CURRENT_VERSION} → ${NEW_VERSION}"
           grep "version:" mobile-config.js
 
@@ -537,7 +537,7 @@ jobs:
           <plist version="1.0">
           <dict>
               <key>method</key>
-              <string>app-store</string>
+              <string>app-store-connect</string>
               <key>provisioningProfiles</key>
               <dict>
                   <key>org.mieweb.os.dev</key>
