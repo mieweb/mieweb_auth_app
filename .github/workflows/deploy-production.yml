@@ -253,7 +253,7 @@ jobs:
       # while mobile-config.js defaults to 'org.mieweb.opensource' (iOS/server)
       - name: Patch mobile-config.js for Android bundle ID
         run: |
-          sed -i "s/id: 'org.mieweb.opensource'/id: 'com.mieweb.mieauth'/" mobile-config.js
+          sed -i "s/id: ['\"]org.mieweb.opensource['\"]/id: 'com.mieweb.mieauth'/" mobile-config.js
           echo "Patched bundle ID for Android:"
           grep "id:" mobile-config.js
 
@@ -473,7 +473,7 @@ jobs:
           <plist version="1.0">
           <dict>
               <key>method</key>
-              <string>app-store-connect</string>
+              <string>app-store</string>
               <key>provisioningProfiles</key>
               <dict>
                   <key>org.mieweb.opensource</key>
