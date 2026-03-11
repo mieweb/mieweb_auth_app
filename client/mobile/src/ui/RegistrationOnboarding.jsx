@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { Meteor } from "meteor/meteor";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -16,19 +17,18 @@ import {
   CardContent,
   Input,
 } from "@mieweb/ui";
+import InviteQrScanner from "./components/InviteQrScanner";
 import {
   getInviteRegistrationPath,
   extractInviteToken,
 } from "../../deep-links";
-
-const hasBarcodeScanner = () =>
-  Boolean(window?.cordova?.plugins?.barcodeScanner?.scan);
 
 export const RegistrationOnboardingPage = () => {
   const navigate = useNavigate();
   const [inviteInput, setInviteInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   const normalizedToken = useMemo(
     () => extractInviteToken(inviteInput),
@@ -47,61 +47,51 @@ export const RegistrationOnboardingPage = () => {
     navigate(registrationPath);
   };
 
-  const handleScanQrCode = async () => {
-    if (!hasBarcodeScanner()) {
-      setError(
-        "QR scanning is unavailable on this device. Paste the invite link instead.",
-      );
+  const handleScanResult = (value) => {
+    const token = extractInviteToken(value);
+
+    if (!token) {
+      setLoading(false);
+      setIsScannerOpen(false);
+      setError("The scanned QR code is not a valid invite.");
       return;
     }
 
-    setLoading(true);
+    setLoading(false);
+    setIsScannerOpen(false);
+    goToInviteRegistration(token);
+  };
+
+  const handleScanError = (message) => {
+    setLoading(false);
+    setIsScannerOpen(false);
+    setError(message || "Unable to scan the QR code.");
+  };
+
+  const handleScanQrCode = () => {
     setError("");
-
-    try {
-      await new Promise((resolve, reject) => {
-        window.cordova.plugins.barcodeScanner.scan(
-          (result) => {
-            if (result.cancelled) {
-              resolve();
-              return;
-            }
-
-            const token = extractInviteToken(result.text);
-            if (!token) {
-              reject(new Error("The scanned QR code is not a valid invite."));
-              return;
-            }
-
-            goToInviteRegistration(token);
-            resolve();
-          },
-          (scanError) => {
-            reject(
-              scanError instanceof Error
-                ? scanError
-                : new Error(String(scanError || "QR scan failed")),
-            );
-          },
-          {
-            showFlipCameraButton: true,
-            showTorchButton: true,
-            prompt: "Scan your MIE Auth registration QR code",
-            resultDisplayDuration: 0,
-            formats: "QR_CODE",
-          },
-        );
-      });
-    } catch (scanError) {
-      setError(scanError.message || "Unable to scan the QR code.");
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true);
+    setIsScannerOpen(true);
   };
 
   const handlePasteInviteLink = () => {
     goToInviteRegistration(inviteInput);
   };
+
+  if (isScannerOpen && Meteor.isCordova) {
+    return (
+      <div className="min-h-screen">
+        <InviteQrScanner
+          onScan={handleScanResult}
+          onError={handleScanError}
+          onClose={() => {
+            setLoading(false);
+            setIsScannerOpen(false);
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/30 p-4 sm:p-6 flex items-center justify-center">
@@ -137,7 +127,7 @@ export const RegistrationOnboardingPage = () => {
                 <button
                   type="button"
                   onClick={handleScanQrCode}
-                  disabled={loading}
+                  disabled={loading && !isScannerOpen}
                   className="text-left rounded-2xl border border-border bg-card p-5 transition-colors hover:bg-muted/60 disabled:opacity-60"
                 >
                   <div className="flex items-center gap-3 mb-3">
@@ -159,7 +149,7 @@ export const RegistrationOnboardingPage = () => {
                   </p>
                   <div className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-primary">
                     <ScanLine className="h-4 w-4" />
-                    {loading ? "Opening scanner..." : "Open scanner"}
+                    {isScannerOpen ? "Scanner is open" : "Open scanner"}
                   </div>
                 </button>
 
@@ -197,6 +187,17 @@ export const RegistrationOnboardingPage = () => {
                   </div>
                 </div>
               </div>
+
+              {isScannerOpen && !Meteor.isCordova && (
+                <InviteQrScanner
+                  onScan={handleScanResult}
+                  onError={handleScanError}
+                  onClose={() => {
+                    setLoading(false);
+                    setIsScannerOpen(false);
+                  }}
+                />
+              )}
             </CardContent>
           </Card>
 
