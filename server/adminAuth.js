@@ -430,17 +430,7 @@ const ldapSearchCli = async (cfg, username) => {
       );
       const { stdout } = await execFileAsync(
         "ldapsearch",
-        [
-          "-x",
-          "-H",
-          url,
-          "-b",
-          cfg.adminGroupDn,
-          "-s",
-          "base",
-          filter,
-          "dn",
-        ],
+        ["-x", "-H", url, "-b", cfg.adminGroupDn, "-s", "base", filter, "dn"],
         {
           env: {
             ...process.env,
