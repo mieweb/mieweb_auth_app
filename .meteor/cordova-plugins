@@ -1,5 +1,4 @@
 @havesource/cordova-plugin-push@7.0.0
-cordova-plugin-barcode-qrscanner@3.0.12
 cordova-plugin-customurlscheme@5.0.2
 cordova-plugin-device@3.0.0
 cordova-plugin-fingerprint-aio@6.0.0

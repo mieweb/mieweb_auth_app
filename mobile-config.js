@@ -20,6 +20,10 @@ App.setPreference("FadeSplashScreen", true);
 App.setPreference("AutoHideSplashScreen", true);
 App.setPreference("SplashScreenBackgroundColor", "#27AAE1");
 
+// Enable camera access in WebView for html5-qrcode (getUserMedia)
+App.setPreference("AllowInlineMediaPlayback", true);
+App.setPreference("CordovaWebViewEngine", "CDVWKWebViewEngine", "ios");
+
 // Set up resources such as icons based on generated files in `resources/`
 App.icons({
   // iOS Main App Icons
