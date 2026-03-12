@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { Alert, AlertDescription, Button } from "@mieweb/ui";
 
 const QR_FRAME_SIZE = 220;
