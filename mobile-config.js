@@ -5,7 +5,7 @@ App.info({
   author: "Anshul Abrol",
   email: "abrol.anshul10@gmail.com",
   website: "https://mieauth-prod.os.mieweb.org",
-  version: "1.3.8",
+  version: '1.3.9',
 });
 
 App.setPreference("android-targetSdkVersion", "35");
