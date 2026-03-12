@@ -33,7 +33,56 @@ export const InviteQrScanner = ({ onScan, onError, onClose }) => {
     let isDisposed = false;
 
     const initializeScanner = async () => {
+      // Request permissions properly on Android
+      if (
+        typeof window.cordova !== "undefined" &&
+        window.cordova.platformId === "android" &&
+        window.cordova.plugins?.permissions
+      ) {
+        try {
+          const permissions = window.cordova.plugins.permissions;
+          await new Promise((resolve, reject) => {
+            permissions.checkPermission(
+              permissions.CAMERA,
+              (status) => {
+                if (status.hasPermission) {
+                  resolve();
+                } else {
+                  permissions.requestPermission(
+                    permissions.CAMERA,
+                    (status) => {
+                      if (status.hasPermission) {
+                        resolve();
+                      } else {
+                        reject(new Error("Camera permission denied"));
+                      }
+                    },
+                    reject,
+                  );
+                }
+              },
+              reject,
+            );
+          });
+          // Resolves either true or gracefully errors down to catch
+        } catch {
+          if (!isDisposed) {
+            onError(
+              "Camera access denied or unavailable. Enable camera permission for MIE Auth and try again.",
+            );
+          }
+          return;
+        }
+      }
+
       try {
+        if (
+          !navigator.mediaDevices ||
+          !navigator.mediaDevices.enumerateDevices
+        ) {
+          throw new Error("Camera streaming not supported by the browser.");
+        }
+
         const { Html5Qrcode, Html5QrcodeSupportedFormats } =
           await import("html5-qrcode");
 
@@ -53,7 +102,6 @@ export const InviteQrScanner = ({ onScan, onError, onClose }) => {
           {
             fps: 10,
             qrbox: { width: QR_FRAME_SIZE, height: QR_FRAME_SIZE },
-            aspectRatio: 1,
           },
           (decodedText) => {
             if (hasScannedRef.current) {
@@ -67,14 +115,17 @@ export const InviteQrScanner = ({ onScan, onError, onClose }) => {
         );
       } catch (error) {
         if (!isDisposed) {
-          const message = error?.message || "";
+          const message =
+            typeof error === "string" ? error : error?.message || "";
 
           if (
             message.includes("NotAllowedError") ||
-            message.includes("Permission")
+            message.includes("Permission") ||
+            message.includes("NotReadableError") ||
+            message.includes("Could not start video source")
           ) {
             onError(
-              "Camera access was denied. Enable camera permission for MIE Auth and try again.",
+              "Camera access denied or unavailable. Enable camera permission for MIE Auth and try again.",
             );
           } else if (
             message.includes("NotFoundError") ||
