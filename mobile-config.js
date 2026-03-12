@@ -5,7 +5,7 @@ App.info({
   author: "Anshul Abrol",
   email: "abrol.anshul10@gmail.com",
   website: "https://mieauth-prod.os.mieweb.org",
-  version: '1.3.8',
+  version: "1.3.8",
 });
 
 App.setPreference("android-targetSdkVersion", "35");
@@ -23,6 +23,21 @@ App.setPreference("SplashScreenBackgroundColor", "#27AAE1");
 // Enable camera access in WebView for html5-qrcode (getUserMedia)
 App.setPreference("AllowInlineMediaPlayback", true);
 App.setPreference("CordovaWebViewEngine", "CDVWKWebViewEngine", "ios");
+
+// Add necessary iOS permissions for Camera
+App.appendToConfig(`
+  <edit-config target="NSCameraUsageDescription" file="*-Info.plist" mode="merge">
+    <string>MIE Auth needs camera access to scan QR codes for account registration.</string>
+  </edit-config>
+`);
+
+// Add necessary Android permissions for Camera
+App.appendToConfig(`
+  <config-file target="AndroidManifest.xml" parent="/*">
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+  </config-file>
+`);
 
 // Set up resources such as icons based on generated files in `resources/`
 App.icons({
