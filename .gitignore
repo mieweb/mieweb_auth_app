@@ -1,6 +1,14 @@
 # Android App Bundles (local only — downloaded via VS Code)
 *.aab
 
+# Meteor build context
+_build
+*/build-assets
+*/build-chunks
+
+# rspack diagnostic tool output
+.rsdoctor
+
 # Logs
 logs
 *.log

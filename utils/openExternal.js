@@ -1,7 +1,8 @@
 /**
  * GitHub support URL for creating new issues.
  */
-export const SUPPORT_URL = 'https://github.com/mieweb/mieweb_auth_app/issues/new';
+export const SUPPORT_URL =
+  "https://github.com/mieweb/mieweb_auth_app/issues/new";
 
 /**
  * Open a URL in the device's external / system browser (Safari / Chrome).
@@ -11,22 +12,21 @@ export const SUPPORT_URL = 'https://github.com/mieweb/mieweb_auth_app/issues/new
 export const openExternal = (url) => {
   // cordova-plugin-inappbrowser exposes .open on cordova.InAppBrowser
   const iab =
-    (window.cordova && window.cordova.InAppBrowser) ||
-    window.InAppBrowser;
+    (window.cordova && window.cordova.InAppBrowser) || window.InAppBrowser;
 
   if (iab) {
     // '_system' opens the URL in the device's default browser app
-    iab.open(url, '_system');
+    iab.open(url, "_system");
   } else if (window.SafariViewController) {
     window.SafariViewController.isAvailable((available) => {
       if (available) {
         window.SafariViewController.show({ url });
       } else {
-        window.open(url, '_system');
+        window.open(url, "_system");
       }
     });
   } else {
-    window.open(url, '_blank', 'location=yes');
+    window.open(url, "_blank", "location=yes");
   }
 };
 
@@ -36,7 +36,7 @@ export const openExternal = (url) => {
  */
 export const openSupportLink = () => {
   const userConfirmed = window.confirm(
-    'You will be redirected to GitHub to create a support issue.\n\nContinue?'
+    "You will be redirected to GitHub to create a support issue.\n\nContinue?",
   );
   if (userConfirmed) {
     openExternal(SUPPORT_URL);

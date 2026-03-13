@@ -42,37 +42,42 @@ export const successTemplate = () => `
 </html>
 `;
 
-export const errorTemplate = (reason = 'unknown') => {
+export const errorTemplate = (reason = "unknown") => {
   // Map reason codes to user-friendly messages
   const errorMessages = {
-    'expired': {
-      title: 'Token Expired',
-      message: 'The approval token has expired.',
-      details: 'Please request a new approval link from the system administrator.'
+    expired: {
+      title: "Token Expired",
+      message: "The approval token has expired.",
+      details:
+        "Please request a new approval link from the system administrator.",
     },
-    'user_not_found': {
-      title: 'User Not Found',
-      message: 'The user associated with this approval token was not found.',
-      details: 'This may occur if the user registered a new account after this link was generated. Please contact the system administrator for assistance.'
+    user_not_found: {
+      title: "User Not Found",
+      message: "The user associated with this approval token was not found.",
+      details:
+        "This may occur if the user registered a new account after this link was generated. Please contact the system administrator for assistance.",
     },
-    'invalid_token': {
-      title: 'Invalid Token',
-      message: 'The approval token is invalid or does not exist.',
-      details: 'Please contact the system administrator for a new approval link.'
+    invalid_token: {
+      title: "Invalid Token",
+      message: "The approval token is invalid or does not exist.",
+      details:
+        "Please contact the system administrator for a new approval link.",
     },
-    'server_error': {
-      title: 'Internal Server Error',
-      message: 'An internal server error occurred while processing your request.',
-      details: 'Please try again later or contact the system administrator for assistance.'
+    server_error: {
+      title: "Internal Server Error",
+      message:
+        "An internal server error occurred while processing your request.",
+      details:
+        "Please try again later or contact the system administrator for assistance.",
     },
-    'unknown': {
-      title: 'Invalid Request',
-      message: 'This link is invalid or has expired.',
-      details: 'Please contact the system administrator for assistance.'
-    }
+    unknown: {
+      title: "Invalid Request",
+      message: "This link is invalid or has expired.",
+      details: "Please contact the system administrator for assistance.",
+    },
   };
 
-  const error = errorMessages[reason] || errorMessages['unknown'];
+  const error = errorMessages[reason] || errorMessages["unknown"];
 
   return `
 <!DOCTYPE html>

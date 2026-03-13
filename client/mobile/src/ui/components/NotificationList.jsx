@@ -1,110 +1,178 @@
-import React from 'react';
+import React from "react";
 import {
   Clock,
-  AlertTriangle, // For timeout or error
-  Smartphone
-} from 'lucide-react';
-import { formatDateTime, isNotificationExpired } from '../../../../../utils/utils.js'; // Adjust path
+  AlertTriangle,
+  Smartphone,
+  ChevronRight,
+  Inbox,
+} from "lucide-react";
+import {
+  formatDateTime,
+  isNotificationExpired,
+} from "../../../../../utils/utils.js";
+import { Spinner, Alert, AlertDescription, Badge } from "@mieweb/ui";
 
-
-export const NotificationList = ({ notifications, isLoading, error, onNotificationClick, isActionsModalOpen }) => {
-
+export const NotificationList = ({
+  notifications,
+  isLoading,
+  error,
+  onNotificationClick,
+  isActionsModalOpen,
+}) => {
   if (isLoading) {
     return (
-      <div className="text-center p-6 text-gray-500 dark:text-gray-400">
-        <svg className="animate-spin h-6 w-6 text-blue-500 mx-auto mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        Loading history...
+      <div className="flex flex-col items-center justify-center p-12 text-muted-foreground">
+        <Spinner size="md" />
+        <p className="mt-3 text-sm">Loading history...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="text-center p-6 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg">
-        <AlertTriangle size={24} className="mx-auto mb-2" />
-        {error}
-      </div>
+      <Alert variant="danger" icon={<AlertTriangle className="h-5 w-5" />}>
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
     );
   }
 
   if (!notifications || notifications.length === 0) {
     return (
-      <div className="text-center p-8 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-lg mx-2 ">
-        No notification history found.
+      <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+        <div className="flex items-center justify-center h-16 w-16 rounded-full bg-muted mb-4">
+          <Inbox className="h-8 w-8" />
+        </div>
+        <p className="font-medium text-foreground">No activity yet</p>
+        <p className="text-sm mt-1">
+          Authentication requests will appear here.
+        </p>
       </div>
     );
   }
 
+  const getStatusBadgeVariant = (status) => {
+    switch (status) {
+      case "approve":
+        return "success";
+      case "reject":
+        return "danger";
+      case "timeout":
+        return "secondary";
+      default:
+        return "warning";
+    }
+  };
 
+  const getStatusLabel = (status) => {
+    switch (status) {
+      case "approve":
+        return "Approved";
+      case "reject":
+        return "Rejected";
+      case "timeout":
+        return "Expired";
+      case "pending":
+        return "Pending";
+      default:
+        return status;
+    }
+  };
 
   return (
-    <div>
+    <div className="divide-y divide-border">
       {notifications.map((notification) => {
-        const isPending = notification.status === 'pending';
+        const isPending = notification.status === "pending";
         const isExpired = isNotificationExpired(notification.createdAt);
         const isClickable = isPending && !isActionsModalOpen && !isExpired;
-        
-        // Compute the display status - show 'timeout' for expired pending notifications
-        const displayStatus = (isPending && isExpired) ? 'timeout' : notification.status;
-        
+        const displayStatus =
+          isPending && isExpired ? "timeout" : notification.status;
+
         return (
           <div
             key={notification._id}
-            className={`bg-white/80 backdrop-blur-sm dark:bg-gray-800/80 rounded-2xl shadow-lg p-6 m-2 ${
-              isClickable ? 'cursor-pointer hover:bg-white dark:hover:bg-gray-800 hover:shadow-xl transition-all duration-200' : ''
+            className={`flex items-center gap-3 px-2 py-3.5 transition-colors ${
+              isClickable
+                ? "cursor-pointer hover:bg-muted/50 active:bg-muted"
+                : ""
             }`}
-            onClick={() => isClickable && onNotificationClick && onNotificationClick(notification)}
-            role={isClickable ? 'button' : undefined}
+            onClick={() =>
+              isClickable &&
+              onNotificationClick &&
+              onNotificationClick(notification)
+            }
+            role={isClickable ? "button" : undefined}
             tabIndex={isClickable ? 0 : undefined}
-            aria-label={isClickable ? 'Open approval dialog for this notification' : undefined}
+            aria-label={
+              isClickable
+                ? "Open approval dialog for this notification"
+                : undefined
+            }
             onKeyDown={(e) => {
-              if (isClickable && onNotificationClick && (e.key === 'Enter' || e.key === ' ')) {
+              if (
+                isClickable &&
+                onNotificationClick &&
+                (e.key === "Enter" || e.key === " ")
+              ) {
                 e.preventDefault();
                 onNotificationClick(notification);
               }
             }}
           >
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+            {/* Status indicator dot */}
+            <div
+              className={`h-2.5 w-2.5 rounded-full shrink-0 ${
+                displayStatus === "approve"
+                  ? "bg-emerald-500"
+                  : displayStatus === "reject"
+                    ? "bg-rose-500"
+                    : displayStatus === "pending"
+                      ? "bg-amber-500 animate-pulse"
+                      : "bg-muted-foreground"
+              }`}
+            />
+
+            {/* Content */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-medium text-foreground truncate">
                   {notification.title}
                 </h3>
-                <div className="space-y-1">
-                  <p className="text-sm text-gray-600 dark:text-gray-300 flex items-center">
-                    <Clock className="h-4 w-4 mr-2" />
-                    {formatDateTime(notification.createdAt)}
-                  </p>
-                  <p className="text-sm text-gray-600 dark:text-gray-300 flex items-center">
-                    <Smartphone className="h-4 w-4 mr-2" />
-                    {displayStatus === 'pending' || displayStatus === 'timeout' ? '—' : (notification.deviceModel || 'Unknown')}
-                  </p>
-                </div>
-                {isClickable && (
-                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-2 font-medium">
-                    Tap to approve or reject
-                  </p>
-                )}
+                <Badge
+                  variant={getStatusBadgeVariant(displayStatus)}
+                  className="shrink-0 text-xs"
+                >
+                  {getStatusLabel(displayStatus)}
+                </Badge>
               </div>
-              <div
-                className={`px-3 py-1 rounded-full text-sm font-medium capitalize ${
-                  displayStatus === "approve"
-                    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                    : displayStatus === "reject"
-                      ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                      : displayStatus === "timeout"
-                        ? "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200"
-                        : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
-                  }`}
-              >
-                {displayStatus}
+              <div className="flex items-center gap-3 mt-1">
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  {formatDateTime(notification.createdAt)}
+                </span>
+                {displayStatus !== "pending" &&
+                  displayStatus !== "timeout" &&
+                  notification.deviceModel &&
+                  notification.deviceModel !== "Unknown" && (
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Smartphone className="h-3 w-3" />
+                      {notification.deviceModel}
+                    </span>
+                  )}
               </div>
+              {isClickable && (
+                <p className="text-xs text-primary mt-1 font-medium">
+                  Tap to approve or reject
+                </p>
+              )}
             </div>
+
+            {/* Arrow for clickable items */}
+            {isClickable && (
+              <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+            )}
           </div>
-        )
+        );
       })}
     </div>
   );
-}; 
+};

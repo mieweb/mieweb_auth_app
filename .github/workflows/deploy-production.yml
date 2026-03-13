@@ -76,7 +76,7 @@ jobs:
         run: |
           CURRENT_VERSION=$(grep -oP "version:\s*['\"]\\K[^'\"]*" mobile-config.js | head -1)
           NEW_VERSION="${{ steps.version.outputs.app_version }}"
-          sed -i "s/version: '${CURRENT_VERSION}'/version: '${NEW_VERSION}'/" mobile-config.js
+          sed -i "s/version: ['\"]${CURRENT_VERSION}['\"]/version: '${NEW_VERSION}'/" mobile-config.js
           echo "Updated version: ${CURRENT_VERSION} → ${NEW_VERSION}"
           grep "version:" mobile-config.js
 
@@ -253,7 +253,7 @@ jobs:
       # while mobile-config.js defaults to 'org.mieweb.opensource' (iOS/server)
       - name: Patch mobile-config.js for Android bundle ID
         run: |
-          sed -i "s/id: 'org.mieweb.opensource'/id: 'com.mieweb.mieauth'/" mobile-config.js
+          sed -i "s/id: ['\"]org.mieweb.opensource['\"]/id: 'com.mieweb.mieauth'/" mobile-config.js
           echo "Patched bundle ID for Android:"
           grep "id:" mobile-config.js
 
@@ -440,9 +440,18 @@ jobs:
           fi
           echo "Using workspace: ${WORKSPACE_PATH}"
 
-          # Scheme matches the app name set in mobile-config.js
-          SCHEME="MIEAuth"
-          echo "Using scheme: ${SCHEME}"
+          # Derive the app scheme from the workspace name
+          # Cordova names the workspace after the app (e.g. "MIEAuth.xcworkspace")
+          echo "Available schemes:"
+          xcodebuild -workspace "$WORKSPACE_PATH" -list 2>/dev/null || true
+          SCHEME=$(basename "$WORKSPACE_PATH" .xcworkspace)
+          echo "Using app scheme: ${SCHEME}"
+
+          # Verify the scheme exists in the workspace
+          if ! xcodebuild -workspace "$WORKSPACE_PATH" -list 2>/dev/null | grep -qF "$SCHEME"; then
+            echo "ERROR: Scheme '${SCHEME}' not found in workspace"
+            exit 1
+          fi
 
           xcodebuild archive \
             -workspace "$WORKSPACE_PATH" \
@@ -481,7 +490,7 @@ jobs:
           mkdir -p ~/private_keys
           echo "${{ secrets.APPLE_API_KEY_P8_BASE64 }}" | base64 --decode > ~/private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
 
-          # Export with API authentication (required for Xcode 16+ app-store-connect method)
+          # Export with API authentication for App Store / TestFlight distribution
           xcodebuild -exportArchive \
             -archivePath $RUNNER_TEMP/MIEAuth.xcarchive \
             -exportPath $RUNNER_TEMP/export \

@@ -1,28 +1,36 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from "react";
+
+function getInitialDarkMode() {
+  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
 
 export const useDarkMode = () => {
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(getInitialDarkMode);
 
-  // Load preference from localStorage on mount
-  useEffect(() => {
-    const darkModePreference = localStorage.getItem('darkMode') === 'true';
-    setIsDarkMode(darkModePreference);
-  }, []);
-
-  // Update localStorage and document class when state changes
+  // Apply dark mode class
   useEffect(() => {
     if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('darkMode', 'true');
+      document.documentElement.classList.add("dark");
+      document.documentElement.setAttribute("data-theme", "dark");
     } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('darkMode', 'false');
+      document.documentElement.classList.remove("dark");
+      document.documentElement.setAttribute("data-theme", "light");
     }
   }, [isDarkMode]);
 
-  const toggleDarkMode = () => {
-    setIsDarkMode(prevMode => !prevMode);
-  };
+  // Listen for system preference changes
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = (e) => {
+      setIsDarkMode(e.matches);
+    };
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
+  const toggleDarkMode = useCallback(() => {
+    setIsDarkMode((prev) => !prev);
+  }, []);
 
   return { isDarkMode, toggleDarkMode };
-}; 
+};

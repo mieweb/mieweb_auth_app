@@ -1,9 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { Meteor } from 'meteor/meteor';
-import { Check, X, ShieldCheck, Clock } from 'lucide-react';
-import { TIMEOUT_DURATION_MS } from '../../../../../utils/constants';
+import React, { useState, useEffect } from "react";
+import { Meteor } from "meteor/meteor";
+import { Check, X, ShieldCheck, Clock } from "lucide-react";
+import { TIMEOUT_DURATION_MS } from "../../../../../utils/constants";
+import { Button, Alert, AlertDescription } from "@mieweb/ui";
 
-const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notification, isLoading, error }) => {
+const ActionsModal = ({
+  isOpen,
+  onApprove,
+  onReject,
+  onClose,
+  onTimeOut,
+  notification,
+  isLoading,
+  error,
+}) => {
   const [timeLeft, setTimeLeft] = useState(0);
 
   const calculateInitialTime = () => {
@@ -11,17 +21,20 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notific
 
     let createdAt = notification.createdAt;
 
-    if (typeof createdAt === 'string' || typeof createdAt === 'object') {
+    if (typeof createdAt === "string" || typeof createdAt === "object") {
       createdAt = new Date(createdAt).getTime();
-    } else if (typeof createdAt === 'number' && createdAt < 1e12) {
+    } else if (typeof createdAt === "number" && createdAt < 1e12) {
       createdAt *= 1000;
     }
 
-    return Math.max(0, Math.floor((createdAt + TIMEOUT_DURATION_MS - Date.now()) / 1000));
+    return Math.max(
+      0,
+      Math.floor((createdAt + TIMEOUT_DURATION_MS - Date.now()) / 1000),
+    );
   };
 
   const totalSeconds = TIMEOUT_DURATION_MS / 1000;
-  const timerProgress = timeLeft > 0 ? (timeLeft / totalSeconds) : 0;
+  const timerProgress = timeLeft > 0 ? timeLeft / totalSeconds : 0;
 
   useEffect(() => {
     let timer;
@@ -31,12 +44,12 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notific
       if (!notification?.notificationId) return;
       try {
         const isHandled = await Meteor.callAsync(
-          'notificationHistory.isHandled',
-          notification.notificationId
+          "notificationHistory.isHandled",
+          notification.notificationId,
         );
         if (isHandled) onClose();
       } catch (error) {
-        console.error('Status check error:', error);
+        console.error("Status check error:", error);
       }
     };
 
@@ -45,23 +58,26 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notific
         onTimeOut();
         return;
       }
-      
+
       try {
         await Meteor.callAsync(
-          'notificationHistory.updateStatus',
+          "notificationHistory.updateStatus",
           notification.notificationId,
-          'timeout'
+          "timeout",
         );
-        console.log('Notification marked as timeout');
+        console.log("Notification marked as timeout");
       } catch (error) {
-        console.error('Failed to update notification status to timeout:', error);
+        console.error(
+          "Failed to update notification status to timeout:",
+          error,
+        );
       }
-      
+
       onTimeOut();
     };
 
     const handleEscape = (e) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === "Escape") onClose();
     };
 
     if (isOpen && notification) {
@@ -75,7 +91,7 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notific
       setTimeLeft(initialTime);
 
       timer = setInterval(() => {
-        setTimeLeft(prev => {
+        setTimeLeft((prev) => {
           if (prev <= 1) {
             clearInterval(timer);
             handleTimeout();
@@ -86,13 +102,13 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notific
       }, 1000);
 
       statusCheckInterval = setInterval(checkStatus, 2000);
-      document.addEventListener('keydown', handleEscape);
+      document.addEventListener("keydown", handleEscape);
     }
 
     return () => {
       clearInterval(timer);
       clearInterval(statusCheckInterval);
-      document.removeEventListener('keydown', handleEscape);
+      document.removeEventListener("keydown", handleEscape);
     };
   }, [isOpen, notification, onClose, onTimeOut]);
 
@@ -103,13 +119,18 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notific
   const formatTime = (seconds) => {
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
-    return m > 0 ? `${m}:${String(s).padStart(2, '0')}` : `0:${String(s).padStart(2, '0')}`;
+    return m > 0
+      ? `${m}:${String(s).padStart(2, "0")}`
+      : `0:${String(s).padStart(2, "0")}`;
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-6" onClick={onClose}>
+    <div
+      className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-6"
+      onClick={onClose}
+    >
       <div
-        className="bg-white dark:bg-[#1e1e20] rounded-3xl w-full max-w-[340px] shadow-2xl animate-modal-in"
+        className="bg-card text-card-foreground rounded-3xl w-full max-w-[340px] shadow-2xl animate-modal-in"
         role="dialog"
         aria-modal="true"
         aria-labelledby="actions-modal-title"
@@ -118,25 +139,30 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notific
         <div className="px-6 pt-8 pb-6">
           {/* Icon */}
           <div className="flex justify-center mb-5">
-            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${
-              isUrgent
-                ? 'bg-red-50 dark:bg-red-500/10'
-                : 'bg-indigo-50 dark:bg-indigo-500/10'
-            }`}>
-              <ShieldCheck className={`h-8 w-8 ${
-                isUrgent ? 'text-red-500 dark:text-red-400' : 'text-indigo-600 dark:text-indigo-400'
-              }`} />
+            <div
+              className={`w-16 h-16 rounded-2xl flex items-center justify-center ${
+                isUrgent ? "bg-destructive/10" : "bg-primary/10"
+              }`}
+            >
+              <ShieldCheck
+                className={`h-8 w-8 ${
+                  isUrgent ? "text-destructive" : "text-primary"
+                }`}
+              />
             </div>
           </div>
 
           {/* Title */}
-          <h2 id="actions-modal-title" className="text-xl font-bold text-gray-900 dark:text-white text-center leading-snug">
-            {notification?.title || 'Verification Request'}
+          <h2
+            id="actions-modal-title"
+            className="text-xl font-bold text-foreground text-center leading-snug"
+          >
+            {notification?.title || "Verification Request"}
           </h2>
 
           {/* Body — only if present */}
           {notification?.body && (
-            <p className="text-[13px] text-gray-500 dark:text-gray-400 mt-2 text-center leading-relaxed">
+            <p className="text-[13px] text-muted-foreground mt-2 text-center leading-relaxed">
               {notification.body}
             </p>
           )}
@@ -145,21 +171,27 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notific
           <div className="mt-5">
             <div className="flex items-center justify-between mb-1.5">
               <div className="flex items-center space-x-1.5">
-                <Clock className={`h-3.5 w-3.5 ${isUrgent ? 'text-red-400' : 'text-gray-400 dark:text-gray-500'}`} />
-                <span className={`text-xs font-medium ${isUrgent ? 'text-red-500 dark:text-red-400' : 'text-gray-400 dark:text-gray-500'}`}>
-                  {isUrgent ? 'Expiring soon' : 'Expires in'}
+                <Clock
+                  className={`h-3.5 w-3.5 ${isUrgent ? "text-destructive" : "text-muted-foreground"}`}
+                />
+                <span
+                  className={`text-xs font-medium ${isUrgent ? "text-destructive" : "text-muted-foreground"}`}
+                >
+                  {isUrgent ? "Expiring soon" : "Expires in"}
                 </span>
               </div>
-              <span className={`text-xs font-bold tabular-nums ${
-                isUrgent ? 'text-red-500 dark:text-red-400' : 'text-gray-600 dark:text-gray-300'
-              }`}>
+              <span
+                className={`text-xs font-bold tabular-nums ${
+                  isUrgent ? "text-destructive" : "text-foreground/70"
+                }`}
+              >
                 {formatTime(timeLeft)}
               </span>
             </div>
-            <div className="h-1.5 bg-gray-100 dark:bg-white/10 rounded-full overflow-hidden">
+            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all duration-1000 ease-linear ${
-                  isUrgent ? 'bg-red-400' : 'bg-indigo-500 dark:bg-indigo-400'
+                  isUrgent ? "bg-destructive" : "bg-primary"
                 }`}
                 style={{ width: `${timerProgress * 100}%` }}
               />
@@ -169,34 +201,52 @@ const ActionsModal = ({ isOpen, onApprove, onReject, onClose, onTimeOut, notific
 
         {/* Error message */}
         {error && (
-          <div className="mx-6 mb-3 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/50 rounded-xl px-4 py-2.5">
-            <p className="text-sm text-red-600 dark:text-red-400 text-center">{error}</p>
+          <div className="mx-6 mb-3">
+            <Alert variant="danger">
+              <AlertDescription className="text-center">
+                {error}
+              </AlertDescription>
+            </Alert>
           </div>
         )}
 
         {/* Actions */}
         <div className="px-6 pb-6 space-y-2.5">
-          <button onClick={onApprove}
+          <Button
+            onClick={onApprove}
             disabled={isLoading}
-            className="w-full flex items-center justify-center space-x-2 bg-[#34c759] active:bg-[#2da44e] dark:bg-[#30b350] dark:active:bg-[#2a9d46] text-white py-[14px] rounded-[14px] active:scale-[0.98] transition-all font-semibold text-[15px] disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-green-600/20 dark:shadow-green-500/10"
+            fullWidth
+            size="lg"
+            leftIcon={<Check className="h-5 w-5" strokeWidth={2.5} />}
+            isLoading={isLoading}
+            loadingText="Processing..."
+            className="h-[52px] rounded-[14px] text-[15px] shadow-md shadow-green-600/20 dark:shadow-green-500/10"
+            style={{ backgroundColor: "#34c759", color: "#fff" }}
           >
-            <Check className="h-5 w-5" strokeWidth={2.5} />
-            <span>{isLoading ? 'Processing...' : 'Approve'}</span>
-          </button>
+            Approve
+          </Button>
 
-          <button onClick={onReject}
+          <Button
+            onClick={onReject}
             disabled={isLoading}
-            className="w-full flex items-center justify-center space-x-2 bg-[#ff3b30] active:bg-[#d63027] dark:bg-[#e8342a] dark:active:bg-[#c42d24] text-white py-[14px] rounded-[14px] active:scale-[0.98] transition-all font-semibold text-[15px] disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-red-600/20 dark:shadow-red-500/10"
+            variant="danger"
+            fullWidth
+            size="lg"
+            leftIcon={<X className="h-5 w-5" strokeWidth={2.5} />}
+            className="h-[52px] rounded-[14px] text-[15px] shadow-md shadow-red-600/20 dark:shadow-red-500/10"
           >
-            <X className="h-5 w-5" strokeWidth={2.5} />
-            <span>Deny</span>
-          </button>
+            Deny
+          </Button>
 
-          <button onClick={onClose}
-            className="w-full text-center text-[13px] font-medium text-gray-400 dark:text-gray-500 py-1.5 active:text-gray-600 dark:active:text-gray-300 transition-colors"
+          <Button
+            onClick={onClose}
+            variant="ghost"
+            fullWidth
+            size="sm"
+            className="text-[13px] text-muted-foreground"
           >
             Dismiss
-          </button>
+          </Button>
         </div>
       </div>
 

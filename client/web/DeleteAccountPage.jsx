@@ -1,90 +1,113 @@
-import React, { useState } from 'react';
-import { Meteor } from 'meteor/meteor';
-import { Layout } from './components/Layout';
-import { AlertCircle, CheckCircle, Trash2 } from 'lucide-react';
+import React, { useState } from "react";
+import { Meteor } from "meteor/meteor";
+import { Layout } from "./components/Layout";
+import {
+  AlertCircle,
+  CheckCircle,
+  Trash2,
+  AlertTriangle,
+  ArrowLeft,
+} from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
+import {
+  Card,
+  CardContent,
+  Button,
+  Input,
+  Textarea,
+  Alert,
+  AlertDescription,
+} from "@mieweb/ui";
+import { usePageTitle } from "../hooks/usePageTitle";
 
 export const DeleteAccountPage = () => {
+  usePageTitle("Delete Account");
+  const prefersReducedMotion = useReducedMotion();
   const [formData, setFormData] = useState({
-    email: '',
-    username: '',
-    reason: ''
+    email: "",
+    username: "",
+    reason: "",
   });
-  const [status, setStatus] = useState({ type: '', message: '' });
+  const [status, setStatus] = useState({ type: "", message: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    // Don't trim on keystroke - it removes spaces while typing, confusing users
-    // Trimming is done in handleSubmit before API call
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const validateForm = () => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    
+
     if (!formData.email || !emailRegex.test(formData.email)) {
       setStatus({
-        type: 'error',
-        message: 'Please enter a valid email address.'
+        type: "error",
+        message: "Please enter a valid email address.",
       });
       return false;
     }
-    
+
     if (formData.email.length < 3 || formData.email.length > 254) {
       setStatus({
-        type: 'error',
-        message: 'Email must be between 3 and 254 characters.'
+        type: "error",
+        message: "Email must be between 3 and 254 characters.",
       });
       return false;
     }
-    
-    if (!formData.username || formData.username.length < 1 || formData.username.length > 100) {
+
+    if (
+      !formData.username ||
+      formData.username.length < 1 ||
+      formData.username.length > 100
+    ) {
       setStatus({
-        type: 'error',
-        message: 'Username must be between 1 and 100 characters.'
+        type: "error",
+        message: "Username must be between 1 and 100 characters.",
       });
       return false;
     }
-    
+
     if (formData.reason && formData.reason.length > 1000) {
       setStatus({
-        type: 'error',
-        message: 'Reason must be less than 1000 characters.'
+        type: "error",
+        message: "Reason must be less than 1000 characters.",
       });
       return false;
     }
-    
+
     return true;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setStatus({ type: '', message: '' });
-    
+    setStatus({ type: "", message: "" });
+
     if (!validateForm()) {
       return;
     }
-    
+
     setIsSubmitting(true);
 
-    // Trim email and username before sending to API
     const trimmedData = {
       email: formData.email.trim(),
       username: formData.username.trim(),
-      reason: formData.reason
+      reason: formData.reason,
     };
 
     try {
-      await Meteor.callAsync('users.requestAccountDeletion', trimmedData);
+      await Meteor.callAsync("users.requestAccountDeletion", trimmedData);
       setStatus({
-        type: 'success',
-        message: 'Account deletion request submitted successfully. You will receive a confirmation email shortly.'
+        type: "success",
+        message:
+          "Account deletion request submitted successfully. You will receive a confirmation email shortly.",
       });
-      setFormData({ email: '', username: '', reason: '' });
+      setFormData({ email: "", username: "", reason: "" });
     } catch (error) {
       setStatus({
-        type: 'error',
-        message: error.reason || 'Failed to submit deletion request. Please try again.'
+        type: "error",
+        message:
+          error.reason ||
+          "Failed to submit deletion request. Please try again.",
       });
     } finally {
       setIsSubmitting(false);
@@ -93,120 +116,179 @@ export const DeleteAccountPage = () => {
 
   return (
     <Layout>
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-          <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
-            <div className="flex items-center">
-              <Trash2 className="h-6 w-6 text-red-600 mr-3" />
-              <h1 className="text-2xl font-bold text-gray-900">Delete Your Account</h1>
+      {/* Hero */}
+      <section className="relative overflow-hidden bg-background text-foreground">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(239,68,68,0.1),transparent_60%)]" />
+        <div className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 text-center">
+          <motion.div
+            initial={prefersReducedMotion ? false : { opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5 }}
+            className="flex items-center justify-center mb-6"
+          >
+            <div className="bg-destructive/10 p-4 rounded-2xl border border-destructive/20">
+              <Trash2 className="w-10 h-10 text-destructive" />
             </div>
-            <p className="mt-2 text-sm text-gray-500">
-              Request permanent deletion of your account and associated data
-            </p>
-          </div>
+          </motion.div>
+          <motion.h1
+            initial={prefersReducedMotion ? false : { opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            className="text-3xl sm:text-4xl font-extrabold tracking-tight"
+          >
+            Delete Your Account
+          </motion.h1>
+          <motion.p
+            initial={prefersReducedMotion ? false : { opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            className="mt-4 text-lg text-muted-foreground max-w-xl mx-auto"
+          >
+            Request permanent deletion of your account and associated data
+          </motion.p>
+        </div>
+      </section>
 
-          <div className="px-4 py-5 sm:p-6">
+      {/* Form */}
+      <section className="bg-background pb-20">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 -mt-4">
+          <motion.div
+            initial={prefersReducedMotion ? false : { opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+          >
             {status.message && (
-              <div
-                className={`mb-6 p-4 rounded-md flex items-start ${
-                  status.type === 'success'
-                    ? 'bg-green-50 text-green-800 border border-green-200'
-                    : 'bg-red-50 text-red-800 border border-red-200'
-                }`}
+              <Alert
+                variant={status.type === "success" ? "success" : "danger"}
+                className="mb-6"
               >
-                {status.type === 'success' ? (
-                  <CheckCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
+                {status.type === "success" ? (
+                  <CheckCircle className="h-4 w-4" />
                 ) : (
-                  <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
+                  <AlertCircle className="h-4 w-4" />
                 )}
-                <p className="text-sm">{status.message}</p>
-              </div>
+                <AlertDescription>{status.message}</AlertDescription>
+              </Alert>
             )}
 
-            <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
-              <h3 className="text-sm font-medium text-yellow-800 mb-2">Important Information</h3>
-              <ul className="text-sm text-yellow-700 space-y-1 list-disc list-inside">
-                <li>Account deletion is permanent and cannot be undone</li>
-                <li>All your data, including notification history, will be deleted</li>
-                <li>You will receive a confirmation email before deletion</li>
-                <li>Processing may take up to 30 days</li>
-              </ul>
-            </div>
+            {/* Warning card */}
+            <Card className="bg-amber-500/10 border-amber-500/20 mb-6">
+              <CardContent className="p-5">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-300 mb-2">
+                      Important Information
+                    </h3>
+                    <ul className="text-sm text-amber-900/80 dark:text-amber-200/80 space-y-1 list-disc list-inside">
+                      <li>
+                        Account deletion is permanent and cannot be undone
+                      </li>
+                      <li>
+                        All your data, including notification history, will be
+                        deleted
+                      </li>
+                      <li>
+                        You will receive a confirmation email before deletion
+                      </li>
+                      <li>Processing may take up to 30 days</li>
+                    </ul>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                  Email Address <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  required
-                  value={formData.email}
-                  onChange={handleChange}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="your.email@example.com"
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  The email address associated with your account
-                </p>
-              </div>
+            {/* Form card */}
+            <Card className="bg-card border-border">
+              <CardContent className="p-6">
+                <form onSubmit={handleSubmit} className="space-y-6">
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="email"
+                      className="block text-sm font-medium text-foreground"
+                    >
+                      Email Address <span className="text-destructive">*</span>
+                    </label>
+                    <Input
+                      type="email"
+                      id="email"
+                      name="email"
+                      required
+                      value={formData.email}
+                      onChange={handleChange}
+                      placeholder="your.email@example.com"
+                      className="bg-background border-border text-foreground placeholder:text-muted-foreground"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      The email address associated with your account
+                    </p>
+                  </div>
 
-              <div>
-                <label htmlFor="username" className="block text-sm font-medium text-gray-700">
-                  Username <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  id="username"
-                  name="username"
-                  required
-                  value={formData.username}
-                  onChange={handleChange}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Your username"
-                />
-              </div>
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="username"
+                      className="block text-sm font-medium text-foreground"
+                    >
+                      Username <span className="text-destructive">*</span>
+                    </label>
+                    <Input
+                      type="text"
+                      id="username"
+                      name="username"
+                      required
+                      value={formData.username}
+                      onChange={handleChange}
+                      placeholder="Your username"
+                      className="bg-background border-border text-foreground placeholder:text-muted-foreground"
+                    />
+                  </div>
 
-              <div>
-                <label htmlFor="reason" className="block text-sm font-medium text-gray-700">
-                  Reason for Deletion (Optional)
-                </label>
-                <textarea
-                  id="reason"
-                  name="reason"
-                  rows="4"
-                  value={formData.reason}
-                  onChange={handleChange}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Please tell us why you're deleting your account (optional)"
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  Your feedback helps us improve our service
-                </p>
-              </div>
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="reason"
+                      className="block text-sm font-medium text-foreground"
+                    >
+                      Reason for Deletion (Optional)
+                    </label>
+                    <Textarea
+                      id="reason"
+                      name="reason"
+                      rows={4}
+                      value={formData.reason}
+                      onChange={handleChange}
+                      placeholder="Please tell us why you're deleting your account (optional)"
+                      className="bg-background border-border text-foreground placeholder:text-muted-foreground"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Your feedback helps us improve our service
+                    </p>
+                  </div>
 
-              <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-                <a
-                  href="/"
-                  className="text-sm text-gray-600 hover:text-gray-900"
-                >
-                  Cancel
-                </a>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  {isSubmitting ? 'Submitting...' : 'Request Account Deletion'}
-                </button>
-              </div>
-            </form>
-          </div>
+                  <div className="flex items-center justify-between pt-4 border-t border-border">
+                    <a
+                      href="/"
+                      className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <ArrowLeft className="w-4 h-4 mr-1" />
+                      Cancel
+                    </a>
+                    <Button
+                      type="submit"
+                      disabled={isSubmitting}
+                      variant="destructive"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      {isSubmitting
+                        ? "Submitting..."
+                        : "Request Account Deletion"}
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          </motion.div>
         </div>
-      </div>
+      </section>
     </Layout>
   );
 };

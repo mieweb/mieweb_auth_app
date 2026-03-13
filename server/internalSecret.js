@@ -1,4 +1,4 @@
-import { Random } from 'meteor/random';
+import { Random } from "meteor/random";
 
 /**
  * Shared secret used by server-to-server calls (e.g. device approval
@@ -11,8 +11,8 @@ import { Random } from 'meteor/random';
  */
 if (!process.env.INTERNAL_SERVER_SECRET) {
   console.warn(
-    '[internalSecret] INTERNAL_SERVER_SECRET env var is not set \u2013 generating a random per-process secret. '
-    + 'This is fine for single-instance / local dev but will break internal calls in a multi-instance deployment.'
+    "[internalSecret] INTERNAL_SERVER_SECRET env var is not set \u2013 generating a random per-process secret. " +
+      "This is fine for single-instance / local dev but will break internal calls in a multi-instance deployment.",
   );
 }
 

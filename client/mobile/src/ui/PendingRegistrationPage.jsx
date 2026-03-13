@@ -1,92 +1,97 @@
-import React from 'react';
-import { useLocation, Link } from 'react-router-dom';
-import { openSupportLink } from '../../../../utils/openExternal';
+import React, { useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { openSupportLink } from "../../../../utils/openExternal";
+import { Clock, ShieldCheck, RefreshCw, Home, LifeBuoy } from "lucide-react";
+import { Button, Badge, Alert, AlertDescription } from "@mieweb/ui";
 
 const PendingRegistrationPage = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   const { message, approvalType } = location.state || {
-    message: 'Your registration is pending approval.',
-    approvalType: 'admin'
+    message: "Your registration is pending approval.",
+    approvalType: "admin",
+  };
+
+  const isAdmin = approvalType === "admin";
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    window.location.reload();
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
-      <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full text-center">
-        <h2 className="text-2xl font-bold mb-4">Registration Pending</h2>
-        
-        <div className="mb-6">
-          {approvalType === 'admin' ? (
-            <svg 
-              className="mx-auto h-16 w-16 text-yellow-500" 
-              fill="none" 
-              viewBox="0 0 24 24" 
-              stroke="currentColor"
-            >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" 
-              />
-            </svg>
-          ) : (
-            <svg 
-              className="mx-auto h-16 w-16 text-blue-500" 
-              fill="none" 
-              viewBox="0 0 24 24" 
-              stroke="currentColor"
-            >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" 
-              />
-            </svg>
-          )}
-        </div>
-        
-        <p className="text-gray-700 mb-6">{message}</p>
-        
-        <div className="mb-4">
-          <p className="text-sm text-gray-600">
-            {approvalType === 'admin' 
-              ? 'An administrator will review your request shortly.' 
-              : 'Your email verification is being processed.'}
-          </p>
-        </div>
-        
-        <div className="border-t border-gray-200 pt-4">
-          <div className="flex flex-col space-y-3">
-            <Link 
-              to="/login" 
-              className="text-blue-600 hover:text-blue-800 font-medium"
-            >
-              Return to Home
-            </Link>
-            
-            <button 
-              onClick={() => window.location.reload()} 
-              className="text-gray-600 hover:text-gray-800 text-sm"
-            >
-              Refresh Status
-            </button>
-            
-            <button 
-              onClick={() => openSupportLink()} 
-              className="text-gray-600 hover:text-gray-800 text-sm"
-            >
-              Contact Support
-            </button>
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
+      <div className="max-w-md w-full space-y-6 bg-card text-card-foreground p-8 rounded-3xl shadow-xl border border-border">
+        {/* Header */}
+        <div className="text-center space-y-3">
+          <div
+            className={`mx-auto w-14 h-14 rounded-2xl flex items-center justify-center ${
+              isAdmin ? "bg-warning/10" : "bg-primary/10"
+            }`}
+          >
+            {isAdmin ? (
+              <Clock className="h-7 w-7 text-warning" />
+            ) : (
+              <ShieldCheck className="h-7 w-7 text-primary" />
+            )}
           </div>
+          <h2 className="text-2xl font-bold text-foreground">
+            Registration Pending
+          </h2>
+          <Badge variant="warning" size="sm">
+            Awaiting Approval
+          </Badge>
+        </div>
+
+        {/* Status message */}
+        <Alert variant="warning">
+          <AlertDescription>
+            <p>{message}</p>
+            <p className="mt-1 text-xs opacity-75">
+              {isAdmin
+                ? "An administrator will review your request shortly."
+                : "Your email verification is being processed."}
+            </p>
+          </AlertDescription>
+        </Alert>
+
+        {/* Actions */}
+        <div className="space-y-3">
+          <Button
+            onClick={() => navigate("/login")}
+            fullWidth
+            leftIcon={<Home className="h-4 w-4" />}
+          >
+            Return to Home
+          </Button>
+
+          <Button
+            variant="outline"
+            fullWidth
+            onClick={handleRefresh}
+            isLoading={isRefreshing}
+            loadingText="Refreshing…"
+            leftIcon={<RefreshCw className="h-4 w-4" />}
+          >
+            Refresh Status
+          </Button>
+
+          <Button
+            variant="ghost"
+            fullWidth
+            onClick={() => openSupportLink()}
+            leftIcon={<LifeBuoy className="h-4 w-4" />}
+          >
+            Contact Support
+          </Button>
         </div>
       </div>
-      
-      <div className="mt-8 text-sm text-gray-500">
-        <p>
-          If you believe this is an error, please contact our support team.
-        </p>
-      </div>
+
+      <p className="mt-6 text-xs text-muted-foreground text-center">
+        If you believe this is an error, please contact our support team.
+      </p>
     </div>
   );
 };

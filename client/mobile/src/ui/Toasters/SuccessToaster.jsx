@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const SuccessToaster = ({ message, onClose }) => {
