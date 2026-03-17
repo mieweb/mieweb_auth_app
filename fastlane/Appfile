@@ -1,0 +1,2 @@
+app_identifier(ENV.fetch("IOS_APP_IDENTIFIER", "org.mieweb.os.dev"))
+team_id(ENV["APPLE_TEAM_ID"])
