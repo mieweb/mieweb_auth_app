@@ -77,6 +77,9 @@ jobs:
           ruby-version: '3.2'
           bundler-cache: true
 
+      - name: Install Ruby gems
+        run: bundle install
+
       - name: Extract version from tag
         id: version
         run: |
@@ -283,6 +286,9 @@ jobs:
         with:
           ruby-version: '3.2'
           bundler-cache: true
+
+      - name: Install Ruby gems
+        run: bundle install
 
       - name: Install Meteor
         run: |
