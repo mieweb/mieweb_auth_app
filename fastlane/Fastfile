@@ -1,5 +1,6 @@
 require "fileutils"
 require "shellwords"
+require "tmpdir"
 
 default_platform(:ios)
 
@@ -25,6 +26,18 @@ def release_notes_for(locale, file_path)
   return nil if text.empty?
 
   [{ language: locale, text: text }]
+end
+
+def android_metadata_path(locale, file_path)
+  notes = release_notes_for(locale, file_path)
+  return nil if notes.nil? || notes.empty?
+
+  Dir.mktmpdir("fastlane-android-metadata") do |tmp_dir|
+    locale_dir = File.join(tmp_dir, locale, "changelogs")
+    FileUtils.mkdir_p(locale_dir)
+    File.write(File.join(locale_dir, "default.txt"), notes.first[:text])
+    yield tmp_dir
+  end
 end
 
 def resolve_android_aab(search_root)
@@ -87,17 +100,22 @@ platform :android do
 
     FileUtils.cp(unsigned_aab, output_aab_path)
 
-    upload_to_play_store(
+    upload_options = {
       json_key_data: ENV.fetch("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON"),
       package_name: package_name,
       aab: output_aab_path,
       track: track,
       release_status: "completed",
       version_name: version_name,
-      release_notes: release_notes_for(release_notes_locale, release_notes_path),
       skip_upload_images: true,
       skip_upload_screenshots: true
-    )
+    }
+
+    android_metadata_path(release_notes_locale, release_notes_path) do |metadata_path|
+      upload_to_play_store(upload_options.merge(metadata_path: metadata_path))
+    end
+
+    upload_to_play_store(upload_options) unless release_notes_for(release_notes_locale, release_notes_path)
   end
 end
 
