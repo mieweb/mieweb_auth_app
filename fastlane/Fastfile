@@ -64,7 +64,8 @@ platform :android do
     key_password = required_option!(options, :key_password)
     keystore_alias = required_option!(options, :keystore_alias)
     package_name = required_option!(options, :package_name)
-    release_name = required_option!(options, :release_name)
+    version_name = options[:version_name].to_s.strip
+    version_name = required_option!(options, :release_name) if version_name.empty?
     track = options[:track].to_s.empty? ? "internal" : options[:track].to_s
     release_notes_path = options[:release_notes_path].to_s
     release_notes_locale = options[:release_notes_locale].to_s.empty? ? "en-US" : options[:release_notes_locale].to_s
@@ -92,7 +93,7 @@ platform :android do
       aab: output_aab_path,
       track: track,
       release_status: "completed",
-      release_name: release_name,
+      version_name: version_name,
       release_notes: release_notes_for(release_notes_locale, release_notes_path),
       skip_upload_images: true,
       skip_upload_screenshots: true

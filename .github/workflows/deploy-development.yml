@@ -80,6 +80,9 @@ jobs:
       - name: Install Ruby gems
         run: bundle install
 
+      - name: Install Ruby gems
+        run: bundle install
+
       - name: Extract version from tag
         id: version
         run: |
@@ -349,7 +352,7 @@ jobs:
             key_password:"${{ secrets.ANDROID_KEY_PASSWORD }}" \
             keystore_alias:"${{ secrets.ANDROID_KEYSTORE_ALIAS }}" \
             package_name:"org.mieweb.os.dev" \
-            release_name:"MIEAuth Dev v${APP_VERSION}" \
+            version_name:"MIEAuth Dev v${APP_VERSION}" \
             track:"internal" \
             release_notes_path:"distribution/whatsnew/en-US/default.txt" \
             release_notes_locale:"en-US"
@@ -391,6 +394,9 @@ jobs:
         with:
           ruby-version: '3.2'
           bundler-cache: true
+
+      - name: Install Ruby gems
+        run: bundle install
 
       - name: Install Meteor
         run: |
