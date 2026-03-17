@@ -3,32 +3,43 @@ require "shellwords"
 
 default_platform(:ios)
 
+PROJECT_ROOT = File.expand_path("..", __dir__)
+
 def required_option!(options, key)
   value = options[key]
   UI.user_error!("Missing option: #{key}") if value.nil? || value.to_s.strip.empty?
   value.to_s
 end
 
-def release_notes_for(locale, file_path)
-  return nil if file_path.nil? || file_path.empty? || !File.exist?(file_path)
+def project_path(path)
+  return path if path.nil? || path.empty?
 
-  text = File.read(file_path).strip
+  File.expand_path(path, PROJECT_ROOT)
+end
+
+def release_notes_for(locale, file_path)
+  resolved_path = project_path(file_path)
+  return nil if resolved_path.nil? || resolved_path.empty? || !File.exist?(resolved_path)
+
+  text = File.read(resolved_path).strip
   return nil if text.empty?
 
   [{ language: locale, text: text }]
 end
 
 def resolve_android_aab(search_root)
-  matches = Dir.glob(File.join(search_root, "**", "*.aab"))
+  resolved_root = project_path(search_root)
+  matches = Dir.glob(File.join(resolved_root, "**", "*.aab"))
   UI.user_error!("No AAB file found under #{search_root}") if matches.empty?
   matches.first
 end
 
 def resolve_workspace(workspace_root)
-  preferred = Dir.glob(File.join(workspace_root, "**", "*.xcworkspace")).reject do |path|
+  resolved_root = project_path(workspace_root)
+  preferred = Dir.glob(File.join(resolved_root, "**", "*.xcworkspace")).reject do |path|
     path.include?(".xcodeproj/")
   end
-  fallback = Dir.glob(File.join(workspace_root, "**", "*.xcworkspace"))
+  fallback = Dir.glob(File.join(resolved_root, "**", "*.xcworkspace"))
   workspace_path = preferred.first || fallback.first
 
   UI.user_error!("No Xcode workspace found under #{workspace_root}") if workspace_path.nil?
@@ -36,7 +47,8 @@ def resolve_workspace(workspace_root)
 end
 
 def provisioning_profile_name(profile_path)
-  plist = sh("security cms -D -i #{Shellwords.escape(profile_path)}")
+  resolved_profile = project_path(profile_path)
+  plist = sh("security cms -D -i #{Shellwords.escape(resolved_profile)}")
   match = plist.match(%r{<key>Name</key>\s*<string>([^<]+)</string>})
   UI.user_error!("Could not determine provisioning profile name from #{profile_path}") if match.nil?
   match[1]
@@ -46,8 +58,8 @@ platform :android do
   desc "Sign and publish Android AAB to Google Play"
   lane :publish_dev do |options|
     search_root = required_option!(options, :aab_search_root)
-    output_aab_path = required_option!(options, :output_aab_path)
-    keystore_path = required_option!(options, :keystore_path)
+    output_aab_path = project_path(required_option!(options, :output_aab_path))
+    keystore_path = project_path(required_option!(options, :keystore_path))
     keystore_password = required_option!(options, :keystore_password)
     key_password = required_option!(options, :key_password)
     keystore_alias = required_option!(options, :keystore_alias)
@@ -94,12 +106,12 @@ platform :ios do
     workspace_root = required_option!(options, :workspace_root)
     team_id = required_option!(options, :team_id)
     bundle_id = required_option!(options, :bundle_id)
-    certificate_path = required_option!(options, :certificate_path)
+    certificate_path = project_path(required_option!(options, :certificate_path))
     certificate_password = required_option!(options, :certificate_password)
-    provisioning_profile_path = required_option!(options, :provisioning_profile_path)
+    provisioning_profile_path = project_path(required_option!(options, :provisioning_profile_path))
     api_key_id = required_option!(options, :api_key_id)
     api_issuer_id = required_option!(options, :api_issuer_id)
-    api_key_path = required_option!(options, :api_key_path)
+    api_key_path = project_path(required_option!(options, :api_key_path))
 
     workspace_path = resolve_workspace(workspace_root)
     scheme = File.basename(workspace_path, ".xcworkspace")
