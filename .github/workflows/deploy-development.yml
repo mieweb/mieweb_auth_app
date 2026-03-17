@@ -156,6 +156,8 @@ jobs:
             .
             !.meteor/local
             !node_modules
+            !vendor/bundle
+            !vendor/bundle/**
           retention-days: 1
 
   # ─────────────────────────────────────────────
