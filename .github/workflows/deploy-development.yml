@@ -71,6 +71,12 @@ jobs:
         with:
           node-version: 20
 
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+
       - name: Extract version from tag
         id: version
         run: |
@@ -272,6 +278,12 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+
       - name: Install Meteor
         run: |
           curl https://install.meteor.com/ | sh
@@ -315,35 +327,27 @@ jobs:
       - name: Decode Keystore
         run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > mieauth-release-key.jks
 
-      - name: Sign AAB
+      - name: Sign and publish Android AAB with Fastlane
+        env:
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
         run: |
-          # Find the AAB file
-          UNSIGNED_AAB=$(find android-build -name "*.aab" -type f | head -1)
-          if [ -z "$UNSIGNED_AAB" ]; then
-            echo "ERROR: No AAB file found"
-            find android-build -type f
-            exit 1
-          fi
-          echo "Found AAB: ${UNSIGNED_AAB}"
-
-          # Sign with jarsigner
-          jarsigner -verbose \
-            -sigalg SHA256withRSA \
-            -digestalg SHA-256 \
-            -keystore mieauth-release-key.jks \
-            -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
-            -keypass "${{ secrets.ANDROID_KEY_PASSWORD }}" \
-            "$UNSIGNED_AAB" \
-            "${{ secrets.ANDROID_KEYSTORE_ALIAS }}"
-
-          # Verify
-          jarsigner -verify -verbose -certs "$UNSIGNED_AAB"
-
-          # Copy to final named file (sanitize parentheses for safe filenames)
           SAFE_VERSION=$(echo "${APP_VERSION}" | tr '()' '..')
           SIGNED_AAB="Mieauth-DEV-v${SAFE_VERSION}_${BUILD_DATE}.aab"
-          cp "$UNSIGNED_AAB" "$SIGNED_AAB"
           echo "SIGNED_AAB=${SIGNED_AAB}" >> $GITHUB_ENV
+
+          bundle exec fastlane android publish_dev \
+            aab_search_root:"android-build" \
+            output_aab_path:"${SIGNED_AAB}" \
+            keystore_path:"mieauth-release-key.jks" \
+            keystore_password:"${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
+            key_password:"${{ secrets.ANDROID_KEY_PASSWORD }}" \
+            keystore_alias:"${{ secrets.ANDROID_KEYSTORE_ALIAS }}" \
+            package_name:"org.mieweb.os.dev" \
+            release_name:"MIEAuth Dev v${APP_VERSION}" \
+            track:"internal" \
+            release_notes_path:"distribution/whatsnew/en-US/default.txt" \
+            release_notes_locale:"en-US"
+
           echo "Signed AAB: ${SIGNED_AAB}"
 
       - name: Upload AAB as Artifact
@@ -352,17 +356,6 @@ jobs:
           name: dev-signed-aab
           path: ${{ env.SIGNED_AAB }}
           retention-days: 90
-
-      - name: Upload to Google Play Store (Beta)
-        uses: r0adkll/upload-google-play@v1
-        with:
-          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
-          packageName: org.mieweb.os.dev
-          releaseFiles: ${{ env.SIGNED_AAB }}
-          track: internal
-          status: completed
-          releaseName: "MIEAuth Dev v${{ env.APP_VERSION }}"
-          whatsNewDirectory: distribution/whatsnew
 
   # ─────────────────────────────────────────────
   # Job 4: Build iOS → Archive → TestFlight
@@ -386,6 +379,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
 
       - name: Install Meteor
         run: |
@@ -428,167 +427,25 @@ jobs:
             --platforms ios \
             --server=https://mieauth-dev.os.mieweb.org
 
-      - name: Install Apple Certificate & Provisioning Profile
-        env:
-          CERT_P12_BASE64: ${{ secrets.IOS_DIST_CERT_P12_BASE64 }}
-          CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
-          PROV_PROFILE_BASE64: ${{ secrets.IOS_DEV_PROVISIONING_PROFILE_BASE64 }}
+      - name: Decode iOS signing assets
         run: |
-          # Create temporary keychain
-          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-          KEYCHAIN_PASSWORD=$(openssl rand -hex 16)
-
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          # Import certificate
-          CERT_PATH=$RUNNER_TEMP/certificate.p12
-          echo "$CERT_P12_BASE64" | base64 --decode > "$CERT_PATH"
-          security import "$CERT_PATH" \
-            -P "$CERT_PASSWORD" \
-            -A \
-            -t cert \
-            -f pkcs12 \
-            -k "$KEYCHAIN_PATH"
-          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
-
-          # Install provisioning profile
-          PROFILE_PATH=$RUNNER_TEMP/profile.mobileprovision
-          echo "$PROV_PROFILE_BASE64" | base64 --decode > "$PROFILE_PATH"
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          PROFILE_UUID=$(security cms -D -i "$PROFILE_PATH" | grep -A1 UUID | grep string | sed 's/.*<string>\(.*\)<\/string>/\1/')
-          cp "$PROFILE_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/${PROFILE_UUID}.mobileprovision
-
-          echo "KEYCHAIN_PATH=${KEYCHAIN_PATH}" >> $GITHUB_ENV
-          echo "PROFILE_UUID=${PROFILE_UUID}" >> $GITHUB_ENV
-
-      - name: Debug signing info
-        run: |
-          echo "=== Provisioning Profile Details ==="
-          PROFILE_PATH=$RUNNER_TEMP/profile.mobileprovision
-          security cms -D -i "$PROFILE_PATH" | grep -A1 "Name\|TeamIdentifier\|application-identifier\|aps-environment" || true
-          echo ""
-          echo "=== Profile Bundle ID ==="
-          security cms -D -i "$PROFILE_PATH" | grep -A2 "application-identifier" || true
-          echo ""
-          echo "=== Profile Certificates (SHA-1) ==="
-          security cms -D -i "$PROFILE_PATH" | plutil -extract DeveloperCertificates xml1 -o - - 2>/dev/null | grep "<data>" | head -3 || true
-          echo ""
-          echo "=== Keychain Certificates ==="
-          security find-identity -v -p codesigning "${{ env.KEYCHAIN_PATH }}" || true
-          echo ""
-          echo "=== Profile Type ==="
-          security cms -D -i "$PROFILE_PATH" | grep -A1 "ProvisionsAllDevices\|get-task-allow" || echo "App Store Distribution profile (no get-task-allow)"
-
-      - name: Archive iOS App
-        run: |
-          set -euo pipefail
-
-          # Install CocoaPods dependencies if Podfile exists
-          PODFILE_PATH=$(find ios-build -name "Podfile" -type f | head -1)
-          if [ -n "$PODFILE_PATH" ]; then
-            PODFILE_DIR=$(dirname "$PODFILE_PATH")
-            echo "Found Podfile at: ${PODFILE_DIR}"
-            cd "$PODFILE_DIR"
-            pod install
-            cd -
-          fi
-
-          # Find workspace - prefer CocoaPods-generated one (not inside .xcodeproj)
-          WORKSPACE_PATH=$(find ios-build -name "*.xcworkspace" -not -path "*/*.xcodeproj/*" -type d | head -1)
-          if [ -z "$WORKSPACE_PATH" ]; then
-            WORKSPACE_PATH=$(find ios-build -name "*.xcworkspace" -type d | head -1)
-          fi
-          echo "Using workspace: ${WORKSPACE_PATH}"
-
-          # Derive the app scheme from the workspace name
-          # Cordova names the workspace after the app (e.g. "MIEAuth Opensource Beta.xcworkspace")
-          echo "Available schemes:"
-          xcodebuild -workspace "$WORKSPACE_PATH" -list 2>/dev/null || true
-          SCHEME=$(basename "$WORKSPACE_PATH" .xcworkspace)
-          echo "Using app scheme: ${SCHEME}"
-
-          # Verify the scheme exists in the workspace
-          if ! xcodebuild -workspace "$WORKSPACE_PATH" -list 2>/dev/null | grep -qF "$SCHEME"; then
-            echo "ERROR: Scheme '${SCHEME}' not found in workspace"
-            exit 1
-          fi
-
-          xcodebuild archive \
-            -workspace "$WORKSPACE_PATH" \
-            -scheme "$SCHEME" \
-            -configuration Release \
-            -destination "generic/platform=iOS" \
-            -archivePath $RUNNER_TEMP/MIEAuth.xcarchive \
-            -allowProvisioningUpdates \
-            OTHER_CODE_SIGN_FLAGS="--keychain ${{ env.KEYCHAIN_PATH }}" \
-            CODE_SIGN_STYLE=Manual \
-            DEVELOPMENT_TEAM=${{ secrets.APPLE_TEAM_ID }} \
-            PROVISIONING_PROFILE_SPECIFIER="${{ env.PROFILE_UUID }}"
-
-      - name: Export iOS App
-        run: |
-          set -euo pipefail
-
-          # Create export options plist
-          cat > $RUNNER_TEMP/ExportOptions.plist << EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>method</key>
-              <string>app-store-connect</string>
-              <key>provisioningProfiles</key>
-              <dict>
-                  <key>org.mieweb.os.dev</key>
-                  <string>${{ env.PROFILE_UUID }}</string>
-              </dict>
-          </dict>
-          </plist>
-          EOF
-
-          # Write App Store Connect API key for export authentication
+          echo "${{ secrets.IOS_DIST_CERT_P12_BASE64 }}" | base64 --decode > $RUNNER_TEMP/certificate.p12
+          echo "${{ secrets.IOS_DEV_PROVISIONING_PROFILE_BASE64 }}" | base64 --decode > $RUNNER_TEMP/profile.mobileprovision
           mkdir -p ~/private_keys
           echo "${{ secrets.APPLE_API_KEY_P8_BASE64 }}" | base64 --decode > ~/private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
 
-          # Export with API authentication for App Store / TestFlight distribution
-          xcodebuild -exportArchive \
-            -archivePath $RUNNER_TEMP/MIEAuth.xcarchive \
-            -exportPath $RUNNER_TEMP/export \
-            -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath ~/private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8 \
-            -authenticationKeyID ${{ secrets.APPLE_API_KEY_ID }} \
-            -authenticationKeyIssuerID ${{ secrets.APPLE_API_ISSUER_ID }}
-
-      - name: Upload to TestFlight
-        env:
-          API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-          API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
-          API_KEY_P8_BASE64: ${{ secrets.APPLE_API_KEY_P8_BASE64 }}
+      - name: Archive and upload iOS with Fastlane
         run: |
-          # Write the API key
-          mkdir -p ~/private_keys
-          echo "$API_KEY_P8_BASE64" | base64 --decode > ~/private_keys/AuthKey_${API_KEY_ID}.p8
-
-          # Find the IPA
-          IPA_PATH=$(find $RUNNER_TEMP/export -name "*.ipa" -type f | head -1)
-          echo "Uploading IPA: ${IPA_PATH}"
-
-          # Upload to TestFlight
-          xcrun altool --upload-app \
-            --type ios \
-            --file "$IPA_PATH" \
-            --apiKey "$API_KEY_ID" \
-            --apiIssuer "$API_ISSUER_ID"
-
-          echo "iOS dev build uploaded to TestFlight"
-
-      - name: Cleanup Keychain
-        if: always()
-        run: security delete-keychain ${{ env.KEYCHAIN_PATH }} || true
+          bundle exec fastlane ios publish_dev \
+            workspace_root:"ios-build" \
+            team_id:"${{ secrets.APPLE_TEAM_ID }}" \
+            bundle_id:"org.mieweb.os.dev" \
+            certificate_path:"$RUNNER_TEMP/certificate.p12" \
+            certificate_password:"${{ secrets.IOS_DIST_CERT_PASSWORD }}" \
+            provisioning_profile_path:"$RUNNER_TEMP/profile.mobileprovision" \
+            api_key_id:"${{ secrets.APPLE_API_KEY_ID }}" \
+            api_issuer_id:"${{ secrets.APPLE_API_ISSUER_ID }}" \
+            api_key_path:"$HOME/private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8"
 
   # ─────────────────────────────────────────────
   # Job 5: Update GitHub Release with artifacts & status
@@ -631,7 +488,7 @@ jobs:
           }
 
           STATUS_SERVER=$(status_label "$SERVER" "deployed")
-          STATUS_ANDROID=$(status_label "$ANDROID" "built")
+          STATUS_ANDROID=$(status_label "$ANDROID" "published")
           STATUS_IOS=$(status_label "$IOS" "uploaded")
 
           echo "server=${STATUS_SERVER}" >> "$GITHUB_OUTPUT"

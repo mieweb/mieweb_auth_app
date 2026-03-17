@@ -1,0 +1,156 @@
+require "fileutils"
+require "shellwords"
+
+default_platform(:ios)
+
+def required_option!(options, key)
+  value = options[key]
+  UI.user_error!("Missing option: #{key}") if value.nil? || value.to_s.strip.empty?
+  value.to_s
+end
+
+def release_notes_for(locale, file_path)
+  return nil if file_path.nil? || file_path.empty? || !File.exist?(file_path)
+
+  text = File.read(file_path).strip
+  return nil if text.empty?
+
+  [{ language: locale, text: text }]
+end
+
+def resolve_android_aab(search_root)
+  matches = Dir.glob(File.join(search_root, "**", "*.aab"))
+  UI.user_error!("No AAB file found under #{search_root}") if matches.empty?
+  matches.first
+end
+
+def resolve_workspace(workspace_root)
+  preferred = Dir.glob(File.join(workspace_root, "**", "*.xcworkspace")).reject do |path|
+    path.include?(".xcodeproj/")
+  end
+  fallback = Dir.glob(File.join(workspace_root, "**", "*.xcworkspace"))
+  workspace_path = preferred.first || fallback.first
+
+  UI.user_error!("No Xcode workspace found under #{workspace_root}") if workspace_path.nil?
+  workspace_path
+end
+
+def provisioning_profile_name(profile_path)
+  plist = sh("security cms -D -i #{Shellwords.escape(profile_path)}")
+  match = plist.match(%r{<key>Name</key>\s*<string>([^<]+)</string>})
+  UI.user_error!("Could not determine provisioning profile name from #{profile_path}") if match.nil?
+  match[1]
+end
+
+platform :android do
+  desc "Sign and publish Android AAB to Google Play"
+  lane :publish_dev do |options|
+    search_root = required_option!(options, :aab_search_root)
+    output_aab_path = required_option!(options, :output_aab_path)
+    keystore_path = required_option!(options, :keystore_path)
+    keystore_password = required_option!(options, :keystore_password)
+    key_password = required_option!(options, :key_password)
+    keystore_alias = required_option!(options, :keystore_alias)
+    package_name = required_option!(options, :package_name)
+    release_name = required_option!(options, :release_name)
+    track = options[:track].to_s.empty? ? "internal" : options[:track].to_s
+    release_notes_path = options[:release_notes_path].to_s
+    release_notes_locale = options[:release_notes_locale].to_s.empty? ? "en-US" : options[:release_notes_locale].to_s
+
+    unsigned_aab = resolve_android_aab(search_root)
+
+    sh(
+      "jarsigner -verbose " \
+      "-sigalg SHA256withRSA " \
+      "-digestalg SHA-256 " \
+      "-keystore #{Shellwords.escape(keystore_path)} " \
+      "-storepass #{Shellwords.escape(keystore_password)} " \
+      "-keypass #{Shellwords.escape(key_password)} " \
+      "#{Shellwords.escape(unsigned_aab)} " \
+      "#{Shellwords.escape(keystore_alias)}"
+    )
+
+    sh("jarsigner -verify -verbose -certs #{Shellwords.escape(unsigned_aab)}")
+
+    FileUtils.cp(unsigned_aab, output_aab_path)
+
+    upload_to_play_store(
+      json_key_data: ENV.fetch("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON"),
+      package_name: package_name,
+      aab: output_aab_path,
+      track: track,
+      release_status: "completed",
+      release_name: release_name,
+      release_notes: release_notes_for(release_notes_locale, release_notes_path),
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+end
+
+platform :ios do
+  desc "Archive and upload the iOS app to TestFlight"
+  lane :publish_dev do |options|
+    workspace_root = required_option!(options, :workspace_root)
+    team_id = required_option!(options, :team_id)
+    bundle_id = required_option!(options, :bundle_id)
+    certificate_path = required_option!(options, :certificate_path)
+    certificate_password = required_option!(options, :certificate_password)
+    provisioning_profile_path = required_option!(options, :provisioning_profile_path)
+    api_key_id = required_option!(options, :api_key_id)
+    api_issuer_id = required_option!(options, :api_issuer_id)
+    api_key_path = required_option!(options, :api_key_path)
+
+    workspace_path = resolve_workspace(workspace_root)
+    scheme = File.basename(workspace_path, ".xcworkspace")
+    provisioning_profile = provisioning_profile_name(provisioning_profile_path)
+    podfile_path = File.join(File.dirname(workspace_path), "Podfile")
+
+    setup_ci if ENV["CI"]
+
+    import_certificate(
+      certificate_path: certificate_path,
+      certificate_password: certificate_password
+    )
+
+    install_provisioning_profile(path: provisioning_profile_path)
+
+    cocoapods(
+      podfile: podfile_path,
+      clean_install: true,
+      silent: false
+    ) if File.exist?(podfile_path)
+
+    api_key = app_store_connect_api_key(
+      key_id: api_key_id,
+      issuer_id: api_issuer_id,
+      key_filepath: api_key_path,
+      in_house: false
+    )
+
+    build_app(
+      workspace: workspace_path,
+      scheme: scheme,
+      configuration: "Release",
+      destination: "generic/platform=iOS",
+      export_method: "app-store",
+      export_team_id: team_id,
+      export_options: {
+        signingStyle: "manual",
+        provisioningProfiles: {
+          bundle_id => provisioning_profile
+        }
+      },
+      xcargs: [
+        "DEVELOPMENT_TEAM=#{team_id}",
+        "CODE_SIGN_STYLE=Manual",
+        "PROVISIONING_PROFILE_SPECIFIER=#{Shellwords.escape(provisioning_profile)}"
+      ].join(" ")
+    )
+
+    upload_to_testflight(
+      api_key: api_key,
+      skip_waiting_for_build_processing: true
+    )
+  end
+end

@@ -10,6 +10,8 @@ _build
 .rsdoctor
 
 # Logs
+vendor/bundle/
+.bundle/
 logs
 *.log
 npm-debug.log*
@@ -102,6 +104,8 @@ out
 .nuxt
 dist
 
+fastlane/report.xml
+fastlane/Preview.html
 # Gatsby files
 .cache/
 # Comment in the public line in if your project uses Gatsby and not Next.js
