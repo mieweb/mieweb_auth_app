@@ -67,6 +67,25 @@ def provisioning_profile_name(profile_path)
   match[1]
 end
 
+def ci_keychain_path
+  path = Actions.lane_context[Fastlane::Actions::SharedValues::KEYCHAIN_PATH]
+  return nil if path.nil? || path.empty?
+
+  File.expand_path(path)
+end
+
+def has_distribution_identity?(keychain_path, team_id)
+  return false if keychain_path.nil? || keychain_path.empty?
+
+  identities = sh(
+    "security find-identity -v -p codesigning #{Shellwords.escape(keychain_path)}",
+    log: false,
+    error_callback: proc { |_result| return false }
+  )
+
+  identities.include?("Apple Distribution") && identities.include?("(#{team_id})")
+end
+
 platform :android do
   desc "Sign and publish Android AAB to Google Play"
   lane :publish_dev do |options|
@@ -140,6 +159,7 @@ platform :ios do
     setup_ci if ENV["CI"]
     keychain_name = ENV["MATCH_KEYCHAIN_NAME"]
     keychain_password = ENV["MATCH_KEYCHAIN_PASSWORD"]
+    keychain_path = ci_keychain_path
 
     import_certificate(
       certificate_path: certificate_path,
@@ -147,6 +167,13 @@ platform :ios do
       keychain_name: keychain_name,
       keychain_password: keychain_password
     )
+
+    unless has_distribution_identity?(keychain_path, team_id)
+      UI.user_error!(
+        "Apple Distribution certificate import failed. Verify IOS_DIST_CERT_P12_BASE64 and IOS_DIST_CERT_PASSWORD. " \
+        "No Apple Distribution identity for team #{team_id} was found in #{keychain_path || keychain_name}."
+      )
+    end
 
     install_provisioning_profile(path: provisioning_profile_path)
 
@@ -168,9 +195,11 @@ platform :ios do
       scheme: scheme,
       configuration: "Release",
       destination: "generic/platform=iOS",
+      codesigning_identity: "Apple Distribution",
       export_method: "app-store",
       export_team_id: team_id,
       export_options: {
+        signingCertificate: "Apple Distribution",
         signingStyle: "manual",
         provisioningProfiles: {
           bundle_id => provisioning_profile
@@ -179,6 +208,8 @@ platform :ios do
       xcargs: [
         "DEVELOPMENT_TEAM=#{team_id}",
         "CODE_SIGN_STYLE=Manual",
+        "CODE_SIGN_IDENTITY=Apple Distribution",
+        "CODE_SIGN_IDENTITY[sdk=iphoneos*]=Apple Distribution",
         "PROVISIONING_PROFILE_SPECIFIER=#{Shellwords.escape(provisioning_profile)}"
       ].join(" ")
     )
