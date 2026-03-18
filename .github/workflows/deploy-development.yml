@@ -80,9 +80,6 @@ jobs:
       - name: Install Ruby gems
         run: bundle install
 
-      - name: Install Ruby gems
-        run: bundle install
-
       - name: Extract version from tag
         id: version
         run: |
@@ -477,7 +474,6 @@ jobs:
             team_id:"${{ secrets.APPLE_TEAM_ID }}" \
             bundle_id:"org.mieweb.os.dev" \
             certificate_path:"$RUNNER_TEMP/certificate.p12" \
-            certificate_password:"$IOS_CERTIFICATE_PASSWORD" \
             provisioning_profile_path:"$RUNNER_TEMP/profile.mobileprovision" \
             api_key_id:"${{ secrets.APPLE_API_KEY_ID }}" \
             api_issuer_id:"${{ secrets.APPLE_API_ISSUER_ID }}" \
