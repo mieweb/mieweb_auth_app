@@ -61,9 +61,10 @@ end
 
 def provisioning_profile_name(profile_path)
   resolved_profile = project_path(profile_path)
-  plist = sh("security cms -D -i #{Shellwords.escape(resolved_profile)}")
+  plist = sh("security cms -D -i #{Shellwords.escape(resolved_profile)}", log: false)
   match = plist.match(%r{<key>Name</key>\s*<string>([^<]+)</string>})
   UI.user_error!("Could not determine provisioning profile name from #{profile_path}") if match.nil?
+  UI.message("Detected provisioning profile: #{match[1]}")
   match[1]
 end
 
@@ -105,17 +106,20 @@ platform :android do
     unsigned_aab = resolve_android_aab(search_root)
 
     sh(
-      "jarsigner -verbose " \
+      "jarsigner " \
       "-sigalg SHA256withRSA " \
       "-digestalg SHA-256 " \
       "-keystore #{Shellwords.escape(keystore_path)} " \
       "-storepass #{Shellwords.escape(keystore_password)} " \
       "-keypass #{Shellwords.escape(key_password)} " \
       "#{Shellwords.escape(unsigned_aab)} " \
-      "#{Shellwords.escape(keystore_alias)}"
+      "#{Shellwords.escape(keystore_alias)}",
+      log: false
     )
+    UI.success("AAB signed successfully")
 
-    sh("jarsigner -verify -verbose -certs #{Shellwords.escape(unsigned_aab)}")
+    sh("jarsigner -verify #{Shellwords.escape(unsigned_aab)}", log: false)
+    UI.success("AAB signature verified")
 
     FileUtils.cp(unsigned_aab, output_aab_path)
 
@@ -145,7 +149,9 @@ platform :ios do
     team_id = required_option!(options, :team_id)
     bundle_id = required_option!(options, :bundle_id)
     certificate_path = project_path(required_option!(options, :certificate_path))
-    certificate_password = required_option!(options, :certificate_password)
+    certificate_password = options[:certificate_password].to_s
+    certificate_password = ENV.fetch("IOS_CERTIFICATE_PASSWORD", "") if certificate_password.empty?
+    UI.user_error!("Missing certificate password: set IOS_CERTIFICATE_PASSWORD env var or pass certificate_password option") if certificate_password.empty?
     provisioning_profile_path = project_path(required_option!(options, :provisioning_profile_path))
     api_key_id = required_option!(options, :api_key_id)
     api_issuer_id = required_option!(options, :api_issuer_id)
@@ -180,7 +186,7 @@ platform :ios do
     cocoapods(
       podfile: podfile_path,
       clean_install: true,
-      silent: false
+      silent: true
     ) if File.exist?(podfile_path)
 
     api_key = app_store_connect_api_key(
