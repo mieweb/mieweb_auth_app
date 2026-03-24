@@ -155,6 +155,21 @@ def publish_ios(options)
     )
   end
 
+  xcodeproj_path = workspace_path.sub('.xcworkspace', '.xcodeproj')
+  if File.exist?(xcodeproj_path)
+    # Use environment variables from match to update provisioning settings
+    profile_name = ENV["sigh_#{bundle_id}_appstore_profile-name"] || provisioning_profile
+    
+    update_code_signing_settings(
+      path: xcodeproj_path,
+      use_automatic_signing: false,
+      team_id: team_id,
+      code_sign_identity: "Apple Distribution",
+      profile_name: profile_name,
+      bundle_identifier: bundle_id
+    )
+  end
+
   build_app(
     workspace: workspace_path,
     scheme: scheme,
@@ -166,18 +181,11 @@ def publish_ios(options)
     export_team_id: team_id,
     xcodebuild_formatter: "",
     export_options: {
-      signingCertificate: "Apple Distribution",
-      signingStyle: "manual",
       provisioningProfiles: {
         bundle_id => provisioning_profile
       }
     },
-    skip_profile_detection: false,
-    xcargs: [
-      "DEVELOPMENT_TEAM=#{team_id}",
-      "CODE_SIGN_STYLE=Manual",
-      "PROVISIONING_PROFILE_SPECIFIER=#{Shellwords.escape(provisioning_profile)}"
-    ].join(" ")
+    xcargs: "DEVELOPMENT_TEAM=#{team_id}"
   )
 
   upload_to_testflight(
