@@ -10,6 +10,10 @@ shallow_clone(true)
 readonly(ENV["CI"].to_s == "true")
 skip_docs(true)
 
+# Force legacy openssl enc (MD5 key derivation) for cross-platform compatibility.
+# OpenSSL 3.x defaults to PBKDF2, which LibreSSL (on GitHub macOS runners) cannot decrypt.
+force_legacy_encryption(true)
+
 app_identifier([ENV.fetch("IOS_APP_IDENTIFIER", "org.mieweb.os.dev")])
 
 git_basic_authorization(ENV["MATCH_GIT_BASIC_AUTHORIZATION"]) if ENV["MATCH_GIT_BASIC_AUTHORIZATION"]
