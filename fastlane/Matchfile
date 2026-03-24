@@ -1,0 +1,16 @@
+match_git_url = ENV["MATCH_GIT_URL"].to_s.strip
+raise "Missing MATCH_GIT_URL" if match_git_url.empty?
+
+match_git_branch = ENV["MATCH_GIT_BRANCH"].to_s.strip
+
+storage_mode("git")
+git_url(match_git_url)
+git_branch(match_git_branch.empty? ? "main" : match_git_branch)
+shallow_clone(true)
+readonly(ENV["CI"].to_s == "true")
+skip_docs(true)
+
+app_identifier([ENV.fetch("IOS_APP_IDENTIFIER", "org.mieweb.os.dev")])
+
+git_basic_authorization(ENV["MATCH_GIT_BASIC_AUTHORIZATION"]) if ENV["MATCH_GIT_BASIC_AUTHORIZATION"]
+ 

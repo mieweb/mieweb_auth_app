@@ -335,7 +335,7 @@ jobs:
       - name: Decode Keystore
         run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > mieauth-release-key.jks
 
-      - name: Sign and upload Android with Fastlane
+      - name: Sign and publish Android AAB with Fastlane
         env:
           ANDROID_KS_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KS_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
@@ -440,41 +440,24 @@ jobs:
             --platforms ios \
             --server=https://mieauth-dev.os.mieweb.org
 
-      - name: Decode iOS signing assets
+      - name: Decode App Store Connect API key
         run: |
-          echo "${{ secrets.IOS_DIST_CERT_P12_BASE64 }}" | base64 --decode > $RUNNER_TEMP/certificate.p12
-          echo "${{ secrets.IOS_DEV_PROVISIONING_PROFILE_BASE64 }}" | base64 --decode > $RUNNER_TEMP/profile.mobileprovision
           mkdir -p ~/private_keys
           echo "${{ secrets.APPLE_API_KEY_P8_BASE64 }}" | base64 --decode > ~/private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
 
-      - name: Validate iOS signing certificate
-        env:
-          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
-        run: |
-          echo "Validating .p12 certificate file..."
-          file_size=$(wc -c < "$RUNNER_TEMP/certificate.p12" | tr -d ' ')
-          echo "Certificate file size: ${file_size} bytes"
-          if [ "$file_size" -lt 100 ]; then
-            echo "::error::Certificate file is too small (${file_size} bytes). Check IOS_DIST_CERT_P12_BASE64 secret."
-            exit 1
-          fi
-          openssl pkcs12 -in "$RUNNER_TEMP/certificate.p12" -passin pass:"$IOS_CERTIFICATE_PASSWORD" -nokeys -noout 2>&1 || {
-            echo "::error::Failed to read .p12 certificate. Either IOS_DIST_CERT_PASSWORD is wrong or the .p12 file is corrupted/incompatible."
-            echo "If the .p12 was exported with OpenSSL 3.x, try re-exporting with the -legacy flag."
-            exit 1
-          }
-          echo "Certificate validated successfully."
-
       - name: Archive and upload iOS with Fastlane
         env:
-          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          IOS_APP_IDENTIFIER: org.mieweb.os.dev
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+          MATCH_GIT_URL: ${{ vars.MATCH_GIT_URL }}
+          MATCH_GIT_BRANCH: ${{ vars.MATCH_GIT_BRANCH }}
         run: |
           bundle exec fastlane ios publish_dev \
             workspace_root:"ios-build" \
             team_id:"${{ secrets.APPLE_TEAM_ID }}" \
             bundle_id:"org.mieweb.os.dev" \
-            certificate_path:"$RUNNER_TEMP/certificate.p12" \
-            provisioning_profile_path:"$RUNNER_TEMP/profile.mobileprovision" \
             api_key_id:"${{ secrets.APPLE_API_KEY_ID }}" \
             api_issuer_id:"${{ secrets.APPLE_API_ISSUER_ID }}" \
             api_key_path:"$HOME/private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8"
