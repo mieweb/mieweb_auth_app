@@ -462,6 +462,16 @@ jobs:
             api_issuer_id:"${{ secrets.APPLE_API_ISSUER_ID }}" \
             api_key_path:"$HOME/private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8"
 
+      - name: Upload iOS build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-ios-build-logs
+          path: |
+            fastlane/logs/**
+            ~/Library/Logs/gym/**
+          if-no-files-found: warn
+
   # ─────────────────────────────────────────────
   # Job 5: Update GitHub Release with artifacts & status
   # Runs after ALL jobs — reports even if one platform failed
