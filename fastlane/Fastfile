@@ -134,12 +134,52 @@ def publish_ios(options)
   )
 
   setup_ci if ENV["CI"]
+
+  # ── DEBUG: Pre-match environment ──
+  UI.important("═══ DEBUG: Pre-match diagnostics ═══")
+  UI.message("Ruby OpenSSL version: #{OpenSSL::OPENSSL_VERSION}")
+  UI.message("Ruby OpenSSL library version: #{OpenSSL::OPENSSL_LIBRARY_VERSION}")
+  sh("which openssl", log: false) rescue nil
+  sh("openssl version", log: false) rescue nil
+  sh("security find-identity -v -p codesigning", log: false) rescue nil
+  UI.important("═══ DEBUG: Running match now ═══")
+
   match(
     type: "appstore",
     app_identifier: bundle_id,
     api_key: api_key,
+    verbose: true,
     readonly: ENV["CI"].to_s == "true"
   )
+
+  # ── DEBUG: Post-match diagnostics ──
+  UI.important("═══ DEBUG: Post-match diagnostics ═══")
+
+  # Check keychain identities after match
+  sh("security find-identity -v -p codesigning", log: false) rescue nil
+
+  # Check what keychains are in the search list
+  sh("security list-keychains", log: false) rescue nil
+
+  # Check match environment variables that were set
+  match_env_vars = ENV.select { |k, _| k.start_with?("sigh_") || k.start_with?("MATCH_") }
+  match_env_vars.each do |k, v|
+    # Don't print sensitive values
+    if k.include?("PASSWORD") || k.include?("AUTHORIZATION")
+      UI.message("  #{k} = [REDACTED]")
+    else
+      UI.message("  #{k} = #{v}")
+    end
+  end
+
+  # Check if match downloaded any certs/profiles
+  match_dir = File.join(Dir.tmpdir, "d*")
+  Dir.glob(match_dir).sort.last(3).each do |d|
+    UI.message("Temp dir: #{d}")
+    Dir.glob(File.join(d, "**", "*")).each { |f| UI.message("  #{f} (#{File.size(f)} bytes)") } rescue nil
+  end
+
+  UI.important("═══ DEBUG: End post-match diagnostics ═══")
 
   provisioning_profiles = Actions.lane_context[Fastlane::Actions::SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING] || {}
   provisioning_profile = provisioning_profiles[bundle_id]

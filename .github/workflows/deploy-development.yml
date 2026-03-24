@@ -445,6 +445,27 @@ jobs:
           mkdir -p ~/private_keys
           echo "${{ secrets.APPLE_API_KEY_P8_BASE64 }}" | base64 --decode > ~/private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
 
+      - name: "DEBUG: CI signing environment"
+        run: |
+          echo "=== OpenSSL versions ==="
+          which openssl
+          openssl version
+          /usr/bin/openssl version 2>/dev/null || true
+          ruby -ropenssl -e 'puts "Ruby OpenSSL: #{OpenSSL::OPENSSL_VERSION}"; puts "Ruby OpenSSL lib: #{OpenSSL::OPENSSL_LIBRARY_VERSION}"'
+
+          echo ""
+          echo "=== Keychain state before match ==="
+          security list-keychains
+          security find-identity -v -p codesigning || true
+
+          echo ""
+          echo "=== macOS version ==="
+          sw_vers
+
+          echo ""
+          echo "=== Xcode version ==="
+          xcodebuild -version
+
       - name: Archive and upload iOS with Fastlane
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
