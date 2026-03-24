@@ -7,6 +7,7 @@ opt_out_usage
 default_platform(:ios)
 
 PROJECT_ROOT = File.expand_path("..", __dir__)
+FASTLANE_LOGS_DIR = File.join(PROJECT_ROOT, "fastlane", "logs")
 
 def required_option!(options, key)
   value = options[key]
@@ -144,6 +145,8 @@ def publish_ios(options)
   provisioning_profile = provisioning_profiles[bundle_id]
   UI.user_error!("No match provisioning profile found for #{bundle_id}") if provisioning_profile.to_s.empty?
 
+  FileUtils.mkdir_p(FASTLANE_LOGS_DIR)
+
   if File.exist?(podfile_path)
     podfile_dir = File.dirname(podfile_path)
     sh(
@@ -157,9 +160,11 @@ def publish_ios(options)
     scheme: scheme,
     configuration: "Release",
     destination: "generic/platform=iOS",
+    buildlog_path: FASTLANE_LOGS_DIR,
     codesigning_identity: "Apple Distribution",
     export_method: "app-store",
     export_team_id: team_id,
+    xcodebuild_formatter: "",
     export_options: {
       signingCertificate: "Apple Distribution",
       signingStyle: "manual",
