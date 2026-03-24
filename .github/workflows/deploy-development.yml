@@ -445,26 +445,13 @@ jobs:
           mkdir -p ~/private_keys
           echo "${{ secrets.APPLE_API_KEY_P8_BASE64 }}" | base64 --decode > ~/private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
 
-      - name: "DEBUG: CI signing environment"
+      - name: Decode distribution certificate
+        env:
+          IOS_DIST_CERT_P12_BASE64: ${{ secrets.IOS_DIST_CERT_P12_BASE64 }}
         run: |
-          echo "=== OpenSSL versions ==="
-          which openssl
-          openssl version
-          /usr/bin/openssl version 2>/dev/null || true
-          ruby -ropenssl -e 'puts "Ruby OpenSSL: #{OpenSSL::OPENSSL_VERSION}"; puts "Ruby OpenSSL lib: #{OpenSSL::OPENSSL_LIBRARY_VERSION}"'
-
-          echo ""
-          echo "=== Keychain state before match ==="
-          security list-keychains
-          security find-identity -v -p codesigning || true
-
-          echo ""
-          echo "=== macOS version ==="
-          sw_vers
-
-          echo ""
-          echo "=== Xcode version ==="
-          xcodebuild -version
+          CERT_PATH="$RUNNER_TEMP/distribution.p12"
+          echo "$IOS_DIST_CERT_P12_BASE64" | base64 --decode > "$CERT_PATH"
+          echo "IOS_DIST_CERT_P12_PATH=$CERT_PATH" >> $GITHUB_ENV
 
       - name: Archive and upload iOS with Fastlane
         env:
@@ -474,6 +461,7 @@ jobs:
           MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
           MATCH_GIT_URL: ${{ vars.MATCH_GIT_URL }}
           MATCH_GIT_BRANCH: ${{ vars.MATCH_GIT_BRANCH }}
+          IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
         run: |
           bundle exec fastlane ios publish_dev \
             workspace_root:"ios-build" \
