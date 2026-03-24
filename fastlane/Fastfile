@@ -144,11 +144,13 @@ def publish_ios(options)
   provisioning_profile = provisioning_profiles[bundle_id]
   UI.user_error!("No match provisioning profile found for #{bundle_id}") if provisioning_profile.to_s.empty?
 
-  cocoapods(
-    podfile: podfile_path,
-    clean_install: true,
-    silent: true
-  ) if File.exist?(podfile_path)
+  if File.exist?(podfile_path)
+    podfile_dir = File.dirname(podfile_path)
+    sh(
+      "cd #{Shellwords.escape(podfile_dir)} && RUBYOPT=-rlogger bundle exec pod install --silent",
+      log: false
+    )
+  end
 
   build_app(
     workspace: workspace_path,
