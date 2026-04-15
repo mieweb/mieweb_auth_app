@@ -1,0 +1,3 @@
+# Production default — individual lanes override app_identifier as needed
+app_identifier("org.mieweb.opensource")
+apple_team_id(ENV["APPLE_TEAM_ID"])
