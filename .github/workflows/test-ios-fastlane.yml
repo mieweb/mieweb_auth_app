@@ -1,8 +1,13 @@
 name: Test iOS Fastlane Pipeline
 
-# Manually triggered — only runs from the feature branch during testing.
-# Not wired to any release tag; safe to merge once validated.
+# Runs on every push to the feature branch (for iterative testing) and
+# supports manual re-runs via workflow_dispatch.
+# workflow_dispatch only appears in the Actions UI when the file is on the
+# default branch — push: branches scoped here ensures it triggers regardless.
 on:
+  push:
+    branches:
+      - feature/fastlane-ios
   workflow_dispatch:
 
 jobs:
