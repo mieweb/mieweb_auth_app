@@ -27,12 +27,18 @@ platform :ios do
     )
 
     # Archive + export the IPA; workspace and scheme are resolved by the
-    # workflow before invoking this lane and passed in as env vars
+    # workflow before invoking this lane and passed in as env vars.
+    # xcargs injects DEVELOPMENT_TEAM + manual signing because the Cordova-
+    # generated Xcode project does not set a development team by default,
+    # and PROVISIONING_PROFILE_SPECIFIER pins it to the match-managed profile.
     gym(
       workspace:      ENV["WORKSPACE_PATH"],
       scheme:         ENV["XCODE_SCHEME"],
       configuration:  "Release",
       export_method:  "app-store",
+      xcargs:         "CODE_SIGN_STYLE=Manual " \
+                      "DEVELOPMENT_TEAM=#{ENV['APPLE_TEAM_ID']} " \
+                      "PROVISIONING_PROFILE_SPECIFIER=\"match AppStore org.mieweb.os.dev\"",
       export_options: {
         provisioningProfiles: {
           "org.mieweb.os.dev" => "match AppStore org.mieweb.os.dev"
