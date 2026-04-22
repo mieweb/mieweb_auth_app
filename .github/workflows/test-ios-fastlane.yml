@@ -20,7 +20,7 @@ jobs:
       - name: Select Xcode 26
         run: |
           ls /Applications | grep -E '^Xcode' || true
-          sudo xcode-select -s /Applications/Xcode_26.app/Contents/Developer
+          sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
           xcodebuild -version
 
       - name: Setup Node.js
