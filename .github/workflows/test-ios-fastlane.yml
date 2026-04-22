@@ -13,6 +13,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Apple requires iOS 26 SDK (Xcode 26+) for App Store Connect uploads
+      # starting April 28, 2026. macos-latest ships multiple Xcodes under
+      # /Applications/Xcode_*.app — pin to 26 explicitly so xcodebuild and
+      # gym don't fall back to the older default.
+      - name: Select Xcode 26
+        run: |
+          ls /Applications | grep -E '^Xcode' || true
+          sudo xcode-select -s /Applications/Xcode_26.app/Contents/Developer
+          xcodebuild -version
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
