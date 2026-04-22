@@ -387,6 +387,18 @@ jobs:
         with:
           node-version: 20
 
+      - name: Select Xcode 26
+        run: |
+          # Prefer Xcode 26 when present so App Store uploads use the iOS 26 SDK.
+          # Fall back to the latest stable Xcode for older runner images.
+          LATEST_XCODE=$(ls -td /Applications/Xcode_26*.app 2>/dev/null | head -n 1 || true)
+          if [ -z "$LATEST_XCODE" ]; then
+            LATEST_XCODE=$(ls -td /Applications/Xcode*.app | grep -v -i -E '(beta|rc|gm|seed|preview)' | head -n 1)
+          fi
+          echo "Selected Xcode: $LATEST_XCODE"
+          sudo xcode-select -s "$LATEST_XCODE/Contents/Developer"
+          xcodebuild -version
+
       - name: Install Meteor
         run: |
           curl https://install.meteor.com/ | sh
