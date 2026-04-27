@@ -28,14 +28,6 @@ jobs:
         with:
           node-version: 20
 
-      # Ruby 3.4 matches the vendor/bundle Ruby version already in the repo;
-      # bundler-cache: true runs bundle install and caches gems by Gemfile.lock
-      - name: Setup Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "3.4"
-          bundler-cache: true
-
       - name: Install Meteor
         run: |
           curl https://install.meteor.com/ | sh
@@ -86,15 +78,19 @@ jobs:
           echo "workspace=$WORKSPACE" >> "$GITHUB_OUTPUT"
           echo "scheme=$SCHEME"       >> "$GITHUB_OUTPUT"
 
-      # All secrets injected explicitly — no ambient credential leakage
-      - name: Run Fastlane ios_dev lane
-        env:
-          MATCH_PASSWORD:                ${{ secrets.MATCH_PASSWORD }}
-          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
-          APPLE_TEAM_ID:                 ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_API_KEY_ID:              ${{ secrets.APPLE_API_KEY_ID }}
-          APPLE_API_ISSUER_ID:           ${{ secrets.APPLE_API_ISSUER_ID }}
-          APPLE_API_KEY_P8_BASE64:       ${{ secrets.APPLE_API_KEY_P8_BASE64 }}
-          WORKSPACE_PATH:                ${{ steps.xcode.outputs.workspace }}
-          XCODE_SCHEME:                  ${{ steps.xcode.outputs.scheme }}
-        run: bundle exec fastlane ios_dev
+      # All config passed via inputs — signing, build, and upload handled by the action
+      - name: Build & upload iOS to TestFlight
+        uses: mieweb/sharedactions/ios@v1
+        with:
+          signing_mode:                match
+          app_identifier:              org.mieweb.os.dev
+          apple_team_id:               ${{ secrets.APPLE_TEAM_ID }}
+          match_git_url:               https://github.com/mieweb/mobile-signing
+          match_git_basic_authorization: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+          match_password:              ${{ secrets.MATCH_PASSWORD }}
+          apple_api_key_id:            ${{ secrets.APPLE_API_KEY_ID }}
+          apple_api_issuer_id:         ${{ secrets.APPLE_API_ISSUER_ID }}
+          apple_api_key_p8_base64:     ${{ secrets.APPLE_API_KEY_P8_BASE64 }}
+          workspace_path:              ${{ steps.xcode.outputs.workspace }}
+          xcode_scheme:                ${{ steps.xcode.outputs.scheme }}
+          profile_name:                "match AppStore org.mieweb.os.dev"
