@@ -7,15 +7,7 @@ jobs:
   ios:
     uses: mieweb/sharedactions/.github/workflows/ios-meteor.yml@v1
     with:
-      app_identifier:                org.mieweb.os.dev
-      app_name:                      MIEAuth Opensource Beta
-      meteor_server:                 https://mieauth-dev.os.mieweb.org
-    secrets:
-      APPLE_TEAM_ID:                 ${{ secrets.APPLE_TEAM_ID }}
-      MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
-      MATCH_PASSWORD:                ${{ secrets.MATCH_PASSWORD }}
-      APPLE_API_KEY_ID:              ${{ secrets.APPLE_API_KEY_ID }}
-      APPLE_API_ISSUER_ID:           ${{ secrets.APPLE_API_ISSUER_ID }}
-      APPLE_API_KEY_P8_BASE64:       ${{ secrets.APPLE_API_KEY_P8_BASE64 }}
-      FIREBASE_IOS_PLIST_BASE64:     ${{ secrets.FIREBASE_IOS_DEV_PLIST_BASE64 }}
-      FIREBASE_ANDROID_JSON_BASE64:  ${{ secrets.FIREBASE_SERVICES_PROD }}
+      app_identifier: org.mieweb.os.dev
+      app_name:       MIEAuth Opensource Beta
+      meteor_server:  https://mieauth-dev.os.mieweb.org
+    secrets: inherit
