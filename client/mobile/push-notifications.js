@@ -20,22 +20,43 @@ const validateSessionWithRetry = (callback, retries = 3, interval = 1000) => {
   checkSession();
 };
 
-const sendUserAction = (appId, action) => {
+const sendUserAction = (userId, action, notificationId, deviceUUID) => {
   validateSessionWithRetry(() => {
     Meteor.call(
       "notifications.handleResponse",
-      appId,
+      userId,
       action,
+      notificationId,
+      deviceUUID,
       (error, result) => {
-        if (error) {
-          Session.set("notificationReceivedId", {
-            appId,
+        // Clear the in-flight flag so future notifications can open the modal
+        Session.set("actionPerformedFromTray", false);
+        // Clear any stale persisted notification so a later resume event
+        // doesn't reopen the modal for an already-handled notification.
+        try {
+          localStorage.removeItem("pendingNotification");
+        } catch {}
+
+        // Treat both transport errors and server-returned { success: false }
+        // as failures — otherwise the success modal lies when the server
+        // couldn't find/update the notification (e.g. expired or missing).
+        const failed = error || (result && result.success === false);
+
+        if (failed) {
+          const errorMsg = error
+            ? error.message || error.reason || String(error)
+            : result.message || "Unable to process action";
+          // Surface the error to the UI layer so it can fall back to the modal
+          Session.set("trayActionResult", {
+            notificationId,
+            action,
             status: "error",
-            error: error.message,
+            error: errorMsg,
           });
         } else {
-          Session.set("notificationReceivedId", {
-            appId,
+          Session.set("trayActionResult", {
+            notificationId,
+            action,
             status: action === "approve" ? "approved" : "rejected",
             timestamp: new Date().getTime(),
           });
@@ -97,19 +118,82 @@ const setupRegistrationHandler = (push) => {
   });
 };
 
+const handleActionFromTray = (push, action, data) => {
+  const additionalData = data.additionalData || {};
+  const userId = additionalData.userId;
+  const notificationId = additionalData.notificationId;
+
+  // Both fields are required for the server to identify the exact pending
+  // notification and verify the caller's ownership. If either is missing the
+  // payload is malformed — bail out so the existing modal flow can recover.
+  if (!userId || !notificationId) {
+    console.warn(
+      "Tray action received without userId/notificationId; skipping.",
+    );
+    return;
+  }
+
+  const deviceUUID = Session.get("capturedDeviceInfo")?.uuid || null;
+
+  Session.set("actionPerformedFromTray", true);
+
+  if (additionalData.coldstart) {
+    setTimeout(() => {
+      validateSessionWithRetry(() => {
+        sendUserAction(userId, action, notificationId, deviceUUID);
+      });
+    }, 2000);
+  } else {
+    sendUserAction(userId, action, notificationId, deviceUUID);
+  }
+
+  push.finish(
+    () => {},
+    () => {},
+    additionalData.notId,
+  );
+};
+
+const setupActionHandlers = (push) => {
+  push.on("approve", (data) => {
+    handleActionFromTray(push, "approve", data);
+  });
+
+  push.on("reject", (data) => {
+    handleActionFromTray(push, "reject", data);
+  });
+};
+
 const setupNotificationHandler = (push) => {
   push.on("notification", (notification) => {
     Meteor.startup(() => {
       const additionalData = notification.additionalData || {};
 
-      // Cold start handling
-      if (additionalData.coldstart) {
+      // Skip if action was already handled from the notification tray
+      if (Session.get("actionPerformedFromTray")) {
+        Session.set("actionPerformedFromTray", false);
+        return;
+      }
+
+      // Cold start handling — if the server attached an explicit action to the
+      // notification body (rare; main flow uses dedicated approve/reject
+      // events), forward it. Requires both userId and notificationId.
+      if (
+        additionalData.coldstart &&
+        additionalData.action &&
+        additionalData.userId &&
+        additionalData.notificationId
+      ) {
+        const deviceUUID = Session.get("capturedDeviceInfo")?.uuid || null;
         setTimeout(() => {
-          if (additionalData.action && additionalData.appId) {
-            validateSessionWithRetry(() => {
-              sendUserAction(additionalData.appId, additionalData.action);
-            });
-          }
+          validateSessionWithRetry(() => {
+            sendUserAction(
+              additionalData.userId,
+              additionalData.action,
+              additionalData.notificationId,
+              deviceUUID,
+            );
+          });
         }, 2000);
       }
 
@@ -146,6 +230,7 @@ export const initializePushNotifications = () => {
 
     // Register handlers
     setupRegistrationHandler(push);
+    setupActionHandlers(push);
     setupNotificationHandler(push);
     setupErrorHandler(push);
 

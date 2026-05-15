@@ -32,6 +32,11 @@ export const useNotificationHandler = (userId, username) => {
   // Background notification persistence
   useEffect(() => {
     const handleAppResume = () => {
+      // Skip modal restoration when an action is being processed from the
+      // notification tray — the action handler will resolve the notification
+      // server-side without any user interaction.
+      if (Session.get("actionPerformedFromTray")) return;
+
       const pendingNotification = localStorage.getItem("pendingNotification");
       if (pendingNotification) {
         const { appId, notificationId, createdAt } =
@@ -55,6 +60,10 @@ export const useNotificationHandler = (userId, username) => {
       const notificationData = Session.get("notificationReceivedId");
       if (!notificationData) return;
 
+      // Skip if an action is being processed from the notification tray.
+      // The tray handler will call notifications.handleResponse directly.
+      if (Session.get("actionPerformedFromTray")) return;
+
       // Handle cold start notification
       if (notificationData.coldstart) {
         localStorage.setItem(
@@ -73,6 +82,40 @@ export const useNotificationHandler = (userId, username) => {
       } catch {
         // Silently handled — reactive tracker will retry
       }
+    });
+
+    return () => tracker.stop();
+  }, [userId, getLatestPendingNotification]);
+
+  // React to tray-initiated actions: show the result modal on success or fall
+  // back to opening the actions modal on failure so the user can retry.
+  useEffect(() => {
+    if (!userId) return;
+
+    const tracker = Tracker.autorun(() => {
+      const result = Session.get("trayActionResult");
+      if (!result) return;
+
+      // Clear immediately so this only fires once
+      Session.set("trayActionResult", null);
+
+      if (result.status === "approved") {
+        setIsResultModalOpen(true);
+        setTimeout(() => setIsResultModalOpen(false), 3000);
+      } else if (result.status === "error") {
+        // Action failed silently — surface the modal so the user can retry
+        setActionError(
+          `Failed to ${result.action}: ${result.error || "Unknown error"}`,
+        );
+        getLatestPendingNotification().then((latestPending) => {
+          if (latestPending) {
+            setCurrentNotificationDetails(latestPending);
+            setNotificationIdForAction(latestPending.notificationId);
+            setIsActionsModalOpen(true);
+          }
+        });
+      }
+      // status === "rejected": no UI feedback needed, real-time subscription updates the list
     });
 
     return () => tracker.stop();

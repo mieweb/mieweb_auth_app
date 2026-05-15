@@ -218,8 +218,8 @@ export const sendDeviceApprovalNotification = async (userId, newDeviceUUID) => {
         title,
         body,
         actions: [
-          { id: "approve", title: "Approve" },
-          { id: "reject", title: "Reject" },
+          { callback: "approve", title: "Approve", foreground: true },
+          { callback: "reject", title: "Reject", foreground: true },
         ],
       }),
     });
@@ -278,8 +278,8 @@ export const sendSecondaryDeviceApprovalRequest = async (
         newDeviceUUID: newDevice.deviceUUID,
         userId: userId,
         actions: JSON.stringify([
-          { id: "approve", title: "Approve" },
-          { id: "reject", title: "Reject" },
+          { callback: "approve", title: "Approve", foreground: true },
+          { callback: "reject", title: "Reject", foreground: true },
         ]),
       },
     );
