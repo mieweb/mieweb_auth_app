@@ -1,17 +1,16 @@
 const { defineConfig } = require("@meteorjs/rspack");
+const { SwcJsMinimizerRspackPlugin } = require("@rspack/core");
 module.exports = defineConfig((Meteor) => {
   return {
     optimization: {
       minimizer: [
-        {
-          type: "swc-js",
-          extractComments: false,
-          minimizer: {
+        new SwcJsMinimizerRspackPlugin({
+          minimizerOptions: {
             mangle: {
               keepClassNames: true,
             },
           },
-        },
+        }),
       ],
     },
   };
