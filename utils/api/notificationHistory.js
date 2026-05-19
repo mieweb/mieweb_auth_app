@@ -17,7 +17,7 @@ if (Meteor.isServer) {
 
 Meteor.methods({
   // Insert a new notification into the history
-  "notificationHistory.insert": function (data) {
+  "notificationHistory.insert": async function (data) {
     check(
       data,
       Match.ObjectIncluding({
@@ -54,7 +54,12 @@ Meteor.methods({
     // Include clientId (defaults to 'unspecified' if not provided)
     insertData.clientId = data.clientId || "unspecified";
 
-    return NotificationHistory.insertAsync(insertData);
+    // Insert the document, then return the generated notificationId (NOT the
+    // mongo _id). The notificationId is the field the rest of the system
+    // queries against — returning _id here would silently break tray-action
+    // handling because notifications.handleResponse looks up by notificationId.
+    await NotificationHistory.insertAsync(insertData);
+    return notificationId;
   },
 
   // Update the status of a notification

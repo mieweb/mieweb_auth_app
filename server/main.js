@@ -685,9 +685,30 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
       const primaryDevice =
         approvedDevices.find((d) => d.isPrimary === true) || approvedDevices[0];
 
+      // Pre-create notification history so the notificationId can be embedded
+      // in the FCM data payload — required for tray-action handlers to reference
+      // the exact notification when calling notifications.handleResponse.
+      const notificationId = await saveUserNotificationHistory({
+        title,
+        body: messageBody,
+        userId: userDoc.userId,
+        clientId,
+      });
+
+      // Without a notificationId the FCM tray-action buttons can never be
+      // correlated back to a pending record, so abort instead of sending a
+      // push the client can't act on.
+      if (!notificationId) {
+        throw new Error(
+          "Failed to create notification history record; aborting push.",
+        );
+      }
+
       // Prepare notification data
       const notificationData = {
         appId: primaryDevice.appId,
+        userId: userDoc.userId,
+        notificationId,
         messageFrom: "mie",
         notificationType: "approval",
         content_available: "1",
@@ -696,7 +717,13 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
         notId: "10",
         isDismissal: "false",
         isSync: "false",
-        actions: JSON.stringify(actions),
+        actions: JSON.stringify(
+          actions.map((a) => ({
+            callback: a.callback || a.id,
+            title: a.title,
+            foreground: a.foreground !== undefined ? a.foreground : true,
+          })),
+        ),
         click_action: "FLUTTER_NOTIFICATION_CLICK",
         sound: "default",
         platform: "both",
@@ -732,15 +759,25 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
         },
       );
 
-      await Promise.all(notificationPromises);
-
-      // Save notification history with clientId
-      await saveUserNotificationHistory({
-        title,
-        body: messageBody,
-        userId: userDoc.userId,
-        clientId,
-      });
+      try {
+        await Promise.all(notificationPromises);
+      } catch (sendError) {
+        // Mark the pre-created history record as timed-out so it doesn't
+        // linger as a "pending" approval request the user can never resolve.
+        try {
+          await Meteor.callAsync(
+            "notificationHistory.updateStatus",
+            notificationId,
+            "timeout",
+          );
+        } catch (cleanupError) {
+          console.error(
+            "Failed to mark notification history as timeout after send error:",
+            cleanupError,
+          );
+        }
+        throw sendError;
+      }
 
       // Create a unique request ID for this notification
       const requestId = Random.id();
@@ -1321,9 +1358,18 @@ Meteor.methods({
     respondingDeviceUUID = null,
   ) {
     check(userId, String);
-    check(action, String);
+    check(action, Match.OneOf("approve", "reject"));
     check(notificationIdForAction, String);
     if (respondingDeviceUUID) check(respondingDeviceUUID, String);
+
+    // Require an authenticated Meteor session — anonymous callers must not be
+    // able to approve or reject another user's pending notifications.
+    if (!this.userId) {
+      throw new Meteor.Error(
+        "not-authenticated",
+        "You must be logged in to respond to notifications.",
+      );
+    }
 
     // Fetch user to get the username
     const user = await Meteor.users.findOneAsync(
@@ -1338,27 +1384,42 @@ Meteor.methods({
     const username = user.username;
     const resolvedUserId = user._id;
 
-    // Check if the responding device is approved
+    // Caller may only respond on behalf of themselves.
+    if (this.userId !== resolvedUserId) {
+      console.warn(
+        `User ${this.userId} attempted to respond to a notification belonging to ${resolvedUserId}. Blocking.`,
+      );
+      throw new Meteor.Error(
+        "not-authorized",
+        "You may only respond to your own notifications.",
+      );
+    }
+
+    // Check if the responding device is approved AND owned by the caller.
     if (respondingDeviceUUID) {
       const userDeviceDoc = await DeviceDetails.findOneAsync({
         userId: resolvedUserId,
       });
-      if (userDeviceDoc && userDeviceDoc.devices) {
-        const respondingDevice = userDeviceDoc.devices.find(
-          (d) => d.deviceUUID === respondingDeviceUUID,
+      const respondingDevice = userDeviceDoc?.devices?.find(
+        (d) => d.deviceUUID === respondingDeviceUUID,
+      );
+      if (!respondingDevice) {
+        console.warn(
+          `Device ${respondingDeviceUUID} is not registered to user ${username}. Blocking notification response.`,
         );
-        if (
-          respondingDevice &&
-          respondingDevice.deviceRegistrationStatus !== "approved"
-        ) {
-          console.warn(
-            `Device ${respondingDeviceUUID} for user ${username} is not approved (status: ${respondingDevice.deviceRegistrationStatus}). Blocking notification response.`,
-          );
-          throw new Meteor.Error(
-            "device-not-approved",
-            "Your device registration is still pending admin approval. You cannot respond to notifications until your device is approved.",
-          );
-        }
+        throw new Meteor.Error(
+          "device-not-owned",
+          "This device is not registered to your account.",
+        );
+      }
+      if (respondingDevice.deviceRegistrationStatus !== "approved") {
+        console.warn(
+          `Device ${respondingDeviceUUID} for user ${username} is not approved (status: ${respondingDevice.deviceRegistrationStatus}). Blocking notification response.`,
+        );
+        throw new Meteor.Error(
+          "device-not-approved",
+          "Your device registration is still pending admin approval. You cannot respond to notifications until your device is approved.",
+        );
       }
     }
 
@@ -1518,6 +1579,11 @@ Meteor.methods({
       );
     }
 
+    // Issue a Meteor login token so the client can call Meteor.loginWithToken
+    // and establish a real DDP session (this.userId on subsequent method calls).
+    const stampedToken = Accounts._generateStampedLoginToken();
+    await Accounts._insertLoginToken(user._id, stampedToken);
+
     // Return necessary user information for the session
     return {
       _id: user._id,
@@ -1525,6 +1591,8 @@ Meteor.methods({
       username: user.username,
       deviceLogId: device._id,
       appId: device.appId,
+      token: stampedToken.token,
+      tokenExpires: Accounts._tokenExpiration(stampedToken.when),
     };
   },
 
@@ -2026,7 +2094,13 @@ Meteor.methods({
 
       const notificationData = {
         appId: fcmTokens[0], // Use first token as appId
-        actions: JSON.stringify(actions),
+        actions: JSON.stringify(
+          actions.map((a) => ({
+            callback: a.callback || a.id,
+            title: a.title,
+            foreground: a.foreground !== undefined ? a.foreground : true,
+          })),
+        ),
         messageFrom: "mie",
         notificationType: "approval",
         content_available: "1",

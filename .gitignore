@@ -1,6 +1,12 @@
 # Android App Bundles (local only — downloaded via VS Code)
 *.aab
 
+# Fastlane generated output (CI artifacts, not source)
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
+fastlane/test_output/
+
 # Meteor build context
 _build
 */build-assets

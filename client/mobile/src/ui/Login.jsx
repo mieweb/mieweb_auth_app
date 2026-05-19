@@ -154,6 +154,15 @@ export const LoginPage = ({ deviceDetails }) => {
               if (!result?._id)
                 throw new Error("Biometric authentication failed");
 
+              // Establish a real Meteor session so server methods see this.userId
+              if (result.token) {
+                await new Promise((res, rej) => {
+                  Meteor.loginWithToken(result.token, (err) =>
+                    err ? rej(err) : res(),
+                  );
+                });
+              }
+
               const isApproved = await checkRegistrationStatus(
                 result._id,
                 result.email,
