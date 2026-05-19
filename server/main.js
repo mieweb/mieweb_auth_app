@@ -1,16 +1,3 @@
-// Catch uncaught exceptions/rejections to prevent process crash and log the real error
-process.on("uncaughtException", (err, origin) => {
-  console.error(
-    `[FATAL] uncaughtException (origin=${origin}):`,
-    err?.message || err,
-  );
-  console.error(err?.stack || "(no stack)");
-});
-process.on("unhandledRejection", (reason) => {
-  console.error("[FATAL] unhandledRejection:", reason?.message || reason);
-  console.error(reason?.stack || "(no stack)");
-});
-
 import { Meteor } from "meteor/meteor";
 import { Email } from "meteor/email";
 import { WebApp } from "meteor/webapp";
