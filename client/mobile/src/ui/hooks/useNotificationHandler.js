@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Meteor } from "meteor/meteor";
 import { Session } from "meteor/session";
 import { Tracker } from "meteor/tracker";
@@ -13,6 +13,28 @@ export const useNotificationHandler = (userId, username) => {
     useState(null);
   const [isProcessingAction, setIsProcessingAction] = useState(false);
   const [actionError, setActionError] = useState(null);
+  const resultModalTimeoutRef = useRef(null);
+
+  const scheduleResultModalAutoClose = useCallback(() => {
+    if (resultModalTimeoutRef.current) {
+      clearTimeout(resultModalTimeoutRef.current);
+    }
+    resultModalTimeoutRef.current = setTimeout(() => {
+      setIsResultModalOpen(false);
+      resultModalTimeoutRef.current = null;
+    }, 3000);
+  }, []);
+
+  // Clear any pending auto-close timer on unmount to avoid setting state on
+  // an unmounted component.
+  useEffect(() => {
+    return () => {
+      if (resultModalTimeoutRef.current) {
+        clearTimeout(resultModalTimeoutRef.current);
+        resultModalTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   const getLatestPendingNotification = useCallback(async () => {
     if (!userId) return null;
@@ -32,6 +54,11 @@ export const useNotificationHandler = (userId, username) => {
   // Background notification persistence
   useEffect(() => {
     const handleAppResume = () => {
+      // Skip modal restoration when an action is being processed from the
+      // notification tray — the action handler will resolve the notification
+      // server-side without any user interaction.
+      if (Session.get("actionPerformedFromTray")) return;
+
       const pendingNotification = localStorage.getItem("pendingNotification");
       if (pendingNotification) {
         const { appId, notificationId, createdAt } =
@@ -55,6 +82,10 @@ export const useNotificationHandler = (userId, username) => {
       const notificationData = Session.get("notificationReceivedId");
       if (!notificationData) return;
 
+      // Skip if an action is being processed from the notification tray.
+      // The tray handler will call notifications.handleResponse directly.
+      if (Session.get("actionPerformedFromTray")) return;
+
       // Handle cold start notification
       if (notificationData.coldstart) {
         localStorage.setItem(
@@ -77,6 +108,40 @@ export const useNotificationHandler = (userId, username) => {
 
     return () => tracker.stop();
   }, [userId, getLatestPendingNotification]);
+
+  // React to tray-initiated actions: show the result modal on success or fall
+  // back to opening the actions modal on failure so the user can retry.
+  useEffect(() => {
+    if (!userId) return;
+
+    const tracker = Tracker.autorun(() => {
+      const result = Session.get("trayActionResult");
+      if (!result) return;
+
+      // Clear immediately so this only fires once
+      Session.set("trayActionResult", null);
+
+      if (result.status === "approved") {
+        setIsResultModalOpen(true);
+        scheduleResultModalAutoClose();
+      } else if (result.status === "error") {
+        // Action failed silently — surface the modal so the user can retry
+        setActionError(
+          `Failed to ${result.action}: ${result.error || "Unknown error"}`,
+        );
+        getLatestPendingNotification().then((latestPending) => {
+          if (latestPending) {
+            setCurrentNotificationDetails(latestPending);
+            setNotificationIdForAction(latestPending.notificationId);
+            setIsActionsModalOpen(true);
+          }
+        });
+      }
+      // status === "rejected": no UI feedback needed, real-time subscription updates the list
+    });
+
+    return () => tracker.stop();
+  }, [userId, getLatestPendingNotification, scheduleResultModalAutoClose]);
 
   // Action handling with improved error states
   const sendUserAction = useCallback(
@@ -102,7 +167,7 @@ export const useNotificationHandler = (userId, username) => {
         setIsActionsModalOpen(false);
         if (action === "approve") {
           setIsResultModalOpen(true);
-          setTimeout(() => setIsResultModalOpen(false), 3000);
+          scheduleResultModalAutoClose();
         }
 
         // Subscription handles real-time updates automatically
@@ -112,7 +177,7 @@ export const useNotificationHandler = (userId, username) => {
         setIsProcessingAction(false);
       }
     },
-    [notificationIdForAction, username],
+    [notificationIdForAction, userId, scheduleResultModalAutoClose],
   );
 
   // Modal state cleanup
@@ -184,7 +249,13 @@ export const useNotificationHandler = (userId, username) => {
     actionError,
     handleApprove: () => sendUserAction("approve"),
     handleReject: () => sendUserAction("reject"),
-    handleCloseResultModal: () => setIsResultModalOpen(false),
+    handleCloseResultModal: () => {
+      if (resultModalTimeoutRef.current) {
+        clearTimeout(resultModalTimeoutRef.current);
+        resultModalTimeoutRef.current = null;
+      }
+      setIsResultModalOpen(false);
+    },
     handleCloseActionModal,
     openNotificationModal,
   };
