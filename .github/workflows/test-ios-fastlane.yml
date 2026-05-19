@@ -25,7 +25,8 @@ jobs:
         run: |
           sed -i '' "s/id: ['\"]org.mieweb.opensource['\"]/id: 'org.mieweb.os.dev'/" mobile-config.js
           sed -i '' "s/name: ['\"]MIEAuth['\"]/name: 'MIEAuth Opensource Beta'/" mobile-config.js
-          echo "App.setPreference('ios-CFBundleVersion', '${{ github.run_number }}');" >> mobile-config.js
+          MAJOR_MINOR=$(grep -oE "version: ['\"][0-9]+\.[0-9]+" mobile-config.js | head -1 | grep -oE "[0-9]+\.[0-9]+")
+          sed -i '' "s/version: ['\"][0-9]*\.[0-9]*\.[0-9]*['\"]/version: '${MAJOR_MINOR}.${{ github.run_number }}'/" mobile-config.js
 
       - uses: mieweb/actions/meteor-build@v1
         with:
