@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Meteor } from "meteor/meteor";
 import { Session } from "meteor/session";
 import { Tracker } from "meteor/tracker";
@@ -13,6 +13,28 @@ export const useNotificationHandler = (userId, username) => {
     useState(null);
   const [isProcessingAction, setIsProcessingAction] = useState(false);
   const [actionError, setActionError] = useState(null);
+  const resultModalTimeoutRef = useRef(null);
+
+  const scheduleResultModalAutoClose = useCallback(() => {
+    if (resultModalTimeoutRef.current) {
+      clearTimeout(resultModalTimeoutRef.current);
+    }
+    resultModalTimeoutRef.current = setTimeout(() => {
+      setIsResultModalOpen(false);
+      resultModalTimeoutRef.current = null;
+    }, 3000);
+  }, []);
+
+  // Clear any pending auto-close timer on unmount to avoid setting state on
+  // an unmounted component.
+  useEffect(() => {
+    return () => {
+      if (resultModalTimeoutRef.current) {
+        clearTimeout(resultModalTimeoutRef.current);
+        resultModalTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   const getLatestPendingNotification = useCallback(async () => {
     if (!userId) return null;
@@ -101,7 +123,7 @@ export const useNotificationHandler = (userId, username) => {
 
       if (result.status === "approved") {
         setIsResultModalOpen(true);
-        setTimeout(() => setIsResultModalOpen(false), 3000);
+        scheduleResultModalAutoClose();
       } else if (result.status === "error") {
         // Action failed silently — surface the modal so the user can retry
         setActionError(
@@ -119,7 +141,7 @@ export const useNotificationHandler = (userId, username) => {
     });
 
     return () => tracker.stop();
-  }, [userId, getLatestPendingNotification]);
+  }, [userId, getLatestPendingNotification, scheduleResultModalAutoClose]);
 
   // Action handling with improved error states
   const sendUserAction = useCallback(
@@ -145,7 +167,7 @@ export const useNotificationHandler = (userId, username) => {
         setIsActionsModalOpen(false);
         if (action === "approve") {
           setIsResultModalOpen(true);
-          setTimeout(() => setIsResultModalOpen(false), 3000);
+          scheduleResultModalAutoClose();
         }
 
         // Subscription handles real-time updates automatically
@@ -155,7 +177,7 @@ export const useNotificationHandler = (userId, username) => {
         setIsProcessingAction(false);
       }
     },
-    [notificationIdForAction, username],
+    [notificationIdForAction, userId, scheduleResultModalAutoClose],
   );
 
   // Modal state cleanup
@@ -227,7 +249,13 @@ export const useNotificationHandler = (userId, username) => {
     actionError,
     handleApprove: () => sendUserAction("approve"),
     handleReject: () => sendUserAction("reject"),
-    handleCloseResultModal: () => setIsResultModalOpen(false),
+    handleCloseResultModal: () => {
+      if (resultModalTimeoutRef.current) {
+        clearTimeout(resultModalTimeoutRef.current);
+        resultModalTimeoutRef.current = null;
+      }
+      setIsResultModalOpen(false);
+    },
     handleCloseActionModal,
     openNotificationModal,
   };

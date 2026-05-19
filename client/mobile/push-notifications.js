@@ -138,10 +138,11 @@ const handleActionFromTray = (push, action, data) => {
   Session.set("actionPerformedFromTray", true);
 
   if (additionalData.coldstart) {
+    // sendUserAction internally wraps the Meteor call in validateSessionWithRetry,
+    // so we only need a short delay to give the app a chance to boot. A second
+    // outer retry loop here would just multiply the wait time.
     setTimeout(() => {
-      validateSessionWithRetry(() => {
-        sendUserAction(userId, action, notificationId, deviceUUID);
-      });
+      sendUserAction(userId, action, notificationId, deviceUUID);
     }, 2000);
   } else {
     sendUserAction(userId, action, notificationId, deviceUUID);
@@ -169,9 +170,12 @@ const setupNotificationHandler = (push) => {
     Meteor.startup(() => {
       const additionalData = notification.additionalData || {};
 
-      // Skip if action was already handled from the notification tray
+      // Skip if action was already handled from the notification tray. Do NOT
+      // clear the flag here — the tray-action request may still be in flight,
+      // and clearing early can let the resume/tracker paths reopen the actions
+      // modal for the same notification. The sendUserAction callback clears
+      // the flag once the server call settles.
       if (Session.get("actionPerformedFromTray")) {
-        Session.set("actionPerformedFromTray", false);
         return;
       }
 

@@ -1002,7 +1002,6 @@ describe("meteor-app", function () {
 
       it("should reject action on expired notification", async function () {
         const userId = "test-user-" + Random.id();
-        testUserIds.push(userId); // Track for cleanup
 
         // Create a user
         const createdUser = await Accounts.createUserAsync({
@@ -1010,6 +1009,7 @@ describe("meteor-app", function () {
           email: `${userId}@example.com`,
           password: "testpass",
         });
+        testUserIds.push(createdUser); // Track _id for cleanup
 
         // Insert an expired notification
         const notificationId = await Meteor.callAsync(
@@ -1065,7 +1065,6 @@ describe("meteor-app", function () {
 
       it("should allow action on non-expired notification", async function () {
         const userId = "test-user-" + Random.id();
-        testUserIds.push(userId); // Track for cleanup
 
         // Create a user
         const createdUser = await Accounts.createUserAsync({
@@ -1073,6 +1072,7 @@ describe("meteor-app", function () {
           email: `${userId}@example.com`,
           password: "testpass",
         });
+        testUserIds.push(createdUser); // Track _id for cleanup
 
         // Insert a recent notification
         const notificationId = await Meteor.callAsync(

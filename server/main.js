@@ -695,6 +695,15 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
         clientId,
       });
 
+      // Without a notificationId the FCM tray-action buttons can never be
+      // correlated back to a pending record, so abort instead of sending a
+      // push the client can't act on.
+      if (!notificationId) {
+        throw new Error(
+          "Failed to create notification history record; aborting push.",
+        );
+      }
+
       // Prepare notification data
       const notificationData = {
         appId: primaryDevice.appId,
@@ -750,7 +759,25 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
         },
       );
 
-      await Promise.all(notificationPromises);
+      try {
+        await Promise.all(notificationPromises);
+      } catch (sendError) {
+        // Mark the pre-created history record as timed-out so it doesn't
+        // linger as a "pending" approval request the user can never resolve.
+        try {
+          await Meteor.callAsync(
+            "notificationHistory.updateStatus",
+            notificationId,
+            "timeout",
+          );
+        } catch (cleanupError) {
+          console.error(
+            "Failed to mark notification history as timeout after send error:",
+            cleanupError,
+          );
+        }
+        throw sendError;
+      }
 
       // Create a unique request ID for this notification
       const requestId = Random.id();
