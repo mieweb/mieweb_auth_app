@@ -23,6 +23,8 @@ import {
   normalizeInviteUsername,
 } from "../utils/api/invites.js";
 import "./adminApi"; // Admin REST API endpoints
+import "../utils/api/duoIntegrations.js"; // Duo integration credential methods
+import "./duo/index.js"; // Duo Auth API v2 compatibility layer (/auth/v2/*)
 import { adminPageTemplate } from "./templates/admin";
 import { APPROVAL_TOKEN_EXPIRY_MS } from "../utils/constants.js";
 import {
