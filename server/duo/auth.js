@@ -76,10 +76,17 @@ export const isDateFresh = (dateHeader, now = Date.now()) => {
  * @param {IncomingMessage} ctx.req  the raw node request
  * @param {string} ctx.path          the request path (no query string)
  * @param {string} ctx.rawBody       raw request body string
+ * @param {string} [ctx.requiredType] if set ("auth"|"admin"), the integration's
+ *                                     type must match or the request is rejected
  * @returns {Promise<{ok: boolean, integration?: Object, error?: Object,
  *                     detail?: string}>}
  */
-export const authenticateRequest = async ({ req, path, rawBody = "" }) => {
+export const authenticateRequest = async ({
+  req,
+  path,
+  rawBody = "",
+  requiredType,
+}) => {
   const auth = parseBasicAuth(req.headers["authorization"]);
   if (!auth) {
     return { ok: false, error: DUO_ERRORS.UNAUTHORIZED };
@@ -97,6 +104,19 @@ export const authenticateRequest = async ({ req, path, rawBody = "" }) => {
   const integration = await findIntegrationByIkey(auth.ikey);
   if (!integration || !integration.skey) {
     return { ok: false, error: DUO_ERRORS.INVALID_IKEY };
+  }
+
+  // Enforce the integration type so an Auth-API key cannot be used against the
+  // Admin API (or vice versa). Legacy records without a type default to "auth".
+  if (requiredType) {
+    const integrationType = integration.type || "auth";
+    if (integrationType !== requiredType) {
+      return {
+        ok: false,
+        error: DUO_ERRORS.INVALID_IKEY,
+        detail: `This integration key is not authorized for the ${requiredType} API`,
+      };
+    }
   }
 
   const host = req.headers["host"] || "";

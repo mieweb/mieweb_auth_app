@@ -24,6 +24,28 @@ const IKEY_PREFIX = "DI";
 const IKEY_BODY_LENGTH = 18; // total ikey length 20, Duo-style
 const SKEY_BYTES = 30; // ~40 base32-ish chars; Duo skeys are 40 chars
 
+/**
+ * Integration types:
+ *   - "auth"  : credentials for the Duo Auth API (/auth/v2/*) — the default.
+ *   - "admin" : credentials for the Duo Admin API (/admin/v1/*).
+ * The mount handlers enforce that a request's credentials match the expected
+ * type so an Auth-API key cannot be used against the Admin API and vice versa.
+ */
+export const DUO_INTEGRATION_TYPES = ["auth", "admin"];
+export const DEFAULT_DUO_INTEGRATION_TYPE = "auth";
+
+/** Normalize/validate an integration type, defaulting missing values to "auth". */
+export const normalizeIntegrationType = (type) => {
+  const t = (type || DEFAULT_DUO_INTEGRATION_TYPE).toString().toLowerCase();
+  if (!DUO_INTEGRATION_TYPES.includes(t)) {
+    throw new Meteor.Error(
+      "invalid-type",
+      `Duo integration type must be one of: ${DUO_INTEGRATION_TYPES.join(", ")}`,
+    );
+  }
+  return t;
+};
+
 if (Meteor.isServer) {
   Meteor.startup(() => {
     DuoIntegrations.createIndex({ ikey: 1 }, { unique: true });
@@ -135,15 +157,20 @@ export const findIntegrationByIkey = async (ikey) => {
   if (!doc) {
     return null;
   }
-  return { ...doc, skey: decryptSkey(doc.storedSkey) };
+  return {
+    ...doc,
+    type: doc.type || DEFAULT_DUO_INTEGRATION_TYPE,
+    skey: decryptSkey(doc.storedSkey),
+  };
 };
 
 /**
  * Create a new Duo integration. Server-only (no DDP connection allowed).
  * Returns the plaintext ikey/skey ONCE — the skey is not retrievable later.
  */
-export const createDuoIntegration = async ({ name }) => {
+export const createDuoIntegration = async ({ name, type } = {}) => {
   check(name, String);
+  const normalizedType = normalizeIntegrationType(type);
   const existing = await DuoIntegrations.findOneAsync({ name });
   if (existing) {
     throw new Meteor.Error(
@@ -156,17 +183,18 @@ export const createDuoIntegration = async ({ name }) => {
   await DuoIntegrations.insertAsync({
     name,
     ikey,
+    type: normalizedType,
     storedSkey: encryptSkey(skey),
     enabled: true,
     createdAt: new Date(),
     lastUsed: null,
   });
-  return { name, ikey, skey };
+  return { name, ikey, skey, type: normalizedType };
 };
 
 if (Meteor.isServer) {
   Meteor.methods({
-    "duoIntegrations.create": async function (name) {
+    "duoIntegrations.create": async function (name, type) {
       if (this.connection) {
         throw new Meteor.Error(
           "unauthorized",
@@ -174,7 +202,8 @@ if (Meteor.isServer) {
         );
       }
       check(name, String);
-      return createDuoIntegration({ name });
+      check(type, Match.Optional(String));
+      return createDuoIntegration({ name, type });
     },
 
     "duoIntegrations.list": async function () {
@@ -186,9 +215,21 @@ if (Meteor.isServer) {
       }
       const docs = await DuoIntegrations.find(
         {},
-        { fields: { name: 1, ikey: 1, enabled: 1, createdAt: 1, lastUsed: 1 } },
+        {
+          fields: {
+            name: 1,
+            ikey: 1,
+            type: 1,
+            enabled: 1,
+            createdAt: 1,
+            lastUsed: 1,
+          },
+        },
       ).fetchAsync();
-      return docs;
+      return docs.map((d) => ({
+        ...d,
+        type: d.type || DEFAULT_DUO_INTEGRATION_TYPE,
+      }));
     },
 
     "duoIntegrations.setEnabled": async function (name, enabled) {
@@ -247,7 +288,12 @@ if (Meteor.isServer) {
           },
         },
       );
-      return { name, ikey, skey };
+      return {
+        name,
+        ikey,
+        skey,
+        type: existing.type || DEFAULT_DUO_INTEGRATION_TYPE,
+      };
     },
   });
 }

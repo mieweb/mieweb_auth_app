@@ -20,9 +20,15 @@ if (Meteor.isServer) {
     ok,
     fail,
     httpStatusForCode,
+    okPaged,
     DUO_ERRORS,
   } = require("../server/duo/response.js");
   const { parseBasicAuth, isDateFresh } = require("../server/duo/auth.js");
+  const {
+    buildDuoPhone,
+    buildDuoUser,
+    buildDuoUserFromInvite,
+  } = require("../server/duo/adminModel.js");
 
   describe("Duo signature canonicalization", function () {
     it("quotes values with ~ left unescaped (duo style)", function () {
@@ -210,6 +216,134 @@ if (Meteor.isServer) {
       assert.strictEqual(httpStatusForCode(40101), 401);
       assert.strictEqual(httpStatusForCode(40002), 400);
       assert.strictEqual(httpStatusForCode(50000), 500);
+    });
+  });
+
+  describe("Duo Admin API pagination (okPaged)", function () {
+    const items = Array.from({ length: 250 }, (_, i) => ({ n: i }));
+
+    it("defaults to offset 0 / limit 100 with next_offset only", function () {
+      const env = okPaged(items);
+      assert.strictEqual(env.stat, "OK");
+      assert.strictEqual(env.response.length, 100);
+      assert.strictEqual(env.response[0].n, 0);
+      assert.strictEqual(env.metadata.total_objects, 250);
+      assert.strictEqual(env.metadata.next_offset, 100);
+      assert.ok(!("prev_offset" in env.metadata));
+    });
+
+    it("returns a middle page with both prev_offset and next_offset", function () {
+      const env = okPaged(items, { offset: 100, limit: 100 });
+      assert.strictEqual(env.response.length, 100);
+      assert.strictEqual(env.response[0].n, 100);
+      assert.strictEqual(env.metadata.prev_offset, 0);
+      assert.strictEqual(env.metadata.next_offset, 200);
+    });
+
+    it("omits next_offset on the final page", function () {
+      const env = okPaged(items, { offset: 200, limit: 100 });
+      assert.strictEqual(env.response.length, 50);
+      assert.strictEqual(env.metadata.prev_offset, 100);
+      assert.ok(!("next_offset" in env.metadata));
+      assert.strictEqual(env.metadata.total_objects, 250);
+    });
+
+    it("handles empty result sets", function () {
+      const env = okPaged([]);
+      assert.deepStrictEqual(env.response, []);
+      assert.deepStrictEqual(env.metadata, { total_objects: 0 });
+    });
+  });
+
+  describe("Duo Admin API object mapping", function () {
+    it("maps an approved Android device to a Duo phone object", function () {
+      const phone = buildDuoPhone(
+        {
+          appId: "app-123",
+          deviceUUID: "uuid-xyz",
+          deviceModel: "Pixel 8",
+          devicePlatform: "Android 14",
+          deviceRegistrationStatus: "approved",
+          lastUpdated: new Date("2024-01-02T03:04:05Z"),
+        },
+        [{ user_id: "u1" }],
+      );
+      assert.strictEqual(phone.phone_id, "app-123");
+      assert.strictEqual(phone.platform, "Google Android");
+      assert.strictEqual(phone.activated, true);
+      assert.deepStrictEqual(phone.capabilities, ["push"]);
+      assert.strictEqual(phone.model, "Pixel 8");
+      assert.strictEqual(phone.users[0].user_id, "u1");
+    });
+
+    it("falls back to deviceUUID for phone_id and maps iOS / unapproved", function () {
+      const phone = buildDuoPhone({
+        deviceUUID: "uuid-only",
+        devicePlatform: "iOS 17",
+        deviceRegistrationStatus: "pending",
+      });
+      assert.strictEqual(phone.phone_id, "uuid-only");
+      assert.strictEqual(phone.platform, "Apple iOS");
+      assert.strictEqual(phone.activated, false);
+    });
+
+    it("builds a Duo user from a Meteor user + device doc", function () {
+      const user = buildDuoUser(
+        {
+          _id: "user1",
+          username: "alice",
+          emails: [{ address: "alice@example.com" }],
+          profile: {
+            firstName: "Alice",
+            lastName: "Smith",
+            registrationStatus: "approved",
+          },
+          createdAt: new Date("2023-05-06T00:00:00Z"),
+        },
+        {
+          userId: "user1",
+          devices: [
+            { appId: "a1", deviceRegistrationStatus: "approved" },
+            { appId: "a2", deviceRegistrationStatus: "pending" },
+          ],
+        },
+      );
+      assert.strictEqual(user.user_id, "user1");
+      assert.strictEqual(user.username, "alice");
+      assert.strictEqual(user.realname, "Alice Smith");
+      assert.strictEqual(user.email, "alice@example.com");
+      assert.strictEqual(user.status, "active");
+      assert.strictEqual(user.is_enrolled, true);
+      assert.strictEqual(user.phones.length, 2);
+    });
+
+    it("marks users with no approved devices as disabled / unenrolled", function () {
+      const user = buildDuoUser(
+        { _id: "u2", username: "bob", profile: {} },
+        {
+          userId: "u2",
+          devices: [{ appId: "x", deviceRegistrationStatus: "pending" }],
+        },
+      );
+      assert.strictEqual(user.status, "disabled");
+      assert.strictEqual(user.is_enrolled, false);
+    });
+
+    it("builds a pre-enrollment Duo user from an invite", function () {
+      const user = buildDuoUserFromInvite({
+        _id: "invite1",
+        username: "carol",
+        email: "carol@example.com",
+        firstName: "Carol",
+        lastName: "Jones",
+        createdAt: new Date("2024-06-07T00:00:00Z"),
+      });
+      assert.strictEqual(user.user_id, "invite1");
+      assert.strictEqual(user.username, "carol");
+      assert.strictEqual(user.realname, "Carol Jones");
+      assert.strictEqual(user.status, "disabled");
+      assert.strictEqual(user.is_enrolled, false);
+      assert.deepStrictEqual(user.phones, []);
     });
   });
 }

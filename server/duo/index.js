@@ -1,91 +1,12 @@
 import { WebApp } from "meteor/webapp";
-import { Meteor } from "meteor/meteor";
 import { URL } from "url";
 import { authenticateRequest } from "./auth.js";
 import { ROUTES } from "./endpoints.js";
 import { renderQrPng } from "./qr.js";
 import { DUO_ERRORS, sendFail, sendDuo } from "./response.js";
+import { readRawBody, buildParams, setCors, baseUrl } from "./http.js";
 
 const MOUNT = "/auth/v2";
-const MAX_BODY_BYTES = 1024 * 256; // 256 KB cap
-
-/** Read the raw request body as a string (bounded). */
-const readRawBody = (req) =>
-  new Promise((resolve, reject) => {
-    let size = 0;
-    const chunks = [];
-    req.on("data", (chunk) => {
-      size += chunk.length;
-      if (size > MAX_BODY_BYTES) {
-        reject(new Error("Payload too large"));
-        req.destroy();
-        return;
-      }
-      chunks.push(chunk);
-    });
-    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
-    req.on("error", reject);
-  });
-
-/** Merge query-string + body params into a single key -> value(s) object. */
-const buildParams = (req, rawBody) => {
-  const params = {};
-  const host = req.headers["host"] || "localhost";
-
-  // Query string params.
-  try {
-    const u = new URL(req.url, `http://${host}`);
-    for (const key of new Set(u.searchParams.keys())) {
-      params[key] = u.searchParams.getAll(key);
-    }
-  } catch (e) {
-    /* ignore */
-  }
-
-  if (!rawBody) {
-    return params;
-  }
-
-  const contentType = (req.headers["content-type"] || "").toLowerCase();
-  if (contentType.includes("application/json")) {
-    try {
-      const parsed = JSON.parse(rawBody);
-      for (const [k, v] of Object.entries(parsed)) {
-        params[k] = Array.isArray(v) ? v.map(String) : v;
-      }
-    } catch (e) {
-      /* leave query params only */
-    }
-  } else {
-    // default: treat as form-urlencoded
-    try {
-      const form = new URLSearchParams(rawBody);
-      for (const key of new Set(form.keys())) {
-        params[key] = form.getAll(key);
-      }
-    } catch (e) {
-      /* ignore */
-    }
-  }
-  return params;
-};
-
-const setCors = (res) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization, Date, X-Duo-Date",
-  );
-};
-
-const baseUrl = () => {
-  try {
-    return Meteor.absoluteUrl().replace(/\/$/, "");
-  } catch (e) {
-    return (process.env.ROOT_URL || "http://localhost:3000").replace(/\/$/, "");
-  }
-};
 
 WebApp.connectHandlers.use(MOUNT, async (req, res) => {
   setCors(res);
@@ -161,6 +82,7 @@ WebApp.connectHandlers.use(MOUNT, async (req, res) => {
       req,
       path: fullPath,
       rawBody,
+      requiredType: "auth",
     });
     if (!authResult.ok) {
       return sendFail(res, authResult.error, authResult.detail);

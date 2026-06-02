@@ -5,7 +5,8 @@
  * Authentik / duo_client to talk to MIEAuth's /auth/v2 endpoints).
  *
  * Usage:
- *   node manage-duo-integrations.js generate <name>     - Create an integration
+ *   node manage-duo-integrations.js generate <name> [type]  - Create an integration
+ *                                          type is "auth" (default) or "admin"
  *   node manage-duo-integrations.js list                - List integrations
  *   node manage-duo-integrations.js enable <name>       - Enable an integration
  *   node manage-duo-integrations.js disable <name>      - Disable an integration
@@ -31,6 +32,19 @@ const COLLECTION = "duoIntegrations";
 const IKEY_PREFIX = "DI";
 const IKEY_BODY_LENGTH = 18;
 const SKEY_BYTES = 30;
+
+const DUO_INTEGRATION_TYPES = ["auth", "admin"];
+const DEFAULT_TYPE = "auth";
+
+const normalizeType = (type) => {
+  const t = (type || DEFAULT_TYPE).toString().toLowerCase();
+  if (!DUO_INTEGRATION_TYPES.includes(t)) {
+    throw new Error(
+      `integration type must be one of: ${DUO_INTEGRATION_TYPES.join(", ")}`,
+    );
+  }
+  return t;
+};
 
 const base32ish = (buf) =>
   buf
@@ -88,23 +102,35 @@ const withCollection = async (fn) => {
   }
 };
 
-const printCredentials = (name, ikey, skey) => {
+const printCredentials = (name, ikey, skey, type = DEFAULT_TYPE) => {
   console.log("\n✓ Duo integration credentials:");
   console.log("\nName        :", name);
+  console.log("Type        :", type);
   console.log("Integration key (ikey):", ikey);
   console.log("Secret key (skey)     :", skey);
   console.log(
     "\n⚠ IMPORTANT: Store the skey securely. It will not be shown again.",
   );
-  console.log("\nConfigure your Duo client / Authentik Duo stage with:");
+  console.log(
+    type === "admin"
+      ? "\nConfigure your Duo Admin API client with:"
+      : "\nConfigure your Duo client / Authentik Duo stage with:",
+  );
   console.log("  API hostname     : <this server's host>");
   console.log("  Integration key  :", ikey);
   console.log("  Secret key       :", skey);
 };
 
-async function generate(name) {
+async function generate(name, type) {
   if (!name) {
-    console.error("Error: name is required\nUsage: generate <name>");
+    console.error("Error: name is required\nUsage: generate <name> [type]");
+    return false;
+  }
+  let normalizedType;
+  try {
+    normalizedType = normalizeType(type);
+  } catch (err) {
+    console.error(`Error: ${err.message}`);
     return false;
   }
   return withCollection(async (col) => {
@@ -118,12 +144,13 @@ async function generate(name) {
     await col.insertOne({
       name,
       ikey,
+      type: normalizedType,
       storedSkey: encryptSkey(skey),
       enabled: true,
       createdAt: new Date(),
       lastUsed: null,
     });
-    printCredentials(name, ikey, skey);
+    printCredentials(name, ikey, skey, normalizedType);
     return true;
   });
 }
@@ -137,6 +164,7 @@ async function list() {
           projection: {
             name: 1,
             ikey: 1,
+            type: 1,
             enabled: 1,
             createdAt: 1,
             lastUsed: 1,
@@ -152,14 +180,16 @@ async function list() {
     console.log(
       "Name".padEnd(24),
       "ikey".padEnd(22),
+      "Type".padEnd(7),
       "Enabled".padEnd(9),
       "Last Used",
     );
-    console.log("-".repeat(80));
+    console.log("-".repeat(88));
     docs.forEach((d) => {
       console.log(
         String(d.name).padEnd(24),
         String(d.ikey).padEnd(22),
+        String(d.type || DEFAULT_TYPE).padEnd(7),
         String(Boolean(d.enabled)).padEnd(9),
         d.lastUsed ? d.lastUsed.toISOString() : "Never",
       );
@@ -214,7 +244,8 @@ async function regenerate(name) {
     return false;
   }
   return withCollection(async (col) => {
-    if (!(await col.findOne({ name }))) {
+    const existing = await col.findOne({ name });
+    if (!existing) {
       console.error(`Error: no integration named "${name}"`);
       console.log('Use "generate" to create one.');
       return false;
@@ -239,7 +270,7 @@ async function regenerate(name) {
         },
       },
     );
-    printCredentials(name, ikey, skey);
+    printCredentials(name, ikey, skey, existing.type || DEFAULT_TYPE);
     console.log("⚠ The old credentials are now invalid.");
     return true;
   });
@@ -247,13 +278,14 @@ async function regenerate(name) {
 
 const command = process.argv[2];
 const arg = process.argv[3];
+const arg2 = process.argv[4];
 
 (async () => {
   let success = true;
   try {
     switch (command) {
       case "generate":
-        success = await generate(arg);
+        success = await generate(arg, arg2);
         break;
       case "list":
         success = await list();
@@ -273,7 +305,9 @@ const arg = process.argv[3];
       default:
         console.log("Duo Integration Management Tool");
         console.log("\nUsage:");
-        console.log("  node manage-duo-integrations.js generate <name>");
+        console.log(
+          "  node manage-duo-integrations.js generate <name> [auth|admin]",
+        );
         console.log("  node manage-duo-integrations.js list");
         console.log("  node manage-duo-integrations.js enable <name>");
         console.log("  node manage-duo-integrations.js disable <name>");

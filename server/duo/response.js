@@ -84,6 +84,35 @@ export const sendDuo = (res, status, body) => {
 /** Convenience: write a success envelope with HTTP 200. */
 export const sendOk = (res, response = {}) => sendDuo(res, 200, ok(response));
 
+/**
+ * Build a paginated Duo Admin API envelope. The Admin API returns list
+ * responses as an array plus a `metadata` object describing pagination:
+ *   { "stat":"OK", "response":[...],
+ *     "metadata": { "prev_offset", "next_offset", "total_objects" } }
+ *
+ * @param {Array} items     the full filtered result set (pre-pagination)
+ * @param {Object} opts
+ * @param {number} opts.offset  requested offset (default 0)
+ * @param {number} opts.limit   requested page size (default 100)
+ */
+export const okPaged = (items = [], { offset = 0, limit = 100 } = {}) => {
+  const total = items.length;
+  const start = Math.max(0, offset);
+  const page = items.slice(start, start + limit);
+  const metadata = { total_objects: total };
+  if (start > 0) {
+    metadata.prev_offset = Math.max(0, start - limit);
+  }
+  if (start + limit < total) {
+    metadata.next_offset = start + limit;
+  }
+  return { stat: "OK", response: page, metadata };
+};
+
+/** Convenience: write a paginated Admin API success envelope with HTTP 200. */
+export const sendOkPaged = (res, items, opts) =>
+  sendDuo(res, 200, okPaged(items, opts));
+
 /** Convenience: write a failure envelope, deriving HTTP status from the code. */
 export const sendFail = (res, errorDef, messageDetail) =>
   sendDuo(res, httpStatusForCode(errorDef.code), fail(errorDef, messageDetail));
