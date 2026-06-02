@@ -7,6 +7,7 @@ import {
   sendFail,
   sendDuo,
   sendOkPaged,
+  httpStatusForCode,
 } from "./response.js";
 import { readRawBody, buildParams, setCors, firstParam } from "./http.js";
 import {
@@ -23,6 +24,22 @@ const MOUNT = "/admin/v1";
 
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 300;
+
+/**
+ * Structured per-request logger for the Duo Admin API. Logs the method, full
+ * path, client host/IP, and whether credentials were supplied so that client
+ * integration problems (e.g. Authentik directory import) can be diagnosed from
+ * the server logs without a debugger.
+ */
+const clientIp = (req) =>
+  req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "?";
+
+const logReq = (req, fullPath, msg) =>
+  console.log(
+    `[duo-admin] ${req.method} ${fullPath} ` +
+      `(host=${req.headers["host"] || "?"}, ip=${clientIp(req)}, ` +
+      `auth=${req.headers["authorization"] ? "yes" : "no"}) - ${msg}`,
+  );
 
 /** Parse Duo Admin API pagination params (limit/offset) from merged params. */
 const parsePagination = (params) => {
@@ -163,14 +180,17 @@ const ROUTES = [
 WebApp.connectHandlers.use(MOUNT, async (req, res) => {
   setCors(res);
 
+  const subPath = (req.url || "/").split("?")[0].replace(/\/$/, "") || "/";
+  const fullPath = MOUNT + (subPath === "/" ? "" : subPath);
+
   if (req.method === "OPTIONS") {
+    logReq(req, fullPath, "CORS preflight");
     res.writeHead(200);
     res.end();
     return;
   }
 
-  const subPath = (req.url || "/").split("?")[0].replace(/\/$/, "") || "/";
-  const fullPath = MOUNT + (subPath === "/" ? "" : subPath);
+  logReq(req, fullPath, "received");
 
   // Find a route whose pattern matches the sub-path.
   let matched = null;
@@ -188,13 +208,26 @@ WebApp.connectHandlers.use(MOUNT, async (req, res) => {
 
   if (!matched) {
     if (pathMatchedDifferentMethod) {
+      // The path exists but not for this method. Report (and log) the methods
+      // that *are* allowed so the client integration can be corrected.
+      const allowed = ROUTES.filter((r) => r.pattern.test(subPath)).map(
+        (r) => r.method,
+      );
+      console.warn(
+        `[duo-admin] 405 ${req.method} ${fullPath} - method not allowed; ` +
+          `allowed: ${allowed.join(", ")}`,
+      );
+      res.setHeader("Allow", allowed.join(", "));
       return sendDuo(res, 405, {
         stat: "FAIL",
         code: DUO_ERRORS.INVALID_REQUEST.code,
         message: "Method not allowed",
-        message_detail: `${req.method} ${fullPath}`,
+        message_detail: `${req.method} ${fullPath} (allowed: ${allowed.join(", ")})`,
       });
     }
+    console.warn(
+      `[duo-admin] 404 ${req.method} ${fullPath} - no matching route`,
+    );
     return sendFail(res, DUO_ERRORS.NOT_FOUND, fullPath);
   }
 
@@ -205,6 +238,10 @@ WebApp.connectHandlers.use(MOUNT, async (req, res) => {
       rawBody = await readRawBody(req);
     } catch (error) {
       const tooLarge = error.message === "Payload too large";
+      console.warn(
+        `[duo-admin] 400 ${req.method} ${fullPath} - ` +
+          `${tooLarge ? "payload too large" : "unable to read request body"}`,
+      );
       return sendFail(
         res,
         DUO_ERRORS.INVALID_REQUEST,
@@ -221,6 +258,11 @@ WebApp.connectHandlers.use(MOUNT, async (req, res) => {
     requiredType: "admin",
   });
   if (!authResult.ok) {
+    console.warn(
+      `[duo-admin] ${httpStatusForCode(authResult.error.code)} ` +
+        `${req.method} ${fullPath} - auth failed: code=${authResult.error.code} ` +
+        `(${authResult.detail || authResult.error.message})`,
+    );
     return sendFail(res, authResult.error, authResult.detail);
   }
 
@@ -232,6 +274,11 @@ WebApp.connectHandlers.use(MOUNT, async (req, res) => {
     match: matched.match,
     integration: authResult.integration,
   };
+
+  console.log(
+    `[duo-admin] ${req.method} ${fullPath} -> ${matched.route.handler.name} ` +
+      `(integration=${authResult.integration?.name || authResult.integration?.ikey || "?"})`,
+  );
 
   try {
     await matched.route.handler(ctx, res);
