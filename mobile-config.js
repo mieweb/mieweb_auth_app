@@ -5,13 +5,15 @@ App.info({
   author: "Anshul Abrol",
   email: "abrol.anshul10@gmail.com",
   website: "https://mieauth-prod.os.mieweb.org",
-  version: '1.4.33',
+  version: "1.4.33",
 });
 
 App.setPreference("android-targetSdkVersion", "35");
 App.setPreference("android-compileSdkVersion", "35");
 // Preferences per latest Meteor docs
-App.setPreference("BackgroundColor", "#000000ff");
+// Use the brand color (matches SplashScreenBackgroundColor) instead of black so
+// the WebView background shown during hot code push reloads is not a black flash.
+App.setPreference("BackgroundColor", "#27AAE1ff");
 App.setPreference("HideKeyboardFormAccessoryBar", true);
 App.setPreference("Orientation", "default");
 App.setPreference("Orientation", "all", "ios");
