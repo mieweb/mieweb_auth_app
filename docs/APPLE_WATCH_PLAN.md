@@ -56,7 +56,11 @@ buttons showing up on the watch.
 2. The watch notification shows **Approve** and **Reject** action buttons.
 3. Tapping **Approve** / **Reject** on the watch produces the same server-side
    result as tapping them on the phone (calls `notifications.handleResponse`
-   with the correct `userId`, `action`, `notificationId`, `deviceUUID`).
+   with the correct `userId`, `action`, `notificationId`, `deviceUUID`). The
+   user receives confirmation on the wrist (the system's default haptic plus
+   the notification dismissing), and an action failure surfaces the same
+   fallback path the phone uses today (the `trayActionResult` error in
+   `client/mobile/push-notifications.js`).
 4. Approving/rejecting from the watch resolves the request the same way the
    phone does today (success/timeout/already-handled behaviour is consistent),
    and de-duplication with the phone modal flow still works.
@@ -77,7 +81,7 @@ buttons showing up on the watch.
 | Action buttons | Sent dynamically in FCM `data.actions` | **Must move to a static `UNNotificationCategory`** so the watch can render them. |
 | iOS category | `aps.category = "APPROVAL"` already set | Reuse this category id when registering it natively. |
 | Action handling | `push.on("approve"/"reject")` in WebView | Watch taps are delivered to the **iOS** app, not watchOS; the existing handlers can still fire if the category is wired through the plugin. |
-| Device identity | `deviceUUID` from `Session.get("capturedDeviceInfo")` | Watch action is attributed to the paired **iPhone's** `deviceUUID` (acceptable for Phase 1). |
+| Device identity | `deviceUUID` from `Session.get("capturedDeviceInfo")` | Watch action would be attributed to the paired **iPhone's** `deviceUUID` (proposed for Phase 1, pending product sign-off — see Risks). |
 
 **Important reality check:** because watchOS forwards interactions back to the
 paired iPhone app, "approve from watch" is achievable **without** writing a
@@ -103,11 +107,13 @@ experience, which is intentionally out of scope for Phase 1.
 1. **Register a static `APPROVAL` category on iOS** with `approve` and `reject`
    actions (identifiers matching today's callbacks) so Apple Watch renders the
    buttons. Driven from `mobile-config.js` so it stays in the Cordova build.
-2. **Server payload alignment** (`server/firebase.js`): ensure every approval
-   notification consistently sets the `APPROVAL` category and includes the
-   `userId` / `notificationId` / `deviceUUID` needed by
-   `notifications.handleResponse` in the action payload (not only in the
-   in-app modal flow).
+2. **Server payload alignment** (`server/firebase.js`): today the `APPROVAL`
+   category is set on the APNs payload, but the action-routing fields
+   (`userId` / `notificationId` / `deviceUUID`) are primarily consumed by the
+   in-app modal flow and are not guaranteed to be present in the data payload
+   for every approval path. Audit each `sendNotification(...)` call site and
+   ensure these fields are consistently included so a watch-triggered action
+   can reach `notifications.handleResponse`.
 3. **Client action routing** (`client/mobile/push-notifications.js`): confirm
    `push.on("approve"/"reject")` fires for actions triggered from the watch
    (delivered via the paired phone) and that the existing
