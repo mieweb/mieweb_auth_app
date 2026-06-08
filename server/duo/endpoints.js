@@ -90,7 +90,7 @@ export const enroll = async (ctx, res) => {
   const validSecs = parseInt(param(params, "valid_secs"), 10);
 
   try {
-    const email = username || "";
+    const email = param(params, "email") || (isEmail(username) ? username : "");
     const { token, inviteDoc } = await createInviteRecord({
       email,
       username: isEmail(username) ? "" : username,
