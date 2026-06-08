@@ -134,7 +134,10 @@ const getInviteErrorDetails = async (token) => {
 };
 
 const validateInviteRegistrationData = (invite, details) => {
-  if (normalizeInviteEmail(details.email) !== invite.normalizedEmail) {
+  if (
+    invite.normalizedEmail &&
+    normalizeInviteEmail(details.email) !== invite.normalizedEmail
+  ) {
     throw new Meteor.Error(
       "invite-email-mismatch",
       "The submitted email does not match this invite.",
@@ -1701,6 +1704,7 @@ Meteor.methods({
       if (
         inviteRecord &&
         existingUser &&
+        inviteRecord.normalizedEmail &&
         normalizeInviteEmail(existingUser.emails?.[0]?.address || "") !==
           inviteRecord.normalizedEmail
       ) {
