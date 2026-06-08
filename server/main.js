@@ -1744,6 +1744,7 @@ Meteor.methods({
               },
             },
           );
+          await Accounts.setPasswordAsync(userId, pin);
         }
       } else {
         userId = await Accounts.createUserAsync({
