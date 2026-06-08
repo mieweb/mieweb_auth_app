@@ -23,18 +23,26 @@ export const APPROVAL_ACTIONS = [
 // Statically registered iOS UNNotificationCategory. Apple Watch only renders
 // action buttons that come from a static category, so this is what makes the
 // Approve/Reject buttons appear on the wrist.
+//
+// IMPORTANT: these MUST be background actions (foreground: false). Apple Watch
+// does not display foreground actions for mirrored notifications because the
+// watch cannot launch the iPhone app — watchOS silently hides any
+// isForeground: YES action, leaving only "Dismiss" on the wrist. Background
+// actions are forwarded to the paired iPhone and handled by the
+// push.on("approve"/"reject") handlers without opening the app, which is the
+// intended wrist-approval flow.
 export const IOS_APPROVAL_CATEGORIES = {
   [APPROVAL_CATEGORY_ID]: {
     yes: {
       callback: APPROVE_ACTION,
       title: "Approve",
-      foreground: true,
+      foreground: false,
       destructive: false,
     },
     no: {
       callback: REJECT_ACTION,
       title: "Reject",
-      foreground: true,
+      foreground: false,
       destructive: true,
     },
   },

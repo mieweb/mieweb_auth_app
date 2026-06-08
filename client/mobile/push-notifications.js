@@ -68,6 +68,9 @@ const sendUserAction = (userId, action, notificationId, deviceUUID) => {
 };
 
 const createNotificationChannel = () => {
+  // Notification channels are an Android-only concept. Calling createChannel on
+  // iOS throws "Method 'createChannel:' not defined" — skip it there.
+  if (typeof device !== "undefined" && device.platform !== "Android") return;
   PushNotification.createChannel(
     () => {},
     () => {},
@@ -241,6 +244,11 @@ export const initializePushNotifications = () => {
 
     // Initialize push service
     const push = configurePushNotifications();
+    console.log(
+      `[PushPlugin] init complete — registered iOS categories: ${Object.keys(
+        IOS_APPROVAL_CATEGORIES,
+      ).join(", ")}`,
+    );
 
     // Register handlers
     setupRegistrationHandler(push);
