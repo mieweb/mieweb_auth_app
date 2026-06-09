@@ -578,3 +578,188 @@ WebApp.connectHandlers.use("/api/admin/emails/list", async (req, res) => {
     }
   });
 });
+
+// ─── Duo Integrations ─────────────────────────────────────────────
+// Credentials used by Duo client libraries (Authentik Duo stage / duo_client)
+// to talk to MIEAuth's Duo Auth API (/auth/v2/*) and Admin API (/admin/v1/*).
+
+// List all Duo integrations
+WebApp.connectHandlers.use("/api/admin/duo/list", async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  if (req.method !== "GET")
+    return sendJson(res, 405, { error: "Method not allowed" });
+
+  await requireAdminAuth(req, res, async () => {
+    try {
+      const integrations = await Meteor.callAsync("duoIntegrations.list");
+      sendJson(res, 200, { success: true, integrations });
+    } catch (err) {
+      const mapped = mapMeteorError(err);
+      sendJson(res, mapped.status, {
+        error: mapped.error,
+        errorCode: mapped.errorCode,
+      });
+    }
+  });
+});
+
+// Create a new Duo integration
+WebApp.connectHandlers.use("/api/admin/duo/create", async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  if (req.method !== "POST")
+    return sendJson(res, 405, { error: "Method not allowed" });
+
+  await requireAdminAuth(req, res, async () => {
+    try {
+      const { name, type } = await parseJsonBody(req);
+      if (!name)
+        return sendJson(res, 400, {
+          error: "name required",
+          errorCode: "missing-field",
+        });
+
+      const result = await Meteor.callAsync(
+        "duoIntegrations.create",
+        name,
+        type || "auth",
+      );
+      sendJson(res, 201, {
+        success: true,
+        ...result,
+        message:
+          "Store the secret key (skey) securely. It will not be shown again.",
+      });
+    } catch (err) {
+      const mapped = mapMeteorError(err);
+      sendJson(res, mapped.status, {
+        error: mapped.error,
+        errorCode: mapped.errorCode,
+      });
+    }
+  });
+});
+
+// Enable / disable a Duo integration
+WebApp.connectHandlers.use("/api/admin/duo/set-enabled", async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  if (req.method !== "POST")
+    return sendJson(res, 405, { error: "Method not allowed" });
+
+  await requireAdminAuth(req, res, async () => {
+    try {
+      const { name, enabled } = await parseJsonBody(req);
+      if (!name || typeof enabled !== "boolean")
+        return sendJson(res, 400, {
+          error: "name and enabled (boolean) required",
+          errorCode: "missing-field",
+        });
+
+      const updated = await Meteor.callAsync(
+        "duoIntegrations.setEnabled",
+        name,
+        enabled,
+      );
+      sendJson(res, updated ? 200 : 404, {
+        success: updated,
+        message: updated
+          ? `Integration ${enabled ? "enabled" : "disabled"}`
+          : "Integration not found",
+        errorCode: updated ? undefined : "integration-not-found",
+      });
+    } catch (err) {
+      const mapped = mapMeteorError(err);
+      sendJson(res, mapped.status, {
+        error: mapped.error,
+        errorCode: mapped.errorCode,
+      });
+    }
+  });
+});
+
+// Regenerate (rotate) a Duo integration's credentials
+WebApp.connectHandlers.use("/api/admin/duo/regenerate", async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  if (req.method !== "POST")
+    return sendJson(res, 405, { error: "Method not allowed" });
+
+  await requireAdminAuth(req, res, async () => {
+    try {
+      const { name } = await parseJsonBody(req);
+      if (!name)
+        return sendJson(res, 400, {
+          error: "name required",
+          errorCode: "missing-field",
+        });
+
+      const result = await Meteor.callAsync("duoIntegrations.regenerate", name);
+      sendJson(res, 200, {
+        success: true,
+        ...result,
+        message:
+          "Store the new secret key (skey) securely. It will not be shown again.",
+      });
+    } catch (err) {
+      const mapped = mapMeteorError(err);
+      sendJson(res, mapped.status, {
+        error: mapped.error,
+        errorCode: mapped.errorCode,
+      });
+    }
+  });
+});
+
+// Delete a Duo integration
+WebApp.connectHandlers.use("/api/admin/duo/delete", async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  if (req.method !== "DELETE" && req.method !== "POST")
+    return sendJson(res, 405, { error: "Method not allowed" });
+
+  await requireAdminAuth(req, res, async () => {
+    try {
+      const { name } = await parseJsonBody(req);
+      if (!name)
+        return sendJson(res, 400, {
+          error: "name required",
+          errorCode: "missing-field",
+        });
+
+      const deleted = await Meteor.callAsync("duoIntegrations.delete", name);
+      sendJson(res, deleted ? 200 : 404, {
+        success: deleted,
+        message: deleted ? "Integration deleted" : "Integration not found",
+        errorCode: deleted ? undefined : "integration-not-found",
+      });
+    } catch (err) {
+      const mapped = mapMeteorError(err);
+      sendJson(res, mapped.status, {
+        error: mapped.error,
+        errorCode: mapped.errorCode,
+      });
+    }
+  });
+});
