@@ -282,6 +282,48 @@ Run the notification script:
 - `action: reject` - User rejected the notification
 - `action: timeout` - Notification timed out without user interaction
 
+## Watch Support
+
+Approval requests (e.g. "MIE Sudo Security Alert", new-device registration) can
+be approved or rejected directly from a paired **Apple Watch** or **Wear OS**
+watch, without taking the phone out. This works by **mirroring/bridging** the
+phone's notification to the wrist — there is no separate native watch app. A
+button tap on the watch is forwarded to the paired phone, which runs the same
+`push.on("approve"/"reject")` handlers used when the buttons are tapped on the
+phone.
+
+### How it works
+
+| Platform | Mechanism |
+| --- | --- |
+| **Apple Watch** | A static `UNNotificationCategory` (`APPROVAL`) with `approve`/`reject` actions is registered from the `ios.categories` block in [`client/mobile/push-notifications.js`](client/mobile/push-notifications.js). The watch only renders actions from a statically registered category. The id matches `aps.category` set in [`server/firebase.js`](server/firebase.js). |
+| **Wear OS** | The `@havesource/cordova-plugin-push` plugin emits the `data.actions` payload as `NotificationCompat` actions (plus a `WearableExtender`) and does **not** mark the notification local-only, so Wear OS bridges the buttons automatically. No additional configuration is required. |
+
+The approve/reject action contract (category id, action identifiers, action
+descriptors, and the required `userId`/`notificationId` data fields) is defined
+once in [`utils/constants.js`](utils/constants.js) and shared by the client and
+server so the two never drift.
+
+A watch-triggered action is currently attributed to the **paired phone's**
+`deviceUUID`.
+
+### Manual test checklist
+
+For each platform (Apple Watch + iPhone, Wear OS + Android):
+
+1. Pair the watch and confirm notification mirroring/bridging is enabled.
+2. Lock / pocket the phone, then trigger an approval request (e.g. run
+   `./send_notification.sh`).
+3. Confirm the request appears on the wrist with **Approve** and **Reject**
+   buttons.
+4. Tap **Approve** — the request resolves as approved server-side and the
+   notification dismisses on the wrist.
+5. Repeat and tap **Reject** — the request resolves as rejected.
+6. Trigger a request and let it **time out** without responding; confirm the
+   timeout behaviour matches the phone.
+7. Confirm de-duplication: responding on the watch does not also leave the
+   in-app modal actionable on the phone.
+
 ## Generating App Icons and Resources
 
 The application includes a Python script to generate all required app icons and splash screens from a single source image.

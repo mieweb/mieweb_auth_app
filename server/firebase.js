@@ -3,6 +3,7 @@ import { Meteor } from "meteor/meteor";
 import { DeviceDetails } from "../utils/api/deviceDetails.js";
 import { Email } from "meteor/email";
 import { INTERNAL_SERVER_SECRET } from "./internalSecret.js";
+import { APPROVAL_ACTIONS, APPROVAL_CATEGORY_ID } from "../utils/constants.js";
 
 import dotenv from "dotenv";
 dotenv.config();
@@ -79,9 +80,9 @@ export const sendNotification = async (fcmToken, title, body, data = {}) => {
             },
             badge: 1,
             sound: "default",
-            category: "APPROVAL",
-            content_available: 1,
-            mutable_content: true,
+            category: APPROVAL_CATEGORY_ID,
+            "content-available": 1,
+            "mutable-content": 1,
           },
         },
       },
@@ -266,8 +267,44 @@ export const sendSecondaryDeviceApprovalRequest = async (
       throw new Error("Primary device not found");
     }
 
+    // Abort before creating any history record if Firebase is disabled or
+    // misconfigured — otherwise sendNotification returns null and we leave a
+    // permanently-pending notificationHistory entry for a push that never sent.
+    if (!firebaseInitialized) {
+      console.warn(
+        "sendSecondaryDeviceApprovalRequest called but Firebase is not initialised — skipping",
+      );
+      return {
+        notificationSent: false,
+        reason: "firebase_not_initialised",
+        primaryDevice: primaryDeviceUUID,
+        requestingDevice: newDevice.deviceUUID,
+      };
+    }
+
     const title = "New Device Registration";
     const body = `Device "${newDevice.deviceUUID.substring(0, 8)}..." is requesting access to your account.`;
+
+    // Pre-create the notification history record so its notificationId can be
+    // embedded in the FCM data payload. Without it, an approve/reject action
+    // triggered from the notification tray — or mirrored/bridged to a paired
+    // watch — is dropped by handleActionFromTray, which requires both userId
+    // and notificationId to call notifications.handleResponse.
+    const notificationId = await Meteor.callAsync(
+      "notificationHistory.insert",
+      {
+        userId,
+        title,
+        body,
+        appId: primaryDevice.appId,
+      },
+    );
+
+    if (!notificationId) {
+      throw new Error(
+        "Failed to create notification history record; aborting push.",
+      );
+    }
 
     const notificationResult = await sendNotification(
       primaryDevice.fcmToken,
@@ -277,10 +314,9 @@ export const sendSecondaryDeviceApprovalRequest = async (
         notificationType: "secondary_device_approval",
         newDeviceUUID: newDevice.deviceUUID,
         userId: userId,
-        actions: JSON.stringify([
-          { callback: "approve", title: "Approve", foreground: true },
-          { callback: "reject", title: "Reject", foreground: true },
-        ]),
+        notificationId,
+        appId: primaryDevice.appId,
+        actions: JSON.stringify(APPROVAL_ACTIONS),
       },
     );
 

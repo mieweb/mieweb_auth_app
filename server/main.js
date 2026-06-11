@@ -23,6 +23,9 @@ import {
   normalizeInviteUsername,
 } from "../utils/api/invites.js";
 import "./adminApi"; // Admin REST API endpoints
+import "../utils/api/duoIntegrations.js"; // Duo integration credential methods
+import "./duo/index.js"; // Duo Auth API v2 compatibility layer (/auth/v2/*)
+import "./duo/adminApiV1.js"; // Duo Admin API v1 compatibility layer (/admin/v1/*)
 import { adminPageTemplate } from "./templates/admin";
 import { APPROVAL_TOKEN_EXPIRY_MS } from "../utils/constants.js";
 import {
@@ -45,8 +48,12 @@ dotenv.config();
 
 // Serve admin UI at /admin
 WebApp.connectHandlers.use("/admin", (req, res, next) => {
-  // Only serve the admin page for GET requests to exactly /admin or /admin/
+  // Only serve the admin page for GET requests to exactly /admin or /admin/.
+  // Sub-paths (e.g. the Duo Admin API at /admin/v1/*) must fall through so
+  // they are not shadowed by the dashboard HTML.
   if (req.method !== "GET") return next();
+  const sub = (req.url || "/").split("?")[0];
+  if (sub !== "/" && sub !== "") return next();
   res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
   res.end(adminPageTemplate());
 });
@@ -127,7 +134,10 @@ const getInviteErrorDetails = async (token) => {
 };
 
 const validateInviteRegistrationData = (invite, details) => {
-  if (normalizeInviteEmail(details.email) !== invite.normalizedEmail) {
+  if (
+    invite.normalizedEmail &&
+    normalizeInviteEmail(details.email) !== invite.normalizedEmail
+  ) {
     throw new Meteor.Error(
       "invite-email-mismatch",
       "The submitted email does not match this invite.",
@@ -1694,6 +1704,7 @@ Meteor.methods({
       if (
         inviteRecord &&
         existingUser &&
+        inviteRecord.normalizedEmail &&
         normalizeInviteEmail(existingUser.emails?.[0]?.address || "") !==
           inviteRecord.normalizedEmail
       ) {
@@ -1737,6 +1748,7 @@ Meteor.methods({
               },
             },
           );
+          await Accounts.setPasswordAsync(userId, pin);
         }
       } else {
         userId = await Accounts.createUserAsync({

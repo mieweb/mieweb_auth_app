@@ -1,4 +1,5 @@
 import assert from "assert";
+import "./duo.js";
 
 describe("meteor-app", function () {
   it("package.json has correct name", async function () {
@@ -1116,4 +1117,69 @@ describe("meteor-app", function () {
       });
     });
   }
+
+  describe("Watch support — notification action contract", function () {
+    const {
+      APPROVAL_CATEGORY_ID,
+      APPROVE_ACTION,
+      REJECT_ACTION,
+      APPROVAL_ACTIONS,
+      IOS_APPROVAL_CATEGORIES,
+      REQUIRED_ACTION_DATA_FIELDS,
+    } = require("../utils/constants");
+
+    it("registers a static iOS category id matching aps.category", function () {
+      // The server sets aps.category = "APPROVAL"; the statically registered
+      // iOS category id must equal it or Apple Watch renders no buttons.
+      assert.strictEqual(APPROVAL_CATEGORY_ID, "APPROVAL");
+      assert.ok(
+        Object.prototype.hasOwnProperty.call(
+          IOS_APPROVAL_CATEGORIES,
+          APPROVAL_CATEGORY_ID,
+        ),
+        "iOS categories must contain the APPROVAL category",
+      );
+    });
+
+    it("iOS APPROVAL category actions match the push.on() handler ids", function () {
+      const category = IOS_APPROVAL_CATEGORIES[APPROVAL_CATEGORY_ID];
+      // `yes`/`no` map to the approve/reject UNNotificationActions; the
+      // `callback` is the action identifier emitted to push.on(...).
+      assert.strictEqual(category.yes.callback, APPROVE_ACTION);
+      assert.strictEqual(category.no.callback, REJECT_ACTION);
+      // Both actions MUST run in the background (foreground: false). watchOS
+      // hides foreground actions for mirrored notifications, so background
+      // actions are what render Approve/Reject on the wrist and route through
+      // the push.on() handlers. Reject is destructive.
+      assert.strictEqual(category.yes.foreground, false);
+      assert.strictEqual(category.no.foreground, false);
+      assert.strictEqual(category.no.destructive, true);
+    });
+
+    it("Android action descriptors expose approve and reject callbacks", function () {
+      // On Android these become NotificationCompat actions (bridged to Wear OS).
+      const callbacks = APPROVAL_ACTIONS.map((a) => a.callback);
+      assert.deepStrictEqual(callbacks, [APPROVE_ACTION, REJECT_ACTION]);
+      APPROVAL_ACTIONS.forEach((action) => {
+        assert.strictEqual(
+          typeof action.title,
+          "string",
+          "each action needs a title to render a button",
+        );
+        assert.strictEqual(
+          action.foreground,
+          true,
+          "actions run in foreground to reach the handler",
+        );
+      });
+    });
+
+    it("requires userId and notificationId for a tray/watch action", function () {
+      // handleActionFromTray bails unless both are present in the data payload.
+      assert.deepStrictEqual(REQUIRED_ACTION_DATA_FIELDS, [
+        "userId",
+        "notificationId",
+      ]);
+    });
+  });
 });

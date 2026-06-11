@@ -1,5 +1,6 @@
 import { Meteor } from "meteor/meteor";
 import { Session } from "meteor/session";
+import { IOS_APPROVAL_CATEGORIES } from "../../utils/constants.js";
 
 // Session validation with retry logic
 const validateSessionWithRetry = (callback, retries = 3, interval = 1000) => {
@@ -67,6 +68,11 @@ const sendUserAction = (userId, action, notificationId, deviceUUID) => {
 };
 
 const createNotificationChannel = () => {
+  // Notification channels are an Android-only concept. Calling createChannel on
+  // iOS throws "Method 'createChannel:' not defined" — skip it there. Only
+  // proceed when we can positively identify Android (device may be undefined
+  // before Cordova is ready or in a non-Cordova environment).
+  if (typeof device === "undefined" || device.platform !== "Android") return;
   PushNotification.createChannel(
     () => {},
     () => {},
@@ -107,6 +113,15 @@ const configurePushNotifications = () => {
       sound: true,
       priority: "high",
       foreground: true,
+      // Statically register the APPROVAL category so its action buttons are
+      // rendered by the system — including when the notification is mirrored to
+      // a paired Apple Watch. The watch only shows actions that come from a
+      // statically registered UNNotificationCategory; runtime/payload actions
+      // are ignored on the wrist. The category id must match aps.category
+      // ("APPROVAL") set by the server, and each action's `callback` must match
+      // the push.on("approve"/"reject") handlers so a tap (from phone OR watch)
+      // routes back through the same handler.
+      categories: IOS_APPROVAL_CATEGORIES,
     },
   });
 };
@@ -231,6 +246,11 @@ export const initializePushNotifications = () => {
 
     // Initialize push service
     const push = configurePushNotifications();
+    console.log(
+      `[PushPlugin] init complete — registered iOS categories: ${Object.keys(
+        IOS_APPROVAL_CATEGORIES,
+      ).join(", ")}`,
+    );
 
     // Register handlers
     setupRegistrationHandler(push);

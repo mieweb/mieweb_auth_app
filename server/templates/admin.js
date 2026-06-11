@@ -277,6 +277,151 @@ const ApiKeysTab = ({ toast, toastErr }) => {
   );
 };
 
+// ─── Tab: Duo Integrations ───────────────────────────────────────
+const DuoTab = ({ toast, toastErr }) => {
+  const [integrations, setIntegrations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [newName, setNewName] = useState('');
+  const [newType, setNewType] = useState('auth');
+  const [newCred, setNewCred] = useState(null);
+  const [confirm, setConfirm] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api('/api/admin/duo/list');
+      if (res.success) setIntegrations(res.integrations);
+    } catch (err) {
+      toastErr(err.message || 'Failed to load integrations', 'error', err);
+    }
+    setLoading(false);
+  }, [toastErr]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleCreate = async () => {
+    if (!newName.trim()) return;
+    try {
+      const res = await api('/api/admin/duo/create', { method: 'POST', body: JSON.stringify({ name: newName.trim(), type: newType }) });
+      if (res.success) {
+        setNewCred({ name: res.name, ikey: res.ikey, skey: res.skey });
+        setNewName('');
+        toast('Duo integration created', 'success');
+        load();
+      } else {
+        toast(res.error || 'Failed to create integration', 'error');
+      }
+    } catch (err) {
+      toastErr(err.message || 'An unexpected error occurred', 'error', err);
+    }
+  };
+
+  const handleToggle = async (name, enabled) => {
+    try {
+      const res = await api('/api/admin/duo/set-enabled', { method: 'POST', body: JSON.stringify({ name, enabled }) });
+      if (res.success) { toast(enabled ? 'Integration enabled' : 'Integration disabled', 'success'); load(); }
+      else toast(res.error || 'Failed to update integration', 'error');
+    } catch (err) {
+      toastErr(err.message || 'An unexpected error occurred', 'error', err);
+    }
+  };
+
+  const handleRegenerate = (name) => {
+    setConfirm({
+      title: 'Regenerate Credentials',
+      message: \`Rotate the ikey/skey for "\${name}"? The old credentials will stop working immediately.\`,
+      danger: true,
+      onConfirm: async () => {
+        try {
+          setConfirm(null);
+          const res = await api('/api/admin/duo/regenerate', { method: 'POST', body: JSON.stringify({ name }) });
+          if (res.success) { setNewCred({ name: res.name, ikey: res.ikey, skey: res.skey }); toast('Credentials rotated', 'success'); load(); }
+          else toast(res.error || 'Failed to rotate credentials', 'error');
+        } catch (err) {
+          toastErr(err.message || 'An unexpected error occurred', 'error', err);
+        }
+      }
+    });
+  };
+
+  const handleDelete = (name) => {
+    setConfirm({
+      title: 'Delete Duo Integration',
+      message: \`Permanently delete the Duo integration "\${name}"? This cannot be undone.\`,
+      danger: true,
+      onConfirm: async () => {
+        try {
+          setConfirm(null);
+          const res = await api('/api/admin/duo/delete', { method: 'DELETE', body: JSON.stringify({ name }) });
+          if (res.success) { toast('Integration deleted', 'success'); load(); }
+          else toast(res.error || 'Failed to delete integration', 'error');
+        } catch (err) {
+          toastErr(err.message || 'An unexpected error occurred', 'error', err);
+        }
+      }
+    });
+  };
+
+  return (
+    <div className="space-y-6 fade-in">
+      {confirm && <ConfirmDialog {...confirm} onCancel={() => setConfirm(null)} />}
+      {/* Create */}
+      <div className="bg-white rounded-xl shadow-sm border p-5">
+        <h3 className="font-semibold text-gray-900 mb-3">Create New Duo Integration</h3>
+        <div className="flex flex-wrap gap-3">
+          <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Name (e.g. authentik-prod)" className="flex-1 min-w-[200px] px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+          <select value={newType} onChange={e => setNewType(e.target.value)} className="px-3 py-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+            <option value="auth">Auth API</option>
+            <option value="admin">Admin API</option>
+          </select>
+          <button onClick={handleCreate} disabled={!newName.trim()} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white text-sm rounded-lg">Create</button>
+        </div>
+        {newCred && (
+          <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+            <p className="text-xs font-medium text-green-800 mb-2">⚠️ Copy the secret key now — it won't be shown again:</p>
+            <div className="space-y-1 text-xs">
+              <div><span className="text-gray-500">Name:</span> <code className="bg-green-100 px-1.5 py-0.5 rounded">{newCred.name}</code></div>
+              <div><span className="text-gray-500">Integration key (ikey):</span> <code className="bg-green-100 px-1.5 py-0.5 rounded select-all">{newCred.ikey}</code></div>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500 shrink-0">Secret key (skey):</span>
+                <code className="bg-green-100 px-1.5 py-0.5 rounded break-all select-all flex-1">{newCred.skey}</code>
+                <button onClick={() => { navigator.clipboard.writeText(newCred.skey); toast('Secret key copied', 'success'); }} className="shrink-0 px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded">📋 Copy</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+      {/* List */}
+      <div className="bg-white rounded-xl shadow-sm border">
+        <div className="px-5 py-4 border-b"><h3 className="font-semibold text-gray-900">Duo Integrations</h3></div>
+        {loading ? <div className="p-8 text-center"><span className="spinner" /></div> : integrations.length === 0 ? (
+          <p className="p-8 text-center text-gray-400 text-sm">No Duo integrations found</p>
+        ) : (
+          <div className="divide-y">
+            {integrations.map(d => (
+              <div key={d.name} className="px-5 py-3 flex items-center justify-between hover:bg-gray-50">
+                <div>
+                  <p className="font-medium text-sm text-gray-900">
+                    {d.name}
+                    <span className={\`ml-2 text-[10px] uppercase px-1.5 py-0.5 rounded-full \${d.type === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}\`}>{d.type || 'auth'}</span>
+                    {!d.enabled && <span className="ml-2 text-[10px] uppercase px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600">disabled</span>}
+                  </p>
+                  <p className="text-xs text-gray-500">ikey: <code className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-700">{d.ikey}</code> · Created: {new Date(d.createdAt).toLocaleDateString()} · Last used: {d.lastUsed ? new Date(d.lastUsed).toLocaleString() : 'Never'}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => handleToggle(d.name, !d.enabled)} className={\`text-xs font-medium px-3 py-1 rounded \${d.enabled ? 'text-amber-600 hover:bg-amber-50' : 'text-green-600 hover:bg-green-50'}\`}>{d.enabled ? 'Disable' : 'Enable'}</button>
+                  <button onClick={() => handleRegenerate(d.name)} className="text-blue-600 hover:text-blue-800 text-xs font-medium px-3 py-1 rounded hover:bg-blue-50">Rotate</button>
+                  <button onClick={() => handleDelete(d.name)} className="text-red-500 hover:text-red-700 text-xs font-medium px-3 py-1 rounded hover:bg-red-50">Delete</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // ─── Tab: Users ──────────────────────────────────────────────────
 const UsersTab = ({ toast, toastErr }) => {
   const [users, setUsers] = useState([]);
@@ -621,6 +766,7 @@ const EmailsTab = ({ toast, toastErr }) => {
 // ─── Dashboard ───────────────────────────────────────────────────
 const TABS = [
   { id: 'keys', label: 'API Keys', icon: '🔑' },
+  { id: 'duo', label: 'Duo', icon: '🔐' },
   { id: 'users', label: 'Users', icon: '👤' },
   { id: 'devices', label: 'Devices', icon: '📱' },
   { id: 'emails', label: 'Emails', icon: '📧' }
@@ -665,6 +811,7 @@ const Dashboard = ({ adminId, onLogout }) => {
           ))}
         </div>
         {tab === 'keys' && <ApiKeysTab toast={toast} toastErr={toastWithSessionCheck} />}
+        {tab === 'duo' && <DuoTab toast={toast} toastErr={toastWithSessionCheck} />}
         {tab === 'users' && <UsersTab toast={toast} toastErr={toastWithSessionCheck} />}
         {tab === 'devices' && <DevicesTab toast={toast} toastErr={toastWithSessionCheck} />}
         {tab === 'emails' && <EmailsTab toast={toast} toastErr={toastWithSessionCheck} />}
