@@ -267,6 +267,21 @@ export const sendSecondaryDeviceApprovalRequest = async (
       throw new Error("Primary device not found");
     }
 
+    // Abort before creating any history record if Firebase is disabled or
+    // misconfigured — otherwise sendNotification returns null and we leave a
+    // permanently-pending notificationHistory entry for a push that never sent.
+    if (!firebaseInitialized) {
+      console.warn(
+        "sendSecondaryDeviceApprovalRequest called but Firebase is not initialised — skipping",
+      );
+      return {
+        notificationSent: false,
+        reason: "firebase_not_initialised",
+        primaryDevice: primaryDeviceUUID,
+        requestingDevice: newDevice.deviceUUID,
+      };
+    }
+
     const title = "New Device Registration";
     const body = `Device "${newDevice.deviceUUID.substring(0, 8)}..." is requesting access to your account.`;
 

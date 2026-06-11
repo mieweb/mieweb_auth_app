@@ -69,8 +69,10 @@ const sendUserAction = (userId, action, notificationId, deviceUUID) => {
 
 const createNotificationChannel = () => {
   // Notification channels are an Android-only concept. Calling createChannel on
-  // iOS throws "Method 'createChannel:' not defined" — skip it there.
-  if (typeof device !== "undefined" && device.platform !== "Android") return;
+  // iOS throws "Method 'createChannel:' not defined" — skip it there. Only
+  // proceed when we can positively identify Android (device may be undefined
+  // before Cordova is ready or in a non-Cordova environment).
+  if (typeof device === "undefined" || device.platform !== "Android") return;
   PushNotification.createChannel(
     () => {},
     () => {},

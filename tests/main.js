@@ -1147,10 +1147,12 @@ describe("meteor-app", function () {
       // `callback` is the action identifier emitted to push.on(...).
       assert.strictEqual(category.yes.callback, APPROVE_ACTION);
       assert.strictEqual(category.no.callback, REJECT_ACTION);
-      // Reject is destructive; both run in the foreground so the tray/watch tap
-      // routes through handleActionFromTray the same way the phone does.
-      assert.strictEqual(category.yes.foreground, true);
-      assert.strictEqual(category.no.foreground, true);
+      // Both actions MUST run in the background (foreground: false). watchOS
+      // hides foreground actions for mirrored notifications, so background
+      // actions are what render Approve/Reject on the wrist and route through
+      // the push.on() handlers. Reject is destructive.
+      assert.strictEqual(category.yes.foreground, false);
+      assert.strictEqual(category.no.foreground, false);
       assert.strictEqual(category.no.destructive, true);
     });
 
