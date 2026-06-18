@@ -1,24 +1,26 @@
 import crypto from "crypto";
-import { execFile } from "node:child_process";
 import ldap from "ldapjs";
-import { promisify } from "node:util";
 
 /**
  * Admin authentication via LDAP bind + group membership check.
  *
  * Env vars required:
  *   LDAP_URL              – Comma-separated LDAP server URLs for failover
- *                           (e.g. ldaps://ldap1.cluster.mieweb.org:636,ldaps://ldap2.cluster.mieweb.org:636)
+ *                           (e.g. ldaps://ldap1.cluster.mieweb.org:6636,ldaps://ldap2.cluster.mieweb.org:6636)
  *   LDAP_BASE_DN          – Base DN (e.g. dc=cluster,dc=mieweb,dc=org)
- *   LDAP_USER_BASE_DN     – Where user entries live (e.g. ou=people,dc=cluster,dc=mieweb,dc=org)
+ *   LDAP_USER_BASE_DN     – Where user entries live (e.g. ou=users,dc=cluster,dc=mieweb,dc=org)
  *   LDAP_ADMIN_GROUP_DN   – Group DN whose members may access the admin panel
  *   LDAP_GROUP_MEMBER_ATTR– (optional, default "memberUid") attribute on the group entry listing members
+ *   LDAP_BIND_DN          – (optional) service-account DN for the pre-auth group search
+ *                           (required when the directory disallows anonymous searches,
+ *                            e.g. cn=ldap-proxyuser,ou=users,dc=cluster,dc=mieweb,dc=org)
+ *   LDAP_BIND_PASSWORD    – (optional) password for LDAP_BIND_DN
  *   LDAP_REJECT_UNAUTHORIZED – (optional, default "true") set "false" to skip TLS cert validation
  *
  * Flow:
  *   1. POST /api/admin/auth  { username, password }
  *      a. Try each LDAP URL in order until one connects
- *      b. Anonymous search: verify user is a member of LDAP_ADMIN_GROUP_DN
+ *      b. Service-account (or anonymous) search: verify user is a member of LDAP_ADMIN_GROUP_DN
  *         (rejects non-admins before triggering any MFA / push notifications)
  *      c. Bind as uid=<username>,<LDAP_USER_BASE_DN> with the supplied password
  *      d. If both succeed → create session token → { success, token, username }
@@ -26,7 +28,6 @@ import { promisify } from "node:util";
  */
 
 const LOG_PREFIX = "[AdminAuth/LDAP]";
-const execFileAsync = promisify(execFile);
 
 // ─── RSA key pair for encrypting credentials in transit ─────────
 // Generated once at server startup; lives only in memory.
@@ -66,8 +67,16 @@ const ldapConfig = () => ({
   url: process.env.LDAP_URL, // raw value for config-check logging
   baseDn: process.env.LDAP_BASE_DN,
   userBaseDn: process.env.LDAP_USER_BASE_DN,
+  // RDN attribute for user entries — used to build the bind DN
+  // "<attr>=<username>,<userBaseDn>". Defaults to "uid"; directories such as
+  // authentik use "cn" (e.g. cn=aabrol,ou=users,...).
+  userRdnAttr: process.env.LDAP_USER_RDN_ATTR || "uid",
   adminGroupDn: process.env.LDAP_ADMIN_GROUP_DN,
   groupMemberAttr: process.env.LDAP_GROUP_MEMBER_ATTR || "memberUid",
+  // Optional service-account credentials for the pre-auth group-membership
+  // search. Required when the directory disallows anonymous searches.
+  bindDn: process.env.LDAP_BIND_DN,
+  bindPassword: process.env.LDAP_BIND_PASSWORD,
   rejectUnauthorized: process.env.LDAP_REJECT_UNAUTHORIZED !== "false",
 });
 
@@ -138,6 +147,34 @@ const escapeLdapFilter = (value) =>
     /[\\*()\/\0]/g,
     (ch) => "\\" + ch.charCodeAt(0).toString(16).padStart(2, "0"),
   );
+
+/**
+ * Build a group-membership filter that matches all common LDAP group schemes:
+ *   - posixGroup           → memberUid    = <username>   (bare uid)
+ *   - groupOfNames         → member       = <userDn>     (full DN)
+ *   - groupOfUniqueNames   → uniqueMember = <userDn>     (full DN)
+ *
+ * Directories differ on which RDN the member DN uses, so we match both the
+ * "uid=<user>,<base>" and "cn=<user>,<base>" forms (e.g. authentik lists
+ * members as "cn=<user>,ou=users,..."). The configured
+ * LDAP_GROUP_MEMBER_ATTR (default "memberUid") is always included so an
+ * explicit override still works.
+ */
+const buildMembershipFilter = (cfg, username) => {
+  const safeUser = escapeLdapFilter(username);
+  const base = cfg.userBaseDn || "";
+  const uidDn = escapeLdapFilter(`uid=${username},${base}`);
+  const cnDn = escapeLdapFilter(`cn=${username},${base}`);
+  const clauses = new Set([
+    `(${cfg.groupMemberAttr}=${safeUser})`,
+    `(memberUid=${safeUser})`,
+    `(member=${uidDn})`,
+    `(member=${cnDn})`,
+    `(uniqueMember=${uidDn})`,
+    `(uniqueMember=${cnDn})`,
+  ]);
+  return `(&(objectClass=*)(|${[...clauses].join("")}))`;
+};
 
 /** Build a human-readable error message from an ldapjs error */
 const ldapErrorMessage = (err) => {
@@ -415,65 +452,12 @@ const ldapSearchOne = (client, baseDn, filter, scope = "sub") =>
   });
 
 /**
- * Fallback: check group membership via the system `ldapsearch` CLI.
- * Needed because some Node.js / ldapjs version combinations return false
- * negatives for anonymous searches (the dev server is affected).
- */
-const ldapSearchCli = async (cfg, username) => {
-  const safeUser = escapeLdapFilter(username);
-  const filter = `(&(objectClass=*)(${cfg.groupMemberAttr}=${safeUser}))`;
-
-  for (const url of cfg.urls) {
-    try {
-      console.warn(
-        `${LOG_PREFIX} Retrying group membership with ldapsearch CLI via ${url}`,
-      );
-      const { stdout } = await execFileAsync(
-        "ldapsearch",
-        ["-x", "-H", url, "-b", cfg.adminGroupDn, "-s", "base", filter, "dn"],
-        {
-          env: {
-            ...process.env,
-            LDAPTLS_REQCERT: cfg.rejectUnauthorized ? "demand" : "never",
-          },
-          timeout: 15000,
-          maxBuffer: 1024 * 1024,
-        },
-      );
-
-      const matched = stdout
-        .split("\n")
-        .some(
-          (line) =>
-            line.trim().toLowerCase() ===
-            `dn: ${cfg.adminGroupDn.toLowerCase()}`,
-        );
-
-      console.log(
-        `${LOG_PREFIX} ldapsearch CLI group membership result: ${matched ? "MEMBER" : "NOT A MEMBER"}`,
-      );
-
-      return matched;
-    } catch (err) {
-      console.error(
-        `${LOG_PREFIX} ldapsearch CLI failed on ${url}: ${err.message}`,
-      );
-      if (url === cfg.urls[cfg.urls.length - 1]) {
-        throw err;
-      }
-    }
-  }
-
-  return false;
-};
-
-/**
  * Check whether `username` is a member of the admin group.
- * Searches the group entry for the memberUid (or custom attr) matching the username.
+ * Searches the group entry for any of the common membership attributes
+ * (memberUid with the bare uid, or member/uniqueMember with the full DN).
  */
 const isGroupMember = async (client, cfg, username) => {
-  const safeUser = escapeLdapFilter(username);
-  const filter = `(&(objectClass=*)(${cfg.groupMemberAttr}=${safeUser}))`;
+  const filter = buildMembershipFilter(cfg, username);
   console.log(
     `${LOG_PREFIX} Checking group membership: group="${cfg.adminGroupDn}" attr=${cfg.groupMemberAttr} user="${username}"`,
   );
@@ -517,29 +501,29 @@ export const validateCredentials = async (username, password) => {
     throw err;
   }
 
-  const userDn = `uid=${username},${cfg.userBaseDn}`;
+  const userDn = `${cfg.userRdnAttr}=${username},${cfg.userBaseDn}`;
   console.log(`${LOG_PREFIX} ── Authenticating user "${username}" ──`);
   console.log(`${LOG_PREFIX} User DN: ${userDn}`);
   console.log(`${LOG_PREFIX} Admin group: ${cfg.adminGroupDn}`);
 
   try {
-    // 1. Check group membership FIRST (anonymous search) — reject non-admins
-    //    before binding as the user, which may trigger push notifications.
+    // 1. Check group membership FIRST — reject non-admins before binding as
+    //    the user, which may trigger push notifications. Use a service-account
+    //    bind when configured (directories that disallow anonymous searches),
+    //    otherwise fall back to an anonymous search.
+    const useServiceBind = Boolean(cfg.bindDn && cfg.bindPassword);
     console.log(
-      `${LOG_PREFIX} Pre-auth: checking group membership via anonymous search`,
+      `${LOG_PREFIX} Pre-auth: checking group membership via ${
+        useServiceBind ? "service-account bind" : "anonymous search"
+      }`,
     );
-    let isMember = await withAnonymousLdap(async (client) => {
-      return isGroupMember(client, cfg, username);
-    });
-
-    // CLI fallback — some Node.js / ldapjs versions return false negatives
-    // for anonymous searches.  Fall back to the system `ldapsearch` binary.
-    if (!isMember) {
-      console.warn(
-        `${LOG_PREFIX} Anonymous group search returned no match — retrying with ldapsearch CLI`,
-      );
-      isMember = await ldapSearchCli(cfg, username);
-    }
+    const isMember = await (useServiceBind
+      ? withLdapClient(cfg.bindDn, cfg.bindPassword, async (client) =>
+          isGroupMember(client, cfg, username),
+        )
+      : withAnonymousLdap(async (client) =>
+          isGroupMember(client, cfg, username),
+        ));
 
     if (!isMember) {
       const groupErr = new Error("User is not a member of the admin group");
