@@ -147,6 +147,34 @@ const escapeLdapFilter = (value) =>
     (ch) => "\\" + ch.charCodeAt(0).toString(16).padStart(2, "0"),
   );
 
+/**
+ * Build a group-membership filter that matches all common LDAP group schemes:
+ *   - posixGroup           → memberUid    = <username>   (bare uid)
+ *   - groupOfNames         → member       = <userDn>     (full DN)
+ *   - groupOfUniqueNames   → uniqueMember = <userDn>     (full DN)
+ *
+ * Directories differ on which RDN the member DN uses, so we match both the
+ * "uid=<user>,<base>" and "cn=<user>,<base>" forms (e.g. authentik lists
+ * members as "cn=<user>,ou=users,..."). The configured
+ * LDAP_GROUP_MEMBER_ATTR (default "memberUid") is always included so an
+ * explicit override still works.
+ */
+const buildMembershipFilter = (cfg, username) => {
+  const safeUser = escapeLdapFilter(username);
+  const base = cfg.userBaseDn || "";
+  const uidDn = escapeLdapFilter(`uid=${username},${base}`);
+  const cnDn = escapeLdapFilter(`cn=${username},${base}`);
+  const clauses = new Set([
+    `(${cfg.groupMemberAttr}=${safeUser})`,
+    `(memberUid=${safeUser})`,
+    `(member=${uidDn})`,
+    `(member=${cnDn})`,
+    `(uniqueMember=${uidDn})`,
+    `(uniqueMember=${cnDn})`,
+  ]);
+  return `(&(objectClass=*)(|${[...clauses].join("")}))`;
+};
+
 /** Build a human-readable error message from an ldapjs error */
 const ldapErrorMessage = (err) => {
   // ldapjs puts the error type in err.name (e.g. "InvalidCredentialsError")
@@ -428,8 +456,7 @@ const ldapSearchOne = (client, baseDn, filter, scope = "sub") =>
  * negatives for anonymous searches (the dev server is affected).
  */
 const ldapSearchCli = async (cfg, username) => {
-  const safeUser = escapeLdapFilter(username);
-  const filter = `(&(objectClass=*)(${cfg.groupMemberAttr}=${safeUser}))`;
+  const filter = buildMembershipFilter(cfg, username);
 
   // Use service-account credentials when configured; otherwise fall back to
   // a simple anonymous ("-x") search for backward compatibility.
@@ -494,11 +521,11 @@ const ldapSearchCli = async (cfg, username) => {
 
 /**
  * Check whether `username` is a member of the admin group.
- * Searches the group entry for the memberUid (or custom attr) matching the username.
+ * Searches the group entry for any of the common membership attributes
+ * (memberUid with the bare uid, or member/uniqueMember with the full DN).
  */
 const isGroupMember = async (client, cfg, username) => {
-  const safeUser = escapeLdapFilter(username);
-  const filter = `(&(objectClass=*)(${cfg.groupMemberAttr}=${safeUser}))`;
+  const filter = buildMembershipFilter(cfg, username);
   console.log(
     `${LOG_PREFIX} Checking group membership: group="${cfg.adminGroupDn}" attr=${cfg.groupMemberAttr} user="${username}"`,
   );
