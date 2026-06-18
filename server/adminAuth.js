@@ -70,6 +70,10 @@ const ldapConfig = () => ({
   url: process.env.LDAP_URL, // raw value for config-check logging
   baseDn: process.env.LDAP_BASE_DN,
   userBaseDn: process.env.LDAP_USER_BASE_DN,
+  // RDN attribute for user entries — used to build the bind DN
+  // "<attr>=<username>,<userBaseDn>". Defaults to "uid"; directories such as
+  // authentik use "cn" (e.g. cn=aabrol,ou=users,...).
+  userRdnAttr: process.env.LDAP_USER_RDN_ATTR || "uid",
   adminGroupDn: process.env.LDAP_ADMIN_GROUP_DN,
   groupMemberAttr: process.env.LDAP_GROUP_MEMBER_ATTR || "memberUid",
   // Optional service-account credentials for the pre-auth group-membership
@@ -569,7 +573,7 @@ export const validateCredentials = async (username, password) => {
     throw err;
   }
 
-  const userDn = `uid=${username},${cfg.userBaseDn}`;
+  const userDn = `${cfg.userRdnAttr}=${username},${cfg.userBaseDn}`;
   console.log(`${LOG_PREFIX} ── Authenticating user "${username}" ──`);
   console.log(`${LOG_PREFIX} User DN: ${userDn}`);
   console.log(`${LOG_PREFIX} Admin group: ${cfg.adminGroupDn}`);
