@@ -33,6 +33,14 @@ App.appendToConfig(`
   </edit-config>
 `);
 
+// App uses only standard HTTPS/TLS (exempt encryption), so declare it here to
+// skip the TestFlight export-compliance prompt on every upload.
+App.appendToConfig(`
+  <edit-config target="ITSAppUsesNonExemptEncryption" file="*-Info.plist" mode="overwrite">
+    <false/>
+  </edit-config>
+`);
+
 // Add necessary Android permissions for Camera
 App.appendToConfig(`
   <config-file target="AndroidManifest.xml" parent="/*">
