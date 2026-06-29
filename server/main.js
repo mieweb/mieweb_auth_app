@@ -41,6 +41,7 @@ import {
 } from "./templates/email";
 import { INTERNAL_SERVER_SECRET } from "./internalSecret.js";
 import { getBearerToken, parseJsonBody, sendJson } from "./adminAuth";
+import { healthcheckHandler } from "./healthcheck.js";
 import dotenv from "dotenv";
 
 //load the env to process.env
@@ -56,6 +57,13 @@ WebApp.connectHandlers.use("/admin", (req, res, next) => {
   if (sub !== "/" && sub !== "") return next();
   res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
   res.end(adminPageTemplate());
+});
+
+WebApp.connectHandlers.use("/healthcheck", async (req, res, next) => {
+  if (req.method !== "GET" && req.method !== "HEAD") return next();
+  const subPath = (req.url || "/").split("?")[0];
+  if (subPath !== "/" && subPath !== "") return next();
+  await healthcheckHandler(req, res);
 });
 
 /**
