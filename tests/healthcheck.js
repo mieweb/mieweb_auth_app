@@ -6,7 +6,7 @@ if (Meteor.isServer) {
   describe("Healthcheck status", function () {
     it("returns healthy when MongoDB is reachable and writable", async function () {
       const seen = [];
-      const adminDb = {
+      const db = {
         command: async (cmd) => {
           seen.push(cmd);
           if (cmd.ping === 1) return { ok: 1 };
@@ -16,7 +16,7 @@ if (Meteor.isServer) {
       };
 
       const result = await getHealthcheckStatus({
-        getAdminDb: () => adminDb,
+        getDb: () => db,
         now: () => "2026-06-29T00:00:00.000Z",
       });
 
@@ -34,7 +34,7 @@ if (Meteor.isServer) {
 
     it("falls back to the legacy isMaster command when hello is unavailable", async function () {
       const seen = [];
-      const adminDb = {
+      const db = {
         command: async (cmd) => {
           seen.push(cmd);
           if (cmd.ping === 1) return { ok: 1 };
@@ -45,7 +45,7 @@ if (Meteor.isServer) {
       };
 
       const result = await getHealthcheckStatus({
-        getAdminDb: () => adminDb,
+        getDb: () => db,
         now: () => "2026-06-29T00:00:00.000Z",
       });
 
@@ -66,7 +66,7 @@ if (Meteor.isServer) {
     });
 
     it("returns unhealthy when MongoDB is connected but not writable", async function () {
-      const adminDb = {
+      const db = {
         command: async (cmd) => {
           if (cmd.ping === 1) return { ok: 1 };
           if (cmd.hello === 1) return { ok: 1, isWritablePrimary: false };
@@ -75,7 +75,7 @@ if (Meteor.isServer) {
       };
 
       const result = await getHealthcheckStatus({
-        getAdminDb: () => adminDb,
+        getDb: () => db,
         now: () => "2026-06-29T00:00:00.000Z",
       });
 
@@ -93,7 +93,7 @@ if (Meteor.isServer) {
 
     it("returns unhealthy when MongoDB command interface is unavailable", async function () {
       const result = await getHealthcheckStatus({
-        getAdminDb: () => null,
+        getDb: () => null,
         now: () => "2026-06-29T00:00:00.000Z",
       });
 
@@ -105,7 +105,7 @@ if (Meteor.isServer) {
         checks: {
           mongodb: { connected: false, writable: false },
         },
-        error: "MongoDB admin command interface unavailable",
+        error: "MongoDB command interface unavailable",
       });
     });
   });
