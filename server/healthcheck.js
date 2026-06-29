@@ -1,7 +1,8 @@
-import { Meteor } from "meteor/meteor";
+import { MongoInternals } from "meteor/mongo";
 import { sendJson } from "./adminAuth";
 
-const getDefaultAdminDb = () => Meteor.users.rawCollection()?.db?.admin?.();
+const getDefaultAdminDb = () =>
+  MongoInternals.defaultRemoteCollectionDriver().mongo.db.admin();
 
 export const getHealthcheckStatus = async ({
   getAdminDb = getDefaultAdminDb,
@@ -20,7 +21,15 @@ export const getHealthcheckStatus = async ({
       throw new Error("MongoDB ping failed");
     }
 
-    const hello = await adminDb.command({ hello: 1 });
+    // `hello` is only available on MongoDB 4.4+. Fall back to the legacy
+    // `isMaster` command on older servers so a reachable node is not
+    // misreported as disconnected.
+    let hello;
+    try {
+      hello = await adminDb.command({ hello: 1 });
+    } catch {
+      hello = await adminDb.command({ isMaster: 1 });
+    }
     const writable = Boolean(hello?.isWritablePrimary ?? hello?.ismaster);
 
     if (!writable) {
@@ -65,7 +74,16 @@ export const getHealthcheckStatus = async ({
   }
 };
 
-export const healthcheckHandler = async (_req, res) => {
+export const healthcheckHandler = async (req, res) => {
   const { statusCode, body } = await getHealthcheckStatus();
+
+  // A HEAD response must not include a message body (RFC 9110 §9.3.2);
+  // probes only need the status line.
+  if (req?.method === "HEAD") {
+    res.writeHead(statusCode, { "Content-Type": "application/json" });
+    res.end();
+    return;
+  }
+
   sendJson(res, statusCode, body);
 };
