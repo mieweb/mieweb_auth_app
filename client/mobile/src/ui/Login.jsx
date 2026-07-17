@@ -190,7 +190,7 @@ export const LoginPage = ({ deviceDetails }) => {
         throw new Error("Biometric auth unavailable on this device.");
 
       await new Promise((resolve, reject) => {
-        Fingerprint.loadBiometricSecret(
+        window.Fingerprint.loadBiometricSecret(
           {
             description: "Authenticate to unlock MIE Auth",
             disableBackup: true,
@@ -228,6 +228,8 @@ export const LoginPage = ({ deviceDetails }) => {
                   _id: result._id,
                 });
                 navigate("/dashboard");
+              } else {
+                await new Promise((res) => Meteor.logout(res));
               }
               resolve();
             } catch (err) {
