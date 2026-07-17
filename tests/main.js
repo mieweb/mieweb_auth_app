@@ -1,5 +1,6 @@
 import assert from "assert";
 import "./duo.js";
+import "./healthcheck.js";
 
 describe("meteor-app", function () {
   it("package.json has correct name", async function () {
@@ -290,6 +291,106 @@ describe("meteor-app", function () {
         assert.strictEqual(await Meteor.users.find().countAsync(), 0);
         assert.strictEqual(await DeviceDetails.find().countAsync(), 0);
         assert.strictEqual(await ApprovalTokens.find().countAsync(), 0);
+      });
+    });
+
+    describe("Biometric credential recovery", function () {
+      const { DeviceDetails } = require("../utils/api/deviceDetails");
+      let userId;
+
+      beforeEach(async function () {
+        await Meteor.users.removeAsync({});
+        await DeviceDetails.removeAsync({});
+        userId = await Accounts.createUserAsync({
+          email: "biometric-recovery@example.com",
+          username: "biometric-recovery",
+          password: "123456",
+        });
+        await DeviceDetails.insertAsync({
+          userId,
+          email: "biometric-recovery@example.com",
+          username: "biometric-recovery",
+          devices: [
+            {
+              deviceUUID: "approved-device",
+              biometricSecret: "old-secret",
+              deviceRegistrationStatus: "approved",
+            },
+            {
+              deviceUUID: "pending-device",
+              biometricSecret: "pending-secret",
+              deviceRegistrationStatus: "pending",
+            },
+          ],
+        });
+      });
+
+      it("rotates the secret for the authenticated approved device", async function () {
+        const handler =
+          Meteor.server.method_handlers["users.rotateBiometricSecret"];
+        const result = await handler.apply({ userId, connection: null }, [
+          {
+            deviceUUID: "approved-device",
+            biometricSecret: "new-secret",
+          },
+        ]);
+
+        const userDoc = await DeviceDetails.findOneAsync({ userId });
+        const approvedDevice = userDoc.devices.find(
+          (device) => device.deviceUUID === "approved-device",
+        );
+        assert.deepStrictEqual(result, { success: true });
+        assert.strictEqual(approvedDevice.biometricSecret, "new-secret");
+      });
+
+      it("rejects rotation without an authenticated user", async function () {
+        const handler =
+          Meteor.server.method_handlers["users.rotateBiometricSecret"];
+
+        await assert.rejects(
+          handler.apply({ userId: null, connection: null }, [
+            {
+              deviceUUID: "approved-device",
+              biometricSecret: "new-secret",
+            },
+          ]),
+          (error) => error.error === "not-authorized",
+        );
+      });
+
+      it("rejects rotation for an unapproved device", async function () {
+        const handler =
+          Meteor.server.method_handlers["users.rotateBiometricSecret"];
+
+        await assert.rejects(
+          handler.apply({ userId, connection: null }, [
+            {
+              deviceUUID: "pending-device",
+              biometricSecret: "new-secret",
+            },
+          ]),
+          (error) => error.error === "device-not-approved",
+        );
+      });
+
+      it("rejects rotation for another user's device", async function () {
+        const otherUserId = await Accounts.createUserAsync({
+          email: "other-biometric-user@example.com",
+          username: "other-biometric-user",
+          password: "123456",
+        });
+        const handler =
+          Meteor.server.method_handlers["users.rotateBiometricSecret"];
+
+        await assert.rejects(
+          handler.apply({ userId: otherUserId, connection: null }, [
+            {
+              deviceUUID: "approved-device",
+              biometricSecret: "new-secret",
+            },
+          ]),
+          (error) => error.error === "device-not-approved",
+        );
       });
     });
 
