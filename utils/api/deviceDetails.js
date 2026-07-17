@@ -47,6 +47,72 @@ if (Meteor.isServer) {
 // Define methods for DeviceDetails
 Meteor.methods({
   /**
+   * Replace the biometric credential for the authenticated user's current
+   * approved device after PIN-based recovery.
+   * @param {Object} options - Current device UUID and replacement secret
+   * @returns {Object} Rotation result
+   */
+  async "users.rotateBiometricSecret"(options) {
+    check(options, {
+      deviceUUID: String,
+      biometricSecret: String,
+    });
+
+    if (!this.userId) {
+      throw new Meteor.Error(
+        "not-authorized",
+        "You must sign in before setting up biometrics",
+      );
+    }
+
+    const { deviceUUID, biometricSecret } = options;
+    const userDoc = await DeviceDetails.findOneAsync({
+      userId: this.userId,
+      devices: {
+        $elemMatch: {
+          deviceUUID,
+          deviceRegistrationStatus: "approved",
+        },
+      },
+    });
+
+    if (!userDoc) {
+      throw new Meteor.Error(
+        "device-not-approved",
+        "This device is not approved for biometric login",
+      );
+    }
+
+    const updated = await DeviceDetails.updateAsync(
+      {
+        userId: this.userId,
+        devices: {
+          $elemMatch: {
+            deviceUUID,
+            deviceRegistrationStatus: "approved",
+          },
+        },
+      },
+      {
+        $set: {
+          "devices.$.biometricSecret": biometricSecret,
+          "devices.$.lastUpdated": new Date(),
+          lastUpdated: new Date(),
+        },
+      },
+    );
+
+    if (updated !== 1) {
+      throw new Meteor.Error(
+        "biometric-update-failed",
+        "Unable to update biometric credentials",
+      );
+    }
+
+    return { success: true };
+  },
+
+  /**
    * Upsert device details
    * @param {Object} data - Device details data
    * @returns {String} Generated appId
