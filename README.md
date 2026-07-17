@@ -1,498 +1,607 @@
-# Mieweb Auth App
+# MIEAuth
 
-This is a full-stack Meteor application using React for the frontend and Cordova for mobile deployment. It integrates **Firebase Cloud Messaging (FCM)** to enable push notifications, using the `@havesource/cordova-plugin-push` plugin for mobile platforms.
+[Live website](https://mieauth-prod.os.mieweb.org/) ·
+[Try it live](https://mieauth-prod.os.mieweb.org/test-notification) ·
+[App Store](https://apps.apple.com/us/app/mie-auth-open-source/id6756409072) ·
+[Google Play](https://play.google.com/store/apps/details?id=com.mieweb.mieauth)
 
-## Architecture Overview
+MIEAuth is a self-hosted push-authentication service. It combines a Meteor
+server, a React web experience, and Cordova applications for iOS and Android.
+External systems can enroll users, send approval requests, and wait for an
+approve, reject, or timeout response. A Duo-compatible API allows existing Duo
+Auth and Admin API clients to use the same users and devices.
+
+This repository contains the server, mobile and web clients, administration
+dashboard, operational scripts, and release pipelines.
+
+## Contents
+
+- [What MIEAuth does](#what-mieauth-does)
+- [Architecture](#architecture)
+- [Technology](#technology)
+- [Getting started](#getting-started)
+- [Configuration](#configuration)
+- [Development workflow](#development-workflow)
+- [API surface](#api-surface)
+- [Mobile development](#mobile-development)
+- [Testing and code quality](#testing-and-code-quality)
+- [Operations and deployment](#operations-and-deployment)
+- [Project structure](#project-structure)
+- [Troubleshooting](#troubleshooting)
+- [Known constraints](#known-constraints)
+
+## What MIEAuth does
+
+- Creates one-time, 48-hour registration invites by email or QR code.
+- Registers one or more mobile devices per user and tracks device approval.
+- Sends Firebase Cloud Messaging (FCM) approval requests to approved devices.
+- Correlates phone or paired-watch actions with the originating HTTP request.
+- Keeps notification history and active response state in MongoDB.
+- Exposes Duo Auth API v2 and Duo Admin API v1 compatibility endpoints.
+- Provides an LDAP-protected admin dashboard for users, devices, API keys,
+  Duo integrations, and email history.
+- Serves public landing, FAQ, privacy, support, and account-deletion pages.
+- Supports biometric sign-in, invite deep links, QR scanning, and mobile
+  session locking.
+
+Apple Watch and Wear OS support uses mirrored phone notifications; there is no
+standalone watch application. Approval actions taken on a watch are processed
+by the paired phone and attributed to that phone's device UUID.
+
+## Architecture
 
 ```mermaid
-sequenceDiagram
-    participant User as User
-    participant PhoneApp as Phone App
-    participant MeteorServer as Meteor Server / Push Gateway
-    participant BashScript as Bash Script
-
-    User->>PhoneApp: Allow Push Notifications
-    PhoneApp->>MeteorServer: Register with FCM Token
-    BashScript->>MeteorServer: Send Push Notification via curl
-    MeteorServer->>PhoneApp: Forward Push Notification
-    PhoneApp->>User: Display Notification (Foreground/Background)
-    User-->>PhoneApp: Interact with Notification (Ok/Cancel)
-    PhoneApp-->>MeteorServer: Notify User Response (Ok/Cancel)
-    MeteorServer-->>BashScript: Return Response (Ok/Cancel)
+flowchart LR
+    Integrator[External system] -->|Invite and approval REST APIs| Server
+    Duo[Duo-compatible client] -->|Signed Auth v2 / Admin v1 requests| Server
+    Admin[Administrator] -->|LDAP session| Dashboard[Admin dashboard]
+    Dashboard --> Server[Meteor server]
+    Web[React web client] <-->|DDP and HTTP| Server
+    Mobile[React + Cordova mobile app] <-->|DDP| Server
+    Server <-->|Collections and pending responses| Mongo[(MongoDB)]
+    Server -->|Firebase Admin SDK| FCM[Firebase Cloud Messaging]
+    FCM --> Mobile
+    Mobile -.->|Mirrored actionable notification| Watch[Apple Watch / Wear OS]
+    Server -->|SMTP| Mail[Mail service]
 ```
 
-## Application Screenshots
+### Approval request flow
 
-### Home Page
-The main interface of the application where users can interact with the authentication features.
+1. An integrator calls `POST /send-notification` for a username.
+2. The server validates the request, finds approved devices, records the
+   notification, and sends an FCM message to each approved device.
+3. A pending response is stored in MongoDB and polled for up to 25 seconds.
+4. The user approves or rejects from the app, notification tray, or paired
+   watch. The client resolves the pending response through a Meteor method.
+5. The original HTTP request returns `approve`, `reject`, or `timeout`.
 
-<div align="center">
-  <img width="450" alt="App Home Page" src="https://github.com/user-attachments/assets/ceaab48e-3465-4b75-8932-174e2e2ff231" />
-</div>
+MongoDB-backed pending responses allow the HTTP request and mobile response to
+land on different application instances. Notification state is also synced to
+the user's other devices.
 
-### Push Notification Example
-Example of how push notifications appear on mobile devices.
+## Technology
 
-<div align="center">
-  <img src="screenshots/push.png" alt="Push Notification Example" width="450" />
-</div>
+<!-- prettier-ignore -->
+| Area | Current implementation |
+| --- | --- |
+| Application platform | Meteor 3.4 and Node.js 20 in CI/deployment |
+| Client | React 18, React Router 6, `@mieweb/ui`, Framer Motion |
+| Mobile | Cordova for iOS and Android |
+| Server | Meteor methods, publications, and `WebApp` HTTP handlers |
+| Data | MongoDB through Meteor collections |
+| Push | Firebase Admin SDK and `@havesource/cordova-plugin-push` 7 |
+| Admin authentication | LDAP bind, group membership, in-memory bearer sessions |
+| Integration authentication | PBKDF2-hashed API keys and Duo request signatures |
+| Build | Meteor Rspack, SWC minimization, PostCSS, Tailwind CSS 4 |
+| Quality | Mocha, ESLint 9, Prettier 3, Husky, lint-staged |
 
-## Getting Started
+## Getting started
 
-### Clone the Repository
+### Prerequisites
+
+For server and web development:
+
+- Node.js 20 and npm
+- [Meteor](https://docs.meteor.com/about/install.html) 3.4
+- Git
+
+Meteor starts a local MongoDB automatically for normal local development. Use
+`MONGO_URL` when connecting to an external database.
+
+Mobile builds additionally require:
+
+- Java 17 and Android Studio/Android SDK for Android
+- macOS and Xcode for iOS
+- Firebase Android and iOS application configuration files
+- Signing credentials for distributable builds
+
+### Install
 
 ```bash
-git clone https://github.com/mieweb/mieweb_auth_app
+git clone https://github.com/mieweb/mieweb_auth_app.git
 cd mieweb_auth_app
+npm install
 ```
 
-## Prerequisites
+`npm install` also installs the Husky pre-commit hook.
 
-Before setting up the application, ensure you have the following tools installed and properly configured:
+### Run a local server
 
-### Required Software
-- **Node.js & npm** - JavaScript runtime and package manager
-- **Meteor** - Full-stack JavaScript platform (see [Meteor Installation Docs](https://docs.meteor.com/install.html))
-- **Android Studio** - Including Android SDK and adb tools for Android development
-- **Xcode** - Required for iOS builds (Mac only)
-- **Java JDK 17** - Java Development Kit version 17
-- **Java Runtime Environment (JRE)** - See [Java Install Docs](https://www.java.com/en/download/help/index_installing.html)
-- **Gradle** - Build automation tool (see [Gradle Installation Docs](https://gradle.org/install/))
-
-### Environment Variables Setup
-
-Configure the following environment variables in your `~/.zshrc` or `~/.bash_profile`:
+For the basic web and server application:
 
 ```bash
-export JAVA_HOME=$(/usr/libexec/java_home -v 17)
-export PATH=$JAVA_HOME/bin:$PATH
-export ANDROID_HOME=/path/to/your/android/sdk
+npm run start
 ```
 
-### Environment Configuration Example
-
-<div align="center">
-  <img width="600" alt="Sample ~/.zshrc configuration" src="screenshots/zshrc.png" />
-  <p><em>Example of environment variables configuration in ~/.zshrc file</em></p>
-</div>
-
-## Deployment Configuration
-
-### Development Mode (Local Deployment)
-
-For development with live reload and debugging capabilities:
+This generates `public/buildInfo.json` and runs `meteor run`, normally at
+`http://localhost:3000`. It does **not** load `settings.json` explicitly. To
+load the checked-in Meteor settings file, run:
 
 ```bash
-meteor npm run start-dev
+meteor run --settings settings.json
 ```
 
-**What this command does:**
-- Creates a secure tunnel using the **Magic Box** tool
-- Prompts for **YubiKey** authentication to generate a secure proxy URL
-- Provides a publicly accessible URL for mobile device testing
-- Enables live reload and debugging features
-- Eliminates the need for manual port forwarding
+The web pages and server can run without Firebase, but push delivery is
+disabled until `FIREBASE_SERVICE_ACCOUNT_JSON` is configured. Email-backed
+invite flows also require mail configuration and `EMAIL_FROM`.
 
-### Production Mode
+There is no committed local seed or fixture that creates users, API keys, LDAP
+accounts, Firebase credentials, or signing credentials. Those must come from
+the deployment environment or be created with the management tools below.
 
-For production deployment:
+### Internal tunnel launcher
 
 ```bash
-meteor npm run start
+npm run start-dev
 ```
 
-**Production considerations:**
-- Starts the Meteor server in production mode
-- Server must be accessible via your production domain or IP address
-- No tunneling or proxy setup required
-- Optimized for performance and security
+This is an organization-specific workflow. `bin/start.mjs` requests a YubiKey
+OTP, registers a temporary public URL with the BlueHive Magic Box service,
+sets `ROOT_URL`, chooses an available port, and starts Meteor with
+`settings.json`. Arguments such as `android-device` are passed through and the
+generated URL is used as `--mobile-server`.
 
-## Firebase Configuration
+Developers without access to that service should use `npm run start` or
+`meteor run --settings settings.json` instead.
 
-Firebase Cloud Messaging (FCM) is essential for push notification functionality. Follow these steps to configure Firebase for your application.
+## Configuration
 
-### Initial Firebase Setup
+The application loads normal process environment variables and `.env` through
+`dotenv`. Keep secrets outside version control. The `private/`,
+`server/private/`, `.env*`, signing-key, and local `set-env*.sh` paths are
+ignored by Git, but they may exist in a developer workspace.
 
-1. **Create Firebase Project**
-   - Navigate to the [Firebase Console](https://console.firebase.google.com/)
-   - Create a new project or select an existing one
-   - Note your project ID for later configuration
+### Core server settings
 
-2. **Enable Cloud Messaging**
-   - In your Firebase project, navigate to the Cloud Messaging section
-   - Enable the Cloud Messaging API
-   - Configure your messaging settings as needed
+<!-- prettier-ignore -->
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `ROOT_URL` | Production | Canonical application URL; also used for internal notification calls and generated absolute URLs. |
+| `PORT` | No | Listening port; Meteor defaults to `3000`. |
+| `MONGO_URL` | Production/external DB | MongoDB connection string. Standalone management scripts also use it. |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | Push notifications | Complete Firebase service-account JSON serialized as one environment value. Invalid or absent JSON disables push. |
+| `MAIL_URL` | Email | SMTP URL consumed by Meteor Email. |
+| `SENDGRID_API_KEY` | Alternative email setup | If `MAIL_URL` is absent, the server constructs a SendGrid SMTP URL. |
+| `EMAIL_FROM` | Invite/support/account email | Sender address used by current email flows. |
+| `EMAIL_ADMIN` | Support/account workflows | One or more administrative recipient addresses as expected by the server. |
+| `SEND_NOTIFICATION_FORCE_AUTH` | Recommended in production | Set to `"true"` to require an API key on `/send-notification`. The default permits unauthenticated requests. |
+| `INTERNAL_SERVER_SECRET` | Multi-instance production | Shared secret for server-to-server notification calls. A random per-process fallback is suitable only for local, single-instance use. |
+| `DUO_SECRET_ENCRYPTION_KEY` | Duo in production | Exactly 64 hexadecimal characters (32 bytes), used for AES-256-GCM encryption of Duo secret keys at rest. Without it, Duo secrets are stored in plaintext. |
 
-3. **Create Platform Applications**
-   - Create both Android and iOS applications within your Firebase project
-   - Follow the setup wizard for each platform
-   - Download the required configuration files
+`APP_URL`, `ADMIN_EMAIL`, and `FROM_EMAIL` are referenced only by the legacy
+device-approval email helper. Current invite, support, and account workflows
+use `ROOT_URL`, `EMAIL_ADMIN`, and `EMAIL_FROM`.
 
-### Platform-Specific Configuration
+### LDAP admin settings
 
-#### Android Configuration
+<!-- prettier-ignore -->
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `LDAP_URL` | Yes | One or more comma-separated `ldap://` or `ldaps://` URLs, tried in order on connection failure. |
+| `LDAP_BASE_DN` | Configured by deployments | Directory base DN; retained in the current LDAP configuration. |
+| `LDAP_USER_BASE_DN` | Yes | Base used to construct the user's bind DN. |
+| `LDAP_ADMIN_GROUP_DN` | Yes | Group whose members may access the admin dashboard. |
+| `LDAP_USER_RDN_ATTR` | No | User RDN attribute; defaults to `uid`. Some directories use `cn`. |
+| `LDAP_GROUP_MEMBER_ATTR` | No | Group membership attribute; defaults to `memberUid`. Common `member` and `uniqueMember` forms are also checked. |
+| `LDAP_BIND_DN` | Directory-dependent | Service-account DN for group lookup when anonymous search is not allowed. |
+| `LDAP_BIND_PASSWORD` | With `LDAP_BIND_DN` | Service-account password. |
+| `LDAP_REJECT_UNAUTHORIZED` | No | TLS verification is enabled unless set to `"false"`. Do not disable it in production. |
 
-Download the `google-services.json` configuration file and place it in the correct directory structure.
+Admin passwords are encrypted in the browser with an ephemeral RSA-2048 public
+key before being submitted, then validated with LDAP bind. HTTPS is still
+required in production.
 
-<div align="center">
-  <img src="screenshots/googleservice.png" alt="Android Firebase Configuration Screen" width="700" />
-  <p><em>Firebase Console - Android app configuration and file download</em></p>
-</div>
+### Meteor settings
 
-**File placement:** The `google-services.json` file should be placed in `public/android/google-services.json`
+`settings.json` defines a public FCM flag and configures Meteor account session
+storage. Pass it with `--settings settings.json` when those settings are
+required. The file is tracked, despite also matching an entry in `.gitignore`,
+so do not add secrets to it.
 
-#### iOS Configuration
+### Mobile Firebase files
 
-Download the `GoogleService-Info.plist` configuration file for iOS integration.
+`mobile-config.js` expects both files during a Cordova build:
 
-<div align="center">
-  <img src="screenshots/plist.png" alt="iOS Firebase Configuration Screen" width="700" />
-  <p><em>Firebase Console - iOS app configuration and file download</em></p>
-</div>
+<!-- prettier-ignore -->
+| Platform | Local source path | Packaged destination |
+| --- | --- | --- |
+| Android | `private/android/google-services.json` | `app/google-services.json` |
+| iOS | `private/ios/GoogleService-Info.plist` | `GoogleService-Info.plist` |
 
-**File placement:** The `GoogleService-Info.plist` file should be placed in `public/ios/GoogleService-Info.plist`
+The CI workflows create both paths, including a placeholder for the platform
+not being built, because the Cordova configuration references both resources.
 
-### Security Considerations
+## Development workflow
 
-> **Important Security Notice**
-> 
-> Never download or manually handle the Firebase Admin SDK JSON file. Instead, use the Firebase Admin SDK secret string method for secure environment variable configuration.
+### Useful commands
 
-### Configuration Files Summary
+<!-- prettier-ignore -->
+| Command | Purpose |
+| --- | --- |
+| `npm run start` | Generate build metadata and run the local Meteor app. |
+| `npm run start-dev` | Run through the private YubiKey/Magic Box tunnel launcher. |
+| `npm test` | Run the Meteor Mocha suite once. |
+| `npm run test-app` | Run the full-app test target in watch mode. |
+| `npm run lint` | Check JavaScript, JSX, and MJS with ESLint. |
+| `npm run lint:fix` | Apply ESLint fixes. |
+| `npm run format` | Format the repository with Prettier. |
+| `npm run format:check` | Check formatting without changing files. |
+| `npm run visualize` | Build in production mode with Meteor's bundle visualizer. |
+| `npm run prebuild` | Regenerate version, commit, and build-date metadata. |
 
-| Platform | Configuration File | Destination Path |
-|----------|-------------------|------------------|
-| Android | `google-services.json` | `public/android/google-services.json` |
-| iOS | `GoogleService-Info.plist` | `public/ios/GoogleService-Info.plist` |
+The pre-commit hook runs `lint-staged`: JavaScript files are formatted and
+linted, while JSON, Markdown, CSS, and HTML files are formatted.
 
-**Note:** The `mobile-config.js` file automatically handles the inclusion of these configuration files in your Cordova build process.
+### Management tools
 
-### Firebase Admin SDK Configuration
-
-#### Obtaining the Admin SDK Secret
-
-1. Access your Firebase Console
-2. Navigate to Project Settings → Service Accounts
-3. Generate a new private key
-4. Copy the JSON content (this is your admin SDK secret)
-
-#### Environment Variable Setup
-
-**For production servers:**
-```bash
-export FIREBASE_SERVICE_ACCOUNT_JSON='{"type":"service_account","project_id":"your-project-id","private_key_id":"...","private_key":"-----BEGIN PRIVATE KEY-----\n..."}'
-```
-
-**For development environment:**
-- Create a file: `server/private/firebase-admin-key.json`
-- Add the JSON content to this file
-- Ensure this file is included in your `.gitignore`
-- Update the reference in your `firebase.js` configuration file
-
-**Important:** Always use environment variables for production deployments to maintain security.
-
-## Mobile Application Development
-
-### Android Development
-
-#### Initial Setup
-```bash
-meteor add-platform android
-meteor add cordova:@havesource/cordova-plugin-push@5.0.5
-```
-
-#### Running on Physical Android Device
-Ensure your Android device is connected via USB with Developer Options and USB Debugging enabled.
-
-```bash
-meteor npm run start android-device --mobile-server=https://<your-proxy-url-or-production-domain>
-```
-
-#### Running on Android Emulator
-Ensure you have an Android emulator created and running through Android Studio.
+All standalone management scripts connect directly to MongoDB. Set `MONGO_URL`
+to the same application database before using them. Their local fallback is
+`mongodb://localhost:3001/meteor`, except the migration script, whose fallback
+is `mongodb://localhost:27017/meteor`.
 
 ```bash
-meteor npm run start android
+# API keys
+node manage-api-keys.js generate <client-id>
+node manage-api-keys.js list
+node manage-api-keys.js regenerate <client-id>
+node manage-api-keys.js delete <client-id>
+
+# Duo integrations; type defaults to auth
+node manage-duo-integrations.js generate <name> [auth|admin]
+node manage-duo-integrations.js list
+node manage-duo-integrations.js enable <name>
+node manage-duo-integrations.js disable <name>
+node manage-duo-integrations.js regenerate <name>
+node manage-duo-integrations.js delete <name>
 ```
 
-### iOS Development (Mac Only)
+API keys and Duo secret keys are displayed only when created or rotated. Store
+them immediately in a secret manager.
 
-#### Initial Setup
-```bash
-meteor add-platform ios
-```
+### Build metadata and app resources
 
-#### Running on Physical iOS Device
-Connect your iOS device to your Mac. This command will open Xcode where you need to manually select your device and build.
+`generate-build-info.js` reads the version from `mobile-config.js`, reads the
+current Git commit and date, and writes `public/buildInfo.json`. The support UI
+uses this generated file.
 
-```bash
-meteor npm run start ios-device --mobile-server=https://<your-proxy-url-or-production-domain>
-```
-
-#### Running on iOS Simulator
-This command opens Xcode where you can select your preferred iOS simulator.
-
-```bash
-meteor npm run start ios
-```
-
-## Production Build Process
-
-### Creating Production Builds
-
-Generate a production-ready Android App Bundle (AAB) for Google Play Store distribution:
+Generate all configured iOS and Android icons and launch screens with Pillow:
 
 ```bash
-meteor build output/ --architecture os.linux.x86_64 --server=https://<your-production-domain>
+python3 -m pip install Pillow
+python3 generate_app_resources.py path/to/source.png public/resources
 ```
 
-**Build output:**
-- The generated `.aab` file will be located in the `output/` directory
-- This file is ready for upload to Google Play Console
-- No additional tunneling tools are required for production builds
+The source should be a high-resolution square PNG. The script removes alpha
+from iOS icons, preserves Android transparency, and creates the filenames
+referenced by `mobile-config.js`.
 
-## Push Notification Testing
+## API surface
 
-### Sending Test Notifications
+### Public and integration endpoints
 
-Use the provided shell script to send test push notifications. Configure the script with your server details:
+<!-- prettier-ignore -->
+| Method | Path | Authentication | Purpose |
+| --- | --- | --- | --- |
+| `POST` | `/api/invite` | API key in `Authorization: Bearer ...` | Create and email a one-time registration invite. |
+| `POST` | `/send-notification` | Request-body API key when enforcement is enabled, or internal secret header | Send an approval request and wait up to 25 seconds for a response. |
+| `GET`, `HEAD` | `/healthcheck` | None | Report MongoDB reachability and writable-primary status. |
+| `GET` | `/api/pending-responses` | None | Return up to 100 response records for monitoring. |
+| Various | `/auth/v2/*` | Duo signed request | Duo Auth API compatibility: ping, check, preauth, enroll, auth, and QR generation. |
+| Various | `/admin/v1/*` | Duo signed request | Duo Admin API compatibility for user and phone synchronization. |
 
-```bash
-PUSHGATEWAY="http://localhost:3000"
-RELYINGPARTY="your-username"
-```
+The invite request and response contract is documented in
+[docs/API_INVITES.md](docs/API_INVITES.md). API-key behavior and a complete
+notification example are in
+[docs/API_KEY_AUTHENTICATION.md](docs/API_KEY_AUTHENTICATION.md).
 
-Run the notification script:
-```bash
-./send-notification.sh
-```
-
-### Expected Response Examples
+Minimal notification payload:
 
 ```json
-{"success":false,"error":"The registration token is not a valid FCM registration token"}
-{"success":true,"action":"approve"}
-{"success":true,"action":"reject"}
-{"success":true,"action":"timeout"}
+{
+  "username": "alice",
+  "title": "Sign-in request",
+  "body": "Approve sign-in to the example service?",
+  "actions": [
+    { "title": "Approve", "callback": "approve" },
+    { "title": "Reject", "callback": "reject" }
+  ],
+  "apikey": "optional-or-required-by-server-policy",
+  "client_id": "example-service"
+}
 ```
 
-**Response meanings:**
-- `success: false` - Invalid FCM token or configuration issue
-- `action: approve` - User approved the notification
-- `action: reject` - User rejected the notification
-- `action: timeout` - Notification timed out without user interaction
+Successful delivery returns an action such as:
 
-## Watch Support
+```json
+{
+  "success": true,
+  "action": "approve",
+  "message": "Notification sent successfully"
+}
+```
 
-Approval requests (e.g. "MIE Sudo Security Alert", new-device registration) can
-be approved or rejected directly from a paired **Apple Watch** or **Wear OS**
-watch, without taking the phone out. This works by **mirroring/bridging** the
-phone's notification to the wrist — there is no separate native watch app. A
-button tap on the watch is forwarded to the paired phone, which runs the same
-`push.on("approve"/"reject")` handlers used when the buttons are tapped on the
-phone.
+`timeout` is also a successful, expected action when the user does not respond
+within the request window.
 
-### How it works
+### Admin dashboard
 
-| Platform | Mechanism |
+Open `/admin` after configuring LDAP. The dashboard manages:
+
+- API keys
+- users and registration approval
+- devices and device approval/revocation
+- outgoing email records
+- Duo Auth and Admin integrations
+
+Admin API calls use an eight-hour bearer session created after LDAP group and
+credential validation. See
+[docs/ADMIN_DASHBOARD.md](docs/ADMIN_DASHBOARD.md) for the endpoint reference.
+
+## Mobile development
+
+### Device and emulator runs
+
+Meteor already tracks both mobile platforms in `.meteor/platforms`. With the
+native toolchains and Firebase files configured:
+
+```bash
+# Android emulator
+meteor run android --settings settings.json
+
+# Connected Android device
+meteor run android-device --mobile-server=https://reachable-server.example \
+  --settings settings.json
+
+# iOS simulator (macOS)
+meteor run ios --settings settings.json
+
+# Connected iOS device (macOS)
+meteor run ios-device --mobile-server=https://reachable-server.example \
+  --settings settings.json
+```
+
+A physical device cannot reach a server advertised as `localhost`; use a
+reachable HTTPS server or the internal tunnel launcher.
+
+### Production bundles
+
+```bash
+# Android AAB
+meteor build ./android-build \
+  --platforms android \
+  --server=https://your-server.example
+
+# iOS Xcode workspace
+meteor build ./ios-build \
+  --platforms ios \
+  --server=https://your-server.example
+```
+
+These commands do not provide signing credentials. Android signing and iOS
+archive/export steps are implemented in the GitHub Actions workflows and rely
+on repository secrets.
+
+The default application ID in `mobile-config.js` is `org.mieweb.opensource`.
+Production CI patches Android to `com.mieweb.mieauth`; development CI patches
+both mobile builds to `org.mieweb.os.dev` and uses beta branding.
+
+### Watch approval testing
+
+For Apple Watch or Wear OS:
+
+1. Pair the watch and enable notification mirroring/bridging.
+2. Install a fresh mobile build. iOS approval categories are registered at app
+   startup, so source changes require rebuild and reinstall.
+3. Lock or background the phone and send an approval request.
+4. Verify Approve and Reject on the wrist, server resolution, timeout behavior,
+   and dismissal synchronization across devices.
+
+Use physical hardware for final Apple Watch validation; simulator behavior is
+not sufficient for mirrored notification actions.
+
+## Testing and code quality
+
+```bash
+npm test
+npm run lint
+npm run format:check
+```
+
+The Meteor Mocha suite currently covers:
+
+- client/server environment behavior and screen-lock state
+- expired-registration cleanup and complete user removal
+- approval-link error templates and token error classification
+- API-key hashing, verification, and management methods
+- Duo signature canonicalization, Auth/Admin response envelopes, pagination,
+  and user/device mapping
+- MongoDB healthcheck behavior, including older `isMaster` fallback
+
+The repository does not currently configure coverage reporting or a separate
+pull-request CI workflow. Release workflows build and deploy, but they do not
+run `npm test`, lint, or formatting checks before release.
+
+## Operations and deployment
+
+### Healthcheck
+
+```bash
+curl http://localhost:3000/healthcheck
+```
+
+The endpoint returns `200` only when MongoDB responds to `ping` and reports the
+connected node as writable. It returns `503` for a disconnected or read-only
+database. `HEAD` is supported for probes.
+
+### Multi-instance setup
+
+Pending approvals are shared through MongoDB. Indexes are created at Meteor
+startup, but the repository also provides a migration/verification utility:
+
+```bash
+MONGO_URL="mongodb://host/database" node migrate-multi-instance.js --dry-run
+MONGO_URL="mongodb://host/database" node migrate-multi-instance.js
+```
+
+The non-dry run deletes all existing `pendingResponses` records before
+creating and verifying indexes. Do not run it while live approvals are active.
+Every application instance must use the same MongoDB database and the same
+`INTERNAL_SERVER_SECRET`.
+
+The detailed design is in
+[docs/MULTI_INSTANCE_SOLUTION.md](docs/MULTI_INSTANCE_SOLUTION.md).
+
+### systemd
+
+The `scripts/` directory contains the deployment-specific service unit,
+installation helper, and startup wrapper. They assume a particular Linux user,
+home-directory layout, Node installation, and `set-env.sh` location. Review and
+adapt them before using them on another host.
+
+### GitHub Actions releases
+
+Releases trigger three parallel delivery paths: server deployment, Android
+build/publish, and iOS build/upload.
+
+<!-- prettier-ignore -->
+| Environment | Tag | Source branch | Behavior |
+| --- | --- | --- | --- |
+| Development | `dev-v*` | `development` | Deploys the dev server, publishes Android to the internal track, and uploads iOS to TestFlight. Release text can select `[server]`, `[android]`, and/or `[ios]`; no labels runs all three. |
+| Production | `v*` excluding `dev-v*` | `main` | Deploys the production server, publishes Android to the internal Play track, and uploads iOS to TestFlight. |
+
+The workflows update `mobile-config.js` from the release tag and commit the
+version/build metadata back to the corresponding branch. Server deployment
+builds a Meteor server bundle over SSH, switches a `Builds/current` symlink,
+restarts `mieauth.service`, and retains the newest three builds.
+
+The workflows depend on organization-specific SSH, Firebase, Android signing,
+Google Play, Apple signing, and App Store Connect secrets. Their names and
+expected usage are visible in `.github/workflows/deploy-development.yml` and
+`.github/workflows/deploy-production.yml`; secret values are intentionally not
+documented here.
+
+The two `test-ios-*.yml` workflows are manual iOS/Fastlane experiments, not the
+primary release path.
+
+## Project structure
+
+<!-- prettier-ignore -->
+| Path | Responsibility |
 | --- | --- |
-| **Apple Watch** | A static `UNNotificationCategory` (`APPROVAL`) with `approve`/`reject` actions is registered from the `ios.categories` block in [`client/mobile/push-notifications.js`](client/mobile/push-notifications.js). The watch only renders actions from a statically registered category. The id matches `aps.category` set in [`server/firebase.js`](server/firebase.js). |
-| **Wear OS** | The `@havesource/cordova-plugin-push` plugin emits the `data.actions` payload as `NotificationCompat` actions (plus a `WearableExtender`) and does **not** mark the notification local-only, so Wear OS bridges the buttons automatically. No additional configuration is required. |
+| `client/main.jsx` | Shared client entry point and Cordova initialization. |
+| `client/mobile/` | Biometrics, device capture, deep links, push handling, and mobile React UI. |
+| `client/web/` | Public website pages and shared web layout. |
+| `server/main.js` | Server entry point, REST handlers, registration, email, notification, and Meteor methods. |
+| `server/adminAuth.js` | LDAP authentication, RSA credential transport, and admin sessions. |
+| `server/adminApi.js` | Admin dashboard REST endpoints. |
+| `server/firebase.js` | Firebase initialization and FCM delivery. |
+| `server/duo/` | Duo Auth API v2 and Admin API v1 compatibility layers. |
+| `server/templates/` | Admin and approval-result HTML templates. |
+| `utils/api/` | MongoDB collections and related Meteor methods/publications. |
+| `tests/` | Meteor Mocha server and client tests. |
+| `docs/` | Focused API, admin, and multi-instance documentation. |
+| `scripts/` | systemd unit and deployment startup helpers. |
+| `.github/workflows/` | Development, production, and manual iOS automation. |
+| `mobile-config.js` | Cordova metadata, native preferences, plugins, Firebase files, icons, and launch screens. |
+| `rspack.config.js` | Meteor Rspack/SWC optimization. |
+| `generate_app_resources.py` | Mobile icon and launch-screen generator. |
 
-The approve/reject action contract (category id, action identifiers, action
-descriptors, and the required `userId`/`notificationId` data fields) is defined
-once in [`utils/constants.js`](utils/constants.js) and shared by the client and
-server so the two never drift.
+`_build/`, `android-build/`, `ios-build/`, `public/build-chunks/`, and
+`public/buildInfo.json` are generated outputs or local artifacts, not primary
+source directories.
 
-A watch-triggered action is currently attributed to the **paired phone's**
-`deviceUUID`.
+## Troubleshooting
 
-### Manual test checklist
+### Push is disabled or every request times out
 
-For each platform (Apple Watch + iPhone, Wear OS + Android):
+- Confirm `FIREBASE_SERVICE_ACCOUNT_JSON` is set and parses as JSON; startup
+  logs explicitly report whether Firebase initialized.
+- Confirm the user has at least one approved device with a current FCM token.
+- Reopen the mobile app to refresh token registration.
+- Confirm the mobile build contains the Firebase file for its platform.
+- A normal no-response result is `action: "timeout"` after approximately 25
+  seconds; transport errors return an error response instead.
 
-1. Pair the watch and confirm notification mirroring/bridging is enabled.
-2. Lock / pocket the phone, then trigger an approval request (e.g. run
-   `./send_notification.sh`).
-3. Confirm the request appears on the wrist with **Approve** and **Reject**
-   buttons.
-4. Tap **Approve** — the request resolves as approved server-side and the
-   notification dismisses on the wrist.
-5. Repeat and tap **Reject** — the request resolves as rejected.
-6. Trigger a request and let it **time out** without responding; confirm the
-   timeout behaviour matches the phone.
-7. Confirm de-duplication: responding on the watch does not also leave the
-   in-app modal actionable on the phone.
+### Mobile device cannot connect
 
-## Generating App Icons and Resources
+- Do not advertise `localhost` as `--mobile-server` to a physical device.
+- Use a reachable HTTPS URL and make `ROOT_URL` match it.
+- Confirm the device trusts the TLS certificate and can reach the host.
 
-The application includes a Python script to generate all required app icons and splash screens from a single source image.
+### Admin login fails
 
-### Requirements
+- Verify all required LDAP variables and the constructed user DN.
+- For failover, provide comma-separated LDAP URLs.
+- If group searches reject anonymous access, configure `LDAP_BIND_DN` and
+  `LDAP_BIND_PASSWORD`.
+- Leave certificate verification enabled and install the correct CA rather
+  than setting `LDAP_REJECT_UNAUTHORIZED=false` in production.
+- Admin sessions are in memory; a restart invalidates every session.
 
-```bash
-pip install Pillow
-```
+### Responses fail in a multi-instance deployment
 
-### Generating Resources
+- Ensure all instances use the same `MONGO_URL`.
+- Ensure all instances use the same `INTERNAL_SERVER_SECRET`.
+- Check `/healthcheck` on each instance and inspect
+  `/api/pending-responses` during a request.
+- Verify the pending-response TTL and lookup indexes exist.
 
-Provide a high-resolution source image (recommended: 1024x1024 or larger PNG):
+### Standalone management script uses the wrong database
 
-```bash
-python3 generate_app_resources.py path/to/your-icon.png
-```
+Always set `MONGO_URL` explicitly. A local Meteor development database often
+runs on port 3001, while a separately installed MongoDB commonly runs on 27017.
+The scripts have different fallbacks, so relying on defaults can modify the
+wrong database.
 
-The script will automatically:
-- Generate all iOS icon sizes (1024x1024 down to 20x20)
-- Generate all Android icon sizes (192x192 down to 48x48)
-- Create splash screens for both platforms
-- **Remove alpha channel from iOS icons** (required by Apple App Store guidelines)
-- **Preserve transparency for Android icons** (optional for Android)
+### Mobile build cannot find Firebase resources
 
-**Important:** iOS app icons cannot contain transparency or alpha channels. The script automatically creates fully opaque icons with a white background for iOS, while maintaining transparency for Android icons.
+Create both `private/android/google-services.json` and
+`private/ios/GoogleService-Info.plist`. `mobile-config.js` references both even
+when building only one platform.
 
-All generated resources are saved to `public/resources/` and are referenced in `mobile-config.js`.
+## Known constraints
 
-## Build Information
+- The YubiKey/Magic Box development launcher and server deployment scripts are
+  tied to internal MIEWeb infrastructure; no public replacement service or
+  generic deployment manifest is included.
+- Firebase projects, LDAP schema values, mail service, app-store accounts, and
+  signing material cannot be inferred from source and must be supplied by the
+  operator.
+- Admin sessions are process-local. Behind a load balancer, use session affinity
+  or redesign the session store; MongoDB-backed approval responses do not solve
+  admin-session sharing.
+- `/api/pending-responses` is currently unauthenticated and may expose request
+  metadata. Restrict it at the reverse proxy or add application authentication
+  before exposing it outside a trusted network.
+- `/send-notification` allows unauthenticated requests unless
+  `SEND_NOTIFICATION_FORCE_AUTH=true`. Production deployments should enable
+  enforcement.
+- The migration utility advertises `--force`, but the current implementation
+  does not use that flag; it also removes pending responses without prompting.
+- The focused documents under `docs/` include some historical implementation
+  notes. When they conflict with source, `server/`, `client/`, and the current
+  workflows are authoritative.
 
-The application automatically generates build information that is displayed in the Support page of the mobile app.
+## License
 
-### Automatic Generation
-
-Build information is automatically generated before builds via the `prebuild` npm script:
-
-```bash
-npm run prebuild
-```
-
-This script:
-- Extracts the app version from `mobile-config.js`
-- Gets the current git commit hash
-- Generates `public/buildInfo.json` with version and build metadata
-
-### Viewing Build Information
-
-Users can view the app version and build number by:
-1. Opening the mobile app
-2. Navigating to the Support page
-3. Scrolling to the "App Information" section
-
-The build number is clickable and links to the corresponding commit on GitHub for easy reference.
-
-## Project Structure
-
-Understanding the application architecture and file organization:
-
-| Path/File | Purpose | Description |
-|-----------|---------|-------------|
-| `client/main.jsx` | Frontend Logic | React UI components and push notification registration |
-| `server/main.js` | Backend Logic | Meteor server implementation and push notification handling |
-| `mobile-config.js` | Mobile Configuration | Cordova application metadata and mobile-specific settings |
-| `generate_app_resources.py` | Resource Generator | Python script to generate app icons and splash screens |
-| `generate-build-info.js` | Build Info Generator | Node.js script to generate app version and build number metadata |
-| `public/resources/` | App Resources | Generated app icons and splash screens for all platforms |
-| `public/buildInfo.json` | Build Metadata | Auto-generated file with app version and git commit hash |
-| `public/android/` | Android Assets | Android-specific configuration files and resources |
-| `public/ios/` | iOS Assets | iOS-specific configuration files and resources |
-| `server/private/` | Server Secrets | Private configuration files (excluded from version control) |
-
-## Continuous Integration and Deployment
-
-### GitHub Actions Workflows
-
-The project includes automated CI/CD pipelines:
-
-#### Android Build Workflow
-- **File:** `.github/workflows/android-build.yml`
-- **Purpose:** Automated Android application building and testing
-- **Triggers:** Push to main branch, pull requests
-
-#### Server Bundle Workflow  
-- **File:** `.github/workflows/build-server-on-release.yml`
-- **Purpose:** Automated server bundling for production releases
-- **Triggers:** Release creation, tagged commits
-
-### CI/CD Configuration
-
-**Required GitHub Secrets:**
-- `FIREBASE_SERVICE_ACCOUNT_JSON` - Your Firebase Admin SDK secret for secure CI usage
-
-**Setup Instructions:**
-1. Navigate to your GitHub repository settings
-2. Go to Secrets and Variables → Actions
-3. Add the required secrets with their respective values
-4. Ensure workflows have appropriate permissions
-
-## Authentication & Session Management
-
-### Screen Lock-Based Session Security
-
-The application implements automatic logout based on device screen lock for enhanced security:
-
-- **Device Lock Integration**: Users are automatically logged out when they lock their phone and return to the app
-- **Leverages Phone Security**: Uses the device's built-in security (screen lock/Face ID/fingerprint) instead of arbitrary timeouts
-- **Better UX**: No unexpected logouts while actively using the app
-- **App Lifecycle**: Detects when app goes to background (pause) and logs out on resume
-- **Automatic Logout**: When returning to the app after screen lock, user is logged out and redirected to login
-- **Data Cleanup**: All session data is cleared on logout for security
-
-This feature ensures that if someone unlocks your phone, they still need to authenticate with the app, providing an additional layer of security beyond the device lock.
-
-## Security Best Practices
-
-### Firebase Security
-- **Never commit Firebase Admin SDK JSON files to version control**
-- Use environment variables for all sensitive configuration
-- Implement proper `.gitignore` and `.meteorignore` rules
-- Regularly rotate Firebase service account keys
-
-### Application Security
-- Restrict Firebase project access to necessary team members only
-- Implement proper authentication and authorization
-- Use HTTPS for all production communications
-- Regularly audit and update dependencies
-- **Session Management**: Automatic logout when app resumes after device screen lock
-- **Device Lock Integration**: Leverages phone's built-in security for session management
-
-### Development Security
-- Keep development and production environments separated
-- Use different Firebase projects for different environments
-- Implement proper logging without exposing sensitive data
-- Regular security audits of the codebase
-
-## Troubleshooting and Support
-
-### Common Issues
-
-**Firebase Connection Issues:**
-- Verify configuration files are in correct locations
-- Check Firebase project settings and API enablement
-- Ensure environment variables are properly set
-
-**Mobile Build Issues:**
-- Verify all prerequisites are installed and properly configured
-- Check platform-specific SDK versions
-- Ensure proper signing certificates for iOS builds
-
-**Push Notification Issues:**
-- Verify FCM tokens are being properly generated and stored
-- Check Firebase Cloud Messaging configuration
-- Test with different notification payload formats
-
-### Getting Help
-
-If you encounter issues or need assistance:
-
-1. **Check the documentation** - Review this README and official Meteor/Firebase documentation
-2. **Search existing issues** - Look through GitHub issues for similar problems
-3. **Create a new issue** - Provide detailed information about your problem
-4. **Submit pull requests** - Contribute improvements and fixes
-
-### Contributing
-
-We welcome contributions to improve this application. Please:
-- Fork the repository
-- Create a feature branch
-- Follow existing code style and conventions
-- Add appropriate tests and documentation
-- Submit a pull request with a clear description
+MIEAuth is available under the [MIT License](LICENSE).
