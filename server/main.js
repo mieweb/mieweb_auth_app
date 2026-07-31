@@ -2142,6 +2142,110 @@ Meteor.methods({
   },
 
   /**
+   * Send a test push notification to the signed-in user's own approved
+   * device(s) so they can verify push delivery is working end-to-end.
+   *
+   * Uses this.userId (never a client-supplied id) so a caller can only ever
+   * test their own devices. The payload is intentionally non-actionable —
+   * appId, notificationId and actions are omitted so the client treats it as
+   * a plain informational notification, not an approval request.
+   *
+   * @param {Number} [delaySeconds=0] Optional delay (0–60s) before the push
+   *   is sent, so the user can background/close the app and verify the
+   *   system banner appears. When delayed, the method returns immediately
+   *   with `{ scheduled: true }` and the send happens server-side.
+   * @returns {{ sent: Number }|{ scheduled: true, delaySeconds: Number, devices: Number }}
+   */
+  "notifications.sendTest": async function (delaySeconds = 0) {
+    check(delaySeconds, Match.Integer);
+    if (delaySeconds < 0 || delaySeconds > 60) {
+      throw new Meteor.Error(
+        "invalid-delay",
+        "Delay must be between 0 and 60 seconds.",
+      );
+    }
+
+    const userId = this.userId;
+    if (!userId) {
+      throw new Meteor.Error(
+        "not-authorized",
+        "You must be signed in to send a test notification.",
+      );
+    }
+
+    let fcmTokens = [];
+    try {
+      fcmTokens = await Meteor.callAsync(
+        "deviceDetails.getApprovedFCMTokensByUserId",
+        userId,
+      );
+    } catch (error) {
+      // The lookup throws "invalid-username" when the user has no device
+      // document at all; treat that the same as having no approved devices.
+      if (error.error !== "invalid-username") {
+        throw error;
+      }
+    }
+
+    const validTokens = (fcmTokens || []).filter(Boolean);
+    if (validTokens.length === 0) {
+      throw new Meteor.Error(
+        "no-devices",
+        "No approved devices found. Register and get approved on a device first.",
+      );
+    }
+
+    const notificationData = {
+      messageFrom: "mie",
+      notificationType: "test",
+      isDismissal: "false",
+      isSync: "false",
+    };
+
+    const sendToAllDevices = async () => {
+      const results = await Promise.allSettled(
+        validTokens.map((token) =>
+          sendNotification(
+            token,
+            "Test Notification",
+            "Your push notifications are working correctly.",
+            notificationData,
+          ),
+        ),
+      );
+
+      // sendNotification resolves with a message id on success and null when
+      // Firebase is not initialised, so only count deliveries with a real id.
+      return results.filter((r) => r.status === "fulfilled" && r.value).length;
+    };
+
+    // Delayed send: schedule server-side and return immediately so the user
+    // can background or close the app to verify the system banner appears.
+    if (delaySeconds > 0) {
+      Meteor.setTimeout(() => {
+        sendToAllDevices().catch((error) => {
+          console.error("Delayed test notification failed:", error);
+        });
+      }, delaySeconds * 1000);
+      return {
+        scheduled: true,
+        delaySeconds,
+        devices: validTokens.length,
+      };
+    }
+
+    const sent = await sendToAllDevices();
+    if (sent === 0) {
+      throw new Meteor.Error(
+        "notification-failed",
+        "Failed to deliver the test notification to any device.",
+      );
+    }
+
+    return { sent };
+  },
+
+  /**
    * Admin approves or rejects first device
    *
    * @param {Object} options - Approval details

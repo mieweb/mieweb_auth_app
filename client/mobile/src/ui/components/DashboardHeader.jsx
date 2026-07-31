@@ -11,6 +11,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { openSupportLink } from "../../../../../utils/openExternal";
 import { Button, AppHeaderDivider } from "@mieweb/ui";
+import { TestNotificationButton } from "./TestNotificationButton";
 
 export const DashboardHeader = ({
   isDarkMode,
@@ -90,6 +91,7 @@ export const DashboardHeader = ({
                 Notify
               </span>
             </Button>
+            <TestNotificationButton />
             <AppHeaderDivider className="h-7" />
             <Button
               variant="ghost"
