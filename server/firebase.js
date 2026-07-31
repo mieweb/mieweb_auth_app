@@ -80,13 +80,22 @@ export const sendNotification = async (fcmToken, title, body, data = {}) => {
             },
             badge: 1,
             sound: "default",
-            category: APPROVAL_CATEGORY_ID,
             "content-available": 1,
             "mutable-content": 1,
           },
         },
       },
     };
+
+    // Attach the iOS approval category — which renders the Approve/Reject
+    // action buttons, including when the push is mirrored to a paired Apple
+    // Watch — only for notifications that actually carry approval `actions`.
+    // Informational pushes (e.g. the test notification) omit `actions`, so they
+    // stay plain and non-actionable instead of surfacing Approve/Reject on
+    // iOS/watchOS.
+    if (stringifiedData.actions) {
+      message.apns.payload.aps.category = APPROVAL_CATEGORY_ID;
+    }
 
     // Only include title and body in data payload if they are not empty
     // Empty title/body indicates a silent background notification (for Android)
