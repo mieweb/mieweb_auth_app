@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { Meteor } from "meteor/meteor";
 import { BellRing } from "lucide-react";
-import { Button, Card, CardContent } from "@mieweb/ui";
+import { Button } from "@mieweb/ui";
 import SuccessToaster from "../Toasters/SuccessToaster";
 
 /**
- * Lets a signed-in user send a push notification to their own approved
- * device(s) to verify that push delivery is working end-to-end.
+ * Compact utility action (rendered in the dashboard header) that lets a
+ * signed-in user send a push notification to their own approved device(s)
+ * to verify that push delivery is working end-to-end.
  */
 export const TestNotificationButton = () => {
   const [isSending, setIsSending] = useState(false);
@@ -14,6 +15,7 @@ export const TestNotificationButton = () => {
   const [errorMessage, setErrorMessage] = useState("");
 
   const handleSendTest = () => {
+    if (isSending) return;
     setErrorMessage("");
     setSuccessMessage("");
     setIsSending(true);
@@ -39,31 +41,25 @@ export const TestNotificationButton = () => {
         message={successMessage}
         onClose={() => setSuccessMessage("")}
       />
-      <Card>
-        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-foreground">
-              Test push notifications
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Send a sample notification to your approved device to confirm
-              delivery is working.
-            </p>
-            {errorMessage && (
-              <p className="text-xs text-destructive mt-1">{errorMessage}</p>
-            )}
-          </div>
-          <Button
-            onClick={handleSendTest}
-            disabled={isSending}
-            aria-label="Send test notification"
-            className="shrink-0"
-          >
-            <BellRing className="h-4 w-4 mr-2" />
-            {isSending ? "Sending..." : "Send Test"}
-          </Button>
-        </CardContent>
-      </Card>
+      <SuccessToaster
+        message={errorMessage}
+        variant="error"
+        onClose={() => setErrorMessage("")}
+      />
+      <Button
+        variant="ghost"
+        onClick={handleSendTest}
+        disabled={isSending}
+        aria-label="Send test notification"
+        className="flex flex-col items-center justify-center py-1.5 px-2.5 rounded-xl h-auto"
+      >
+        <BellRing
+          className={`h-[18px] w-[18px] text-muted-foreground ${isSending ? "animate-pulse" : ""}`}
+        />
+        <span className="text-[9px] font-medium mt-0.5 leading-tight text-muted-foreground">
+          Test
+        </span>
+      </Button>
     </>
   );
 };

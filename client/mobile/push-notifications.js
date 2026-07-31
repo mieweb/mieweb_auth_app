@@ -113,6 +113,11 @@ const configurePushNotifications = () => {
       sound: true,
       priority: "high",
       foreground: true,
+      // Force the OS to display the notification banner even when the app is
+      // in the foreground (matches the Android `forceShow` behavior). Without
+      // this, iOS silently delivers foreground pushes to the JS handler with
+      // no visible banner.
+      forceShow: true,
       // Statically register the APPROVAL category so its action buttons are
       // rendered by the system — including when the notification is mirrored to
       // a paired Apple Watch. The watch only shows actions that come from a

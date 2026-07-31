@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { openSupportLink } from "../../../../../utils/openExternal";
 import { Button, AppHeaderDivider } from "@mieweb/ui";
+import { TestNotificationButton } from "./TestNotificationButton";
 
 export const DashboardHeader = ({
   isDarkMode,
@@ -76,6 +77,7 @@ export const DashboardHeader = ({
               <HelpCircle className="h-[18px] w-[18px] text-muted-foreground" />
               <span className={`${iconLabel} text-muted-foreground`}>Help</span>
             </Button>
+            <TestNotificationButton />
             <AppHeaderDivider className="h-7" />
             <Button
               variant="ghost"
