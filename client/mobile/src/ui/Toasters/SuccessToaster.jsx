@@ -28,7 +28,10 @@ const SuccessToaster = ({ message, onClose, variant = "success" }) => {
           animate={{ x: 0 }}
           exit={{ x: "150%" }}
           transition={{ duration: 0.5, ease: "easeInOut" }}
-          className={`fixed top-5 right-5 ${bgColor} text-white px-4 py-2 rounded shadow-lg`}
+          // Offset by the device safe-area inset so the toast clears the iOS
+          // status bar / app header, and cap the width so long messages wrap
+          // instead of stretching across (and covering) the header controls.
+          className={`fixed right-4 top-[calc(env(safe-area-inset-top,0px)+4.5rem)] z-[60] max-w-[calc(100vw-2rem)] sm:max-w-sm ${bgColor} text-white text-sm px-4 py-2 rounded-lg shadow-lg`}
         >
           {message}
         </motion.div>
