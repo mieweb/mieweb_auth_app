@@ -113,6 +113,11 @@ const configurePushNotifications = () => {
       sound: true,
       priority: "high",
       foreground: true,
+      // NOTE: `forceShow` must stay OFF. With forceShow the plugin only shows
+      // the OS banner for foreground pushes and does NOT dispatch them to the
+      // JS `notification` handler until tapped (see PushPlugin.m
+      // willPresentNotification), which breaks the auto-opening approve/reject
+      // actions modal. Foreground pushes are surfaced in-app instead.
       // Statically register the APPROVAL category so its action buttons are
       // rendered by the system — including when the notification is mirrored to
       // a paired Apple Watch. The watch only shows actions that come from a
@@ -214,6 +219,20 @@ const setupNotificationHandler = (push) => {
             );
           });
         }, 2000);
+      }
+
+      // Test notification received while the app is in the foreground.
+      // Foreground pushes are delivered straight to this handler (no OS
+      // banner, since forceShow is off), so surface an in-app toast that
+      // explains what happened instead of silently swallowing the push.
+      if (
+        additionalData.notificationType === "test" &&
+        additionalData.foreground
+      ) {
+        Session.set("testNotificationForeground", {
+          timestamp: new Date().getTime(),
+        });
+        return;
       }
 
       // Standard notification handling

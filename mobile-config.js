@@ -18,6 +18,13 @@ App.setPreference("HideKeyboardFormAccessoryBar", true);
 App.setPreference("Orientation", "default");
 App.setPreference("Orientation", "all", "ios");
 
+// cordova.plugins.diagnostic is only used to open the OS app-settings screen
+// (switchToSettings(), part of the always-installed core module) so users can
+// re-enable notifications after denying them. Restrict it to the core module so
+// the optional Location/Bluetooth/Camera/etc. modules — and their associated
+// permissions and iOS usage-description strings — are NOT added to the app.
+App.setPreference("cordova.plugins.diagnostic.modules", "");
+
 App.setPreference("FadeSplashScreen", true);
 App.setPreference("AutoHideSplashScreen", true);
 App.setPreference("SplashScreenBackgroundColor", "#27AAE1");
