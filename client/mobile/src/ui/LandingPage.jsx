@@ -14,6 +14,7 @@ import { useSessionTimeout } from "./hooks/useSessionTimeout";
 import { DashboardHeader } from "./components/DashboardHeader";
 import { ProfileSection } from "./components/ProfileSection";
 import { NotificationList } from "./components/NotificationList";
+import { TestNotificationButton } from "./components/TestNotificationButton";
 import Pagination from "./Pagination/Pagination";
 import ActionsModal from "./Modal/ActionsModal";
 import ResultModal from "./Modal/ResultModal";
@@ -219,6 +220,9 @@ export const LandingPage = () => {
             </Card>
           ))}
         </div>
+
+        {/* Test Push Notification */}
+        <TestNotificationButton />
 
         {/* Notifications */}
         <div className="space-y-4">

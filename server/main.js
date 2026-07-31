@@ -2142,6 +2142,81 @@ Meteor.methods({
   },
 
   /**
+   * Send a test push notification to the signed-in user's own approved
+   * device(s) so they can verify push delivery is working end-to-end.
+   *
+   * Uses this.userId (never a client-supplied id) so a caller can only ever
+   * test their own devices. The payload is intentionally non-actionable —
+   * appId, notificationId and actions are omitted so the client treats it as
+   * a plain informational notification, not an approval request.
+   *
+   * @returns {{ sent: Number }} Number of devices the push reached
+   */
+  "notifications.sendTest": async function () {
+    const userId = this.userId;
+    if (!userId) {
+      throw new Meteor.Error(
+        "not-authorized",
+        "You must be signed in to send a test notification.",
+      );
+    }
+
+    let fcmTokens = [];
+    try {
+      fcmTokens = await Meteor.callAsync(
+        "deviceDetails.getApprovedFCMTokensByUserId",
+        userId,
+      );
+    } catch (error) {
+      // The lookup throws "invalid-username" when the user has no device
+      // document at all; treat that the same as having no approved devices.
+      if (error.error !== "invalid-username") {
+        throw error;
+      }
+    }
+
+    const validTokens = (fcmTokens || []).filter(Boolean);
+    if (validTokens.length === 0) {
+      throw new Meteor.Error(
+        "no-devices",
+        "No approved devices found. Register and get approved on a device first.",
+      );
+    }
+
+    const notificationData = {
+      messageFrom: "mie",
+      notificationType: "test",
+      isDismissal: "false",
+      isSync: "false",
+    };
+
+    const results = await Promise.allSettled(
+      validTokens.map((token) =>
+        sendNotification(
+          token,
+          "Test Notification",
+          "Your push notifications are working correctly.",
+          notificationData,
+        ),
+      ),
+    );
+
+    // sendNotification resolves with a message id on success and null when
+    // Firebase is not initialised, so only count deliveries with a real id.
+    const sent = results.filter(
+      (r) => r.status === "fulfilled" && r.value,
+    ).length;
+    if (sent === 0) {
+      throw new Meteor.Error(
+        "notification-failed",
+        "Failed to deliver the test notification to any device.",
+      );
+    }
+
+    return { sent };
+  },
+
+  /**
    * Admin approves or rejects first device
    *
    * @param {Object} options - Approval details
