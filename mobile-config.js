@@ -5,7 +5,7 @@ App.info({
   author: "Anshul Abrol",
   email: "abrol.anshul10@gmail.com",
   website: "https://mieauth-prod.os.mieweb.org",
-  version: '1.4.41',
+  version: "1.4.41",
 });
 
 App.setPreference("android-targetSdkVersion", "35");
@@ -17,6 +17,13 @@ App.setPreference("BackgroundColor", "#27AAE1ff");
 App.setPreference("HideKeyboardFormAccessoryBar", true);
 App.setPreference("Orientation", "default");
 App.setPreference("Orientation", "all", "ios");
+
+// cordova.plugins.diagnostic is only used to open the OS app-settings screen
+// (switchToSettings(), part of the always-installed core module) so users can
+// re-enable notifications after denying them. Restrict it to the core module so
+// the optional Location/Bluetooth/Camera/etc. modules — and their associated
+// permissions and iOS usage-description strings — are NOT added to the app.
+App.setPreference("cordova.plugins.diagnostic.modules", "");
 
 App.setPreference("FadeSplashScreen", true);
 App.setPreference("AutoHideSplashScreen", true);
