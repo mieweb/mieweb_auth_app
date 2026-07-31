@@ -5,3 +5,4 @@ cordova-plugin-device@3.0.0
 cordova-plugin-fingerprint-aio@6.0.0
 cordova-plugin-inappbrowser@6.0.0
 cordova-plugin-splashscreen@6.0.2
+cordova.plugins.diagnostic@7.3.1

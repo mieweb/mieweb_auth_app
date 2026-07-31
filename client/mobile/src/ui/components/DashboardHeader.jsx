@@ -6,7 +6,9 @@ import {
   RefreshCw,
   HelpCircle,
   ShieldCheck,
+  Bell,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { openSupportLink } from "../../../../../utils/openExternal";
 import { Button, AppHeaderDivider } from "@mieweb/ui";
 
@@ -17,6 +19,7 @@ export const DashboardHeader = ({
   onLogout,
 }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const navigate = useNavigate();
 
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
@@ -75,6 +78,17 @@ export const DashboardHeader = ({
             >
               <HelpCircle className="h-[18px] w-[18px] text-muted-foreground" />
               <span className={`${iconLabel} text-muted-foreground`}>Help</span>
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => navigate("/settings/notifications")}
+              aria-label="Notification settings"
+              className="flex flex-col items-center justify-center py-1.5 px-2.5 rounded-xl h-auto"
+            >
+              <Bell className="h-[18px] w-[18px] text-muted-foreground" />
+              <span className={`${iconLabel} text-muted-foreground`}>
+                Notify
+              </span>
             </Button>
             <AppHeaderDivider className="h-7" />
             <Button
