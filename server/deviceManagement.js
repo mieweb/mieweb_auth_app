@@ -191,6 +191,37 @@ const invalidateOtherSessions = async (userId, connection) => {
 
 Meteor.methods({
   /**
+   * Pre-login check: is this device registered, and what is its status?
+   *
+   * Replaces the old `deviceDetails.byDevice` publication. That publication
+   * published a stripped projection of the same top-level `devices` field as
+   * `deviceDetails.byUser`; Meteor's DDP merge box only tracks TOP-LEVEL
+   * fields, so whichever publication ran first clobbered the other and the
+   * device list rendered with missing fields (model/platform/isPrimary/
+   * lastUsed all undefined). A method has no Minimongo footprint, so no
+   * conflict. Exposes only existence + status — no identifiers or secrets.
+   */
+  async "devices.checkRegistrationByUUID"(deviceUUID) {
+    check(deviceUUID, String);
+
+    const userDoc = await DeviceDetails.findOneAsync(
+      { "devices.deviceUUID": deviceUUID },
+      {
+        fields: {
+          "devices.deviceUUID": 1,
+          "devices.deviceRegistrationStatus": 1,
+        },
+      },
+    );
+    const device = userDoc?.devices?.find((d) => d.deviceUUID === deviceUUID);
+
+    return {
+      registered: !!device,
+      status: device?.deviceRegistrationStatus || null,
+    };
+  },
+
+  /**
    * Self-report the calling device's live OS info (model/platform) and mark
    * it as recently used. Called on dashboard load so records registered with
    * "Unknown" placeholders heal themselves, and other devices see real names.
@@ -508,6 +539,7 @@ Meteor.methods({
 const RATE_LIMITED_METHODS = new Set([
   "users.loginWithBiometric",
   "users.register",
+  "devices.checkRegistrationByUUID",
   "devices.updateInfo",
   "devices.rename",
   "devices.setPrimary",

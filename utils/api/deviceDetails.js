@@ -390,20 +390,11 @@ if (Meteor.isServer) {
     );
   });
 
-  // Pre-login registration check (used before a session exists). Exposes only
-  // whether the device is registered and its status — no user identifiers,
-  // tokens, or secrets.
-  Meteor.publish("deviceDetails.byDevice", function (deviceUUID) {
-    check(deviceUUID, String);
-
-    return DeviceDetails.find(
-      { "devices.deviceUUID": deviceUUID },
-      {
-        fields: {
-          "devices.deviceUUID": 1,
-          "devices.deviceRegistrationStatus": 1,
-        },
-      },
-    );
-  });
+  // NOTE: there is intentionally NO second publication over this collection.
+  // The old `deviceDetails.byDevice` publication published a different
+  // projection of the same top-level `devices` field, and Meteor's DDP merge
+  // box (which tracks top-level fields only) let it clobber the full
+  // projection above — devices rendered as "Unknown" with no primary flag.
+  // The pre-login registration check is now the `devices.checkRegistrationByUUID`
+  // method (server/deviceManagement.js).
 }

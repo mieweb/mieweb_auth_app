@@ -118,6 +118,28 @@ if (Meteor.isServer) {
       });
     });
 
+    describe("devices.checkRegistrationByUUID", function () {
+      it("reports a registered device with its status", async function () {
+        const result = await callMethod(
+          "devices.checkRegistrationByUUID",
+          {},
+          "uuid-primary",
+        );
+        assert.strictEqual(result.registered, true);
+        assert.strictEqual(result.status, "approved");
+      });
+
+      it("reports an unknown device as unregistered", async function () {
+        const result = await callMethod(
+          "devices.checkRegistrationByUUID",
+          {},
+          "no-such-uuid",
+        );
+        assert.strictEqual(result.registered, false);
+        assert.strictEqual(result.status, null);
+      });
+    });
+
     describe("devices.updateInfo", function () {
       it("updates the calling device's model/platform and lastUsed", async function () {
         await callMethod(
