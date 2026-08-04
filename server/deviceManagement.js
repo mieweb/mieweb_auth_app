@@ -410,13 +410,19 @@ Meteor.methods({
     );
 
     // Keep the invariant that one device is primary (device approval pushes
-    // are routed to the primary device).
+    // are routed to the primary device). Guarded so a concurrent revoke /
+    // setPrimary interleaving cannot produce two primaries: the successor is
+    // only promoted if no primary device exists at write time.
     if (target.isPrimary) {
       const successor =
         remaining.find((d) => d.deviceRegistrationStatus === "approved") ||
         remaining[0];
       await DeviceDetails.updateAsync(
-        { userId: this.userId, "devices.deviceUUID": successor.deviceUUID },
+        {
+          userId: this.userId,
+          "devices.deviceUUID": successor.deviceUUID,
+          devices: { $not: { $elemMatch: { isPrimary: true } } },
+        },
         {
           $set: {
             "devices.$.isPrimary": true,
@@ -426,7 +432,15 @@ Meteor.methods({
       );
     }
 
-    await invalidateOtherSessions(this.userId, this.connection);
+    // Session invalidation: on a self-revoke the calling device is the one
+    // being removed, so its own token must die too — the client-side wipe is
+    // only best-effort. Revoking a *different* device keeps the caller's
+    // session and drops everything else.
+    const isSelfRevoke = deviceUUID === actorDeviceUUID;
+    await invalidateOtherSessions(
+      this.userId,
+      isSelfRevoke ? null : this.connection,
+    );
 
     // Courtesy notice on the user's other approved devices.
     remaining

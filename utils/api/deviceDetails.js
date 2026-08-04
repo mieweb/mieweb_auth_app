@@ -200,9 +200,10 @@ export const registerDeviceDetails = async (data) => {
     const existingDevices = await DeviceDetails.findOneAsync({
       userId: data.userId,
     });
+    // Log only non-sensitive metadata — the document contains credentials
+    // (biometricSecret, fcmToken) that must never reach logs.
     console.log(
-      `### Log Step 6.2 : Inside deviceDetails.js, fetching existing device details:`,
-      existingDevices,
+      `### Log Step 6.2 : Inside deviceDetails.js, fetching existing device details: found=${!!existingDevices}, deviceCount=${existingDevices?.devices?.length ?? 0}`,
     );
 
     if (!existingDevices) {

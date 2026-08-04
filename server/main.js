@@ -2007,12 +2007,18 @@ Meteor.methods({
     }
 
     try {
+      // Only reset the verified flag when the address actually changes — a
+      // new address must never inherit the old one's verified status.
+      const currentUser = await Meteor.users.findOneAsync(this.userId);
+      const emailChanged = currentUser?.emails?.[0]?.address !== email;
+
       // Update the user's profile in the database
       await Meteor.users.updateAsync(this.userId, {
         $set: {
           "profile.firstName": firstName,
           "profile.lastName": lastName,
           "emails.0.address": email,
+          ...(emailChanged && { "emails.0.verified": false }),
         },
       });
 

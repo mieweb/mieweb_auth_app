@@ -265,6 +265,55 @@ if (Meteor.isServer) {
         assert.ok(audit, "revocation should be audit-logged");
       });
 
+      it("clears all login tokens when a device revokes itself", async function () {
+        const userId = await Meteor.users.insertAsync({
+          username: "selfrevoke",
+          emails: [{ address: "self@example.com", verified: false }],
+          services: {
+            resume: {
+              loginTokens: [
+                { hashedToken: "token-a", when: new Date() },
+                { hashedToken: "token-b", when: new Date() },
+              ],
+            },
+          },
+        });
+        await DeviceDetails.insertAsync({
+          userId,
+          username: "selfrevoke",
+          email: "self@example.com",
+          devices: [
+            makeDevice({ biometricSecret: "self-bio" }),
+            makeDevice({
+              deviceUUID: "uuid-other",
+              appId: "app-other",
+              biometricSecret: "other-bio",
+              isPrimary: false,
+            }),
+          ],
+          createdAt: new Date(),
+          lastUpdated: new Date(),
+        });
+
+        // Actor revokes itself (deviceUUID === actorDeviceUUID) from a
+        // context WITH a connection — the caller's own token must die too.
+        await callMethod(
+          "devices.revoke",
+          { userId, connection: { id: "conn-1" } },
+          {
+            deviceUUID: "uuid-primary",
+            actorDeviceUUID: "uuid-primary",
+            reAuth: { biometricSecret: "self-bio" },
+          },
+        );
+
+        const user = await Meteor.users.findOneAsync(userId);
+        assert.deepStrictEqual(user.services.resume.loginTokens, []);
+
+        await Meteor.users.removeAsync({ _id: userId });
+        await DeviceDetails.removeAsync({ userId });
+      });
+
       it("deregisters the whole account when the last device is removed", async function () {
         const userId = await Meteor.users.insertAsync({
           username: "lastdevice",
