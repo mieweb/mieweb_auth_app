@@ -5,7 +5,6 @@ import { Session } from "meteor/session";
 import { useTracker } from "meteor/react-meteor-data";
 import {
   ArrowLeft,
-  Apple,
   Check,
   Fingerprint as FingerprintIcon,
   Pencil,
@@ -52,9 +51,9 @@ const platformKind = (platform) => {
 
 const PLATFORM_META = {
   ios: {
-    Icon: Apple,
+    Icon: Smartphone,
     label: "iOS",
-    tint: "text-foreground bg-muted",
+    tint: "text-blue-600 bg-blue-500/10",
     watch: "Apple Watch",
   },
   android: {
