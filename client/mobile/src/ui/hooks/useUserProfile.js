@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
 import { Meteor } from "meteor/meteor";
 import { Session } from "meteor/session";
+import { useTracker } from "meteor/react-meteor-data";
 import { DeviceDetails } from "../../../../../utils/api/deviceDetails";
 
 export const useUserProfile = () => {
   const initialProfile = Session.get("userProfile") || {};
   const [profile, setProfile] = useState({
-    firstName: "",
-    lastName: "",
+    firstName: initialProfile.firstName || "",
+    lastName: initialProfile.lastName || "",
     email: initialProfile.email || "",
   });
   const [isEditing, setIsEditing] = useState(false);
@@ -15,38 +16,25 @@ export const useUserProfile = () => {
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
-  // Fetch user details on mount
-  useEffect(() => {
-    let isMounted = true;
-
-    const fetchUserDetails = async () => {
-      if (!initialProfile._id) return;
-      try {
-        const userDoc = await DeviceDetails.findOneAsync({
-          userId: initialProfile._id,
-        });
-        if (isMounted && userDoc) {
-          setProfile({
-            firstName: userDoc.firstName || "",
-            lastName: userDoc.lastName || "",
-            email: userDoc.email || "",
-          });
-        } else if (isMounted) {
-          setErrorMessage("User profile not found.");
-        }
-      } catch {
-        if (isMounted) {
-          setErrorMessage("Failed to fetch profile.");
-        }
-      }
-    };
-
-    fetchUserDetails();
-
-    return () => {
-      isMounted = false;
-    };
+  // Reactive profile source: subscribe to the user's own device document and
+  // re-run whenever it arrives/changes. (A one-shot Minimongo read at mount
+  // races the subscription and misses the data, showing "User" forever.)
+  const userDoc = useTracker(() => {
+    if (!initialProfile._id) return null;
+    Meteor.subscribe("deviceDetails.byUser", initialProfile._id);
+    return DeviceDetails.findOne({ userId: initialProfile._id });
   }, [initialProfile._id]);
+
+  useEffect(() => {
+    // Don't clobber in-progress edits with a reactive refresh.
+    if (!userDoc || isEditing) return;
+    setProfile({
+      firstName: userDoc.firstName || "",
+      lastName: userDoc.lastName || "",
+      email: userDoc.email || initialProfile.email || "",
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userDoc?.firstName, userDoc?.lastName, userDoc?.email, isEditing]);
 
   const handleProfileChange = (e) => {
     const { name, value } = e.target;

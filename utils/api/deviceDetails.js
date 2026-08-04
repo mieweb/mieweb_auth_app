@@ -223,6 +223,7 @@ export const registerDeviceDetails = async (data) => {
       console.log(
         `### Log Step 6.3 : Inside deviceDetails.js, Existing device details found and updating it, existingDeviceIndex: ${existingDeviceIndex}`,
       );
+      const existingDevice = existingDevices.devices[existingDeviceIndex];
       await DeviceDetails.updateAsync(
         { userId: data.userId },
         {
@@ -233,8 +234,7 @@ export const registerDeviceDetails = async (data) => {
             lastName: data.lastName,
             lastUpdated: new Date(),
             [`devices.${existingDeviceIndex}.deviceUUID`]: data.deviceUUID,
-            [`devices.${existingDeviceIndex}.appId`]:
-              existingDevices.devices[existingDeviceIndex].appId,
+            [`devices.${existingDeviceIndex}.appId`]: existingDevice.appId,
             [`devices.${existingDeviceIndex}.biometricSecret`]:
               data.biometricSecret,
             [`devices.${existingDeviceIndex}.fcmToken`]: data.fcmToken,
@@ -244,9 +244,15 @@ export const registerDeviceDetails = async (data) => {
               data.devicePlatform || "Unknown",
             [`devices.${existingDeviceIndex}.deviceRegistrationStatus`]:
               deviceRegistrationStatus,
-            [`devices.${existingDeviceIndex}.isFirstDevice`]: false,
-            [`devices.${existingDeviceIndex}.isPrimary`]: false,
-            [`devices.${existingDeviceIndex}.isSecondaryDevice`]: true,
+            // Preserve the device's standing — re-registering the same device
+            // (e.g. app reinstall) must not strip its first/primary flags,
+            // otherwise the account is left with no primary device.
+            [`devices.${existingDeviceIndex}.isFirstDevice`]:
+              existingDevice.isFirstDevice ?? false,
+            [`devices.${existingDeviceIndex}.isPrimary`]:
+              existingDevice.isPrimary ?? false,
+            [`devices.${existingDeviceIndex}.isSecondaryDevice`]:
+              existingDevice.isSecondaryDevice ?? true,
             [`devices.${existingDeviceIndex}.lastUpdated`]: new Date(),
           },
         },

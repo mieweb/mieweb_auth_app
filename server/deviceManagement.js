@@ -191,6 +191,56 @@ const invalidateOtherSessions = async (userId, connection) => {
 
 Meteor.methods({
   /**
+   * Self-report the calling device's live OS info (model/platform) and mark
+   * it as recently used. Called on dashboard load so records registered with
+   * "Unknown" placeholders heal themselves, and other devices see real names.
+   *
+   * Also repairs the primary-device invariant: if the account has approved
+   * devices but none is flagged primary (legacy re-registrations cleared the
+   * flag), the oldest approved device is promoted.
+   */
+  async "devices.updateInfo"({ deviceUUID, deviceModel, devicePlatform }) {
+    check(deviceUUID, String);
+    check(deviceModel, Match.Maybe(String));
+    check(devicePlatform, Match.Maybe(String));
+    requireLogin(this);
+
+    const userDoc = await getUserDevicesOrThrow(this.userId);
+    findOwnedDeviceOrThrow(userDoc, deviceUUID);
+
+    const updates = { "devices.$.lastUsed": new Date() };
+    const clean = (v) => (v || "").toString().trim().slice(0, 64);
+    if (clean(deviceModel))
+      updates["devices.$.deviceModel"] = clean(deviceModel);
+    if (clean(devicePlatform))
+      updates["devices.$.devicePlatform"] = clean(devicePlatform);
+
+    await DeviceDetails.updateAsync(
+      { userId: this.userId, "devices.deviceUUID": deviceUUID },
+      { $set: updates },
+    );
+
+    // Primary invariant repair.
+    const approved = userDoc.devices.filter(
+      (d) => d.deviceRegistrationStatus === "approved",
+    );
+    if (approved.length > 0 && !approved.some((d) => d.isPrimary)) {
+      const oldest = approved.reduce((a, b) =>
+        new Date(a.lastUpdated || 0) <= new Date(b.lastUpdated || 0) ? a : b,
+      );
+      await DeviceDetails.updateAsync(
+        { userId: this.userId, "devices.deviceUUID": oldest.deviceUUID },
+        { $set: { "devices.$.isPrimary": true } },
+      );
+      console.log(
+        `Primary invariant repaired for user ${this.userId}: promoted ${oldest.deviceUUID}`,
+      );
+    }
+
+    return { success: true };
+  },
+
+  /**
    * Rename one of the caller's own devices.
    */
   async "devices.rename"({ deviceUUID, name }) {
@@ -458,6 +508,7 @@ Meteor.methods({
 const RATE_LIMITED_METHODS = new Set([
   "users.loginWithBiometric",
   "users.register",
+  "devices.updateInfo",
   "devices.rename",
   "devices.setPrimary",
   "devices.revoke",

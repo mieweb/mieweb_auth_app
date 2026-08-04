@@ -118,6 +118,54 @@ if (Meteor.isServer) {
       });
     });
 
+    describe("devices.updateInfo", function () {
+      it("updates the calling device's model/platform and lastUsed", async function () {
+        await callMethod(
+          "devices.updateInfo",
+          { userId: USER_A },
+          {
+            deviceUUID: "uuid-primary",
+            deviceModel: "iPhone 17 Pro",
+            devicePlatform: "iOS",
+          },
+        );
+
+        const doc = await DeviceDetails.findOneAsync({ userId: USER_A });
+        const device = doc.devices.find((d) => d.deviceUUID === "uuid-primary");
+        assert.strictEqual(device.deviceModel, "iPhone 17 Pro");
+        assert.strictEqual(device.devicePlatform, "iOS");
+        assert.ok(device.lastUsed instanceof Date);
+      });
+
+      it("repairs the primary invariant when no approved device is primary", async function () {
+        await DeviceDetails.updateAsync(
+          { userId: USER_A },
+          { $set: { "devices.$[].isPrimary": false } },
+        );
+
+        await callMethod(
+          "devices.updateInfo",
+          { userId: USER_A },
+          { deviceUUID: "uuid-secondary" },
+        );
+
+        const doc = await DeviceDetails.findOneAsync({ userId: USER_A });
+        const primaries = doc.devices.filter((d) => d.isPrimary);
+        assert.strictEqual(primaries.length, 1);
+      });
+
+      it("rejects a device not owned by the caller", async function () {
+        await assert.rejects(
+          callMethod(
+            "devices.updateInfo",
+            { userId: USER_B },
+            { deviceUUID: "uuid-primary" },
+          ),
+          /not-found/,
+        );
+      });
+    });
+
     describe("devices.setPrimary", function () {
       it("rejects non-approved devices", async function () {
         await DeviceDetails.updateAsync(

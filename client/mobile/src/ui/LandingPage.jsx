@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Session } from "meteor/session";
 import { Meteor } from "meteor/meteor";
 import { openExternal } from "../../../../utils/openExternal";
@@ -51,6 +51,19 @@ export const LandingPage = () => {
 
   const { isDarkMode, toggleDarkMode } = useDarkMode();
   useSessionTimeout();
+
+  // Self-report this device's live OS info once per dashboard load so the
+  // server record heals "Unknown" model/platform placeholders and updates
+  // last-used — which is what the My Devices page (on every device) shows.
+  useEffect(() => {
+    const info = Session.get("capturedDeviceInfo");
+    if (!userId || !info?.uuid) return;
+    Meteor.call("devices.updateInfo", {
+      deviceUUID: info.uuid,
+      deviceModel: info.model,
+      devicePlatform: info.platform,
+    });
+  }, [userId]);
 
   const {
     profile,
