@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Meteor } from "meteor/meteor";
 import { Session } from "meteor/session";
 import { useTracker } from "meteor/react-meteor-data";
 import {
   ArrowLeft,
+  Apple,
   Check,
   Fingerprint as FingerprintIcon,
   Pencil,
@@ -12,6 +13,7 @@ import {
   Smartphone,
   Star,
   Trash2,
+  Watch,
   X,
 } from "lucide-react";
 import {
@@ -34,13 +36,45 @@ const STATUS_BADGES = {
   rejected: { variant: "secondary", label: "Rejected" },
 };
 
+const isUnknown = (value) =>
+  ["", "unknown"].includes((value || "").toString().trim().toLowerCase());
+
+// Normalize a platform string to a known kind so we can pick an icon and
+// describe watch support consistently.
+const platformKind = (platform) => {
+  const p = (platform || "").toLowerCase();
+  if (p.includes("ios") || p.includes("iphone") || p.includes("ipad")) {
+    return "ios";
+  }
+  if (p.includes("android")) return "android";
+  return "unknown";
+};
+
+const PLATFORM_META = {
+  ios: {
+    Icon: Apple,
+    label: "iOS",
+    tint: "text-foreground bg-muted",
+    watch: "Apple Watch",
+  },
+  android: {
+    Icon: Smartphone,
+    label: "Android",
+    tint: "text-emerald-600 bg-emerald-500/10",
+    watch: "Wear OS watch",
+  },
+  unknown: {
+    Icon: Smartphone,
+    label: "Unknown platform",
+    tint: "text-primary bg-primary/10",
+    watch: null,
+  },
+};
+
 const formatLastUsed = (device) => {
   const when = device.lastUsed || device.lastUpdated;
   return when ? new Date(when).toLocaleString() : "Never";
 };
-
-const deviceLabel = (device) =>
-  device.customName || device.deviceModel || "Unknown device";
 
 // Prompt the OS biometric dialog and resolve with the device-bound secret.
 // The secret is only released by the OS after a successful biometric check,
@@ -63,28 +97,39 @@ const getBiometricProof = () =>
   });
 
 /**
- * Step-up confirmation modal for destructive device actions. The user must
- * verify with biometrics (preferred) or their account PIN before the action
- * is sent to the server.
+ * Step-up confirmation modal for destructive device actions.
+ *
+ * Biometrics are attempted FIRST (auto-triggered on open when available); the
+ * PIN entry is only shown as a fallback when biometrics are unavailable, fail,
+ * or the user chooses "Use PIN instead".
  */
 const ConfirmActionModal = ({ action, busy, error, onClose, onConfirm }) => {
+  const biometricsAvailable = !!window.Fingerprint;
+  const [mode, setMode] = useState(biometricsAvailable ? "biometric" : "pin");
+  const [verifying, setVerifying] = useState(false);
   const [pin, setPin] = useState("");
-  const [usePin, setUsePin] = useState(!Session.get("Biometrics"));
   const [localError, setLocalError] = useState("");
 
-  if (!action) return null;
-
-  const handleBiometricConfirm = async () => {
+  const runBiometric = async () => {
     setLocalError("");
+    setVerifying(true);
     try {
       const proof = await getBiometricProof();
       onConfirm(proof);
     } catch (err) {
       // Fall back to PIN entry when biometrics fail or are cancelled.
-      setLocalError(err.message);
-      setUsePin(true);
+      setLocalError(`${err.message} Enter your PIN to continue.`);
+      setMode("pin");
+    } finally {
+      setVerifying(false);
     }
   };
+
+  // Auto-trigger the biometric prompt as soon as the modal opens.
+  useEffect(() => {
+    if (biometricsAvailable) runBiometric();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handlePinConfirm = () => {
     setLocalError("");
@@ -96,9 +141,10 @@ const ConfirmActionModal = ({ action, busy, error, onClose, onConfirm }) => {
   };
 
   const message = error || localError;
+  const disabled = busy || verifying;
 
   return (
-    <Modal open onOpenChange={(open) => !open && !busy && onClose()}>
+    <Modal open onOpenChange={(open) => !open && !disabled && onClose()}>
       <ModalBody>
         <div className="space-y-4 p-1">
           <h3 className="text-base font-semibold text-foreground">
@@ -118,7 +164,29 @@ const ConfirmActionModal = ({ action, busy, error, onClose, onConfirm }) => {
             </Alert>
           )}
 
-          {usePin ? (
+          {mode === "biometric" ? (
+            <div className="space-y-3">
+              <Button
+                className="w-full"
+                onClick={runBiometric}
+                disabled={disabled}
+              >
+                <FingerprintIcon className="h-4 w-4 mr-2" />
+                {verifying ? "Verifying…" : "Verify with biometrics"}
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full"
+                onClick={() => {
+                  setLocalError("");
+                  setMode("pin");
+                }}
+                disabled={disabled}
+              >
+                Use PIN instead
+              </Button>
+            </div>
+          ) : (
             <div className="space-y-2">
               <Input
                 type="password"
@@ -128,31 +196,37 @@ const ConfirmActionModal = ({ action, busy, error, onClose, onConfirm }) => {
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}
                 disabled={busy}
+                autoFocus
               />
               <Button
                 className="w-full"
                 onClick={handlePinConfirm}
                 disabled={busy}
               >
-                {busy ? "Verifying..." : action.confirmLabel}
+                {busy ? "Verifying…" : action.confirmLabel}
               </Button>
+              {biometricsAvailable && (
+                <Button
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() => {
+                    setLocalError("");
+                    setMode("biometric");
+                  }}
+                  disabled={busy}
+                >
+                  <FingerprintIcon className="h-4 w-4 mr-2" />
+                  Use biometrics instead
+                </Button>
+              )}
             </div>
-          ) : (
-            <Button
-              className="w-full"
-              onClick={handleBiometricConfirm}
-              disabled={busy}
-            >
-              <FingerprintIcon className="h-4 w-4 mr-2" />
-              {busy ? "Verifying..." : "Verify with biometrics"}
-            </Button>
           )}
 
           <Button
             variant="ghost"
             className="w-full"
             onClick={onClose}
-            disabled={busy}
+            disabled={disabled}
           >
             Cancel
           </Button>
@@ -164,7 +238,8 @@ const ConfirmActionModal = ({ action, busy, error, onClose, onConfirm }) => {
 
 const DeviceManagementPage = () => {
   const navigate = useNavigate();
-  const currentUuid = Session.get("capturedDeviceInfo")?.uuid || null;
+  const capturedInfo = Session.get("capturedDeviceInfo") || null;
+  const currentUuid = capturedInfo?.uuid || null;
 
   const [renamingUuid, setRenamingUuid] = useState(null);
   const [renameValue, setRenameValue] = useState("");
@@ -181,6 +256,37 @@ const DeviceManagementPage = () => {
     const userDoc = DeviceDetails.findOne({ userId });
     return { devices: userDoc?.devices || [], isLoading: !handle.ready() };
   }, []);
+
+  const approvedCount = devices.filter(
+    (d) => d.deviceRegistrationStatus === "approved",
+  ).length;
+
+  // Resolve display info for a device. For the CURRENT device we fall back to
+  // the live captured OS info when the stored record is missing/"Unknown"
+  // (older registrations stored placeholders).
+  const resolve = (device) => {
+    const isCurrent = device.deviceUUID === currentUuid;
+
+    let platform = device.devicePlatform;
+    if (isUnknown(platform) && isCurrent) platform = capturedInfo?.platform;
+
+    let model = device.deviceModel;
+    if (isUnknown(model) && isCurrent) model = capturedInfo?.model;
+
+    const kind = platformKind(platform);
+    const meta = PLATFORM_META[kind];
+
+    const name =
+      device.customName ||
+      (!isUnknown(model) ? model : null) ||
+      (kind !== "unknown"
+        ? `${meta.label} device`
+        : isCurrent
+          ? "This device"
+          : "Unknown device");
+
+    return { isCurrent, kind, meta, name };
+  };
 
   // Current device first, then primary, then most recently used.
   const sortedDevices = [...devices].sort((a, b) => {
@@ -209,10 +315,10 @@ const DeviceManagementPage = () => {
     Meteor.logout(() => window.location.replace("/"));
   };
 
-  const startRename = (device) => {
+  const startRename = (device, name) => {
     setPageError("");
     setRenamingUuid(device.deviceUUID);
-    setRenameValue(device.customName || device.deviceModel || "");
+    setRenameValue(device.customName || name);
   };
 
   const saveRename = async (device) => {
@@ -239,14 +345,14 @@ const DeviceManagementPage = () => {
     }
   };
 
-  const requestRevoke = (device) => {
+  const requestRevoke = (device, name) => {
     const isCurrent = device.deviceUUID === currentUuid;
     const isLast = devices.length === 1;
     setActionError("");
     setPendingAction({
       type: "revoke",
       device,
-      title: `Remove "${deviceLabel(device)}"?`,
+      title: `Remove "${name}"?`,
       description:
         "This device will no longer receive authentication requests and will be signed out.",
       warning: isLast
@@ -258,14 +364,12 @@ const DeviceManagementPage = () => {
     });
   };
 
-  const requestPendingResponse = (device, approve) => {
+  const requestPendingResponse = (device, name, approve) => {
     setActionError("");
     setPendingAction({
       type: approve ? "approve" : "reject",
       device,
-      title: approve
-        ? `Approve "${deviceLabel(device)}"?`
-        : `Reject "${deviceLabel(device)}"?`,
+      title: approve ? `Approve "${name}"?` : `Reject "${name}"?`,
       description: approve
         ? "This device will be able to receive and respond to authentication requests for your account."
         : "This device's registration request will be rejected and removed.",
@@ -359,18 +463,30 @@ const DeviceManagementPage = () => {
           </Card>
         ) : (
           sortedDevices.map((device) => {
-            const isCurrent = device.deviceUUID === currentUuid;
+            const { isCurrent, meta, name } = resolve(device);
+            const { Icon } = meta;
+            const isApproved = device.deviceRegistrationStatus === "approved";
+            const isPending = device.deviceRegistrationStatus === "pending";
             const status =
               STATUS_BADGES[device.deviceRegistrationStatus] ||
               STATUS_BADGES.rejected;
             const isRenaming = renamingUuid === device.deviceUUID;
 
+            // A lone approved device is effectively primary even if the stored
+            // flag was never set.
+            const isEffectivePrimary =
+              isApproved && (device.isPrimary || approvedCount <= 1);
+            const canMakePrimary =
+              isApproved && !isEffectivePrimary && approvedCount > 1;
+
             return (
               <Card key={device.deviceUUID}>
                 <CardContent className="space-y-3 p-4">
                   <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10">
-                      <Smartphone className="h-5 w-5 text-primary" />
+                    <div
+                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${meta.tint}`}
+                    >
+                      <Icon className="h-5 w-5" />
                     </div>
                     <div className="flex-1 min-w-0">
                       {isRenaming ? (
@@ -401,9 +517,9 @@ const DeviceManagementPage = () => {
                       ) : (
                         <div className="flex items-center gap-1.5 min-w-0">
                           <h3 className="text-sm font-semibold text-foreground truncate">
-                            {deviceLabel(device)}
+                            {name}
                           </h3>
-                          {device.isPrimary && (
+                          {isEffectivePrimary && (
                             <Star
                               className="h-3.5 w-3.5 shrink-0 text-amber-500 fill-amber-500"
                               aria-label="Primary device"
@@ -413,21 +529,24 @@ const DeviceManagementPage = () => {
                             variant="ghost"
                             aria-label="Rename device"
                             className="p-1.5 h-auto"
-                            onClick={() => startRename(device)}
+                            onClick={() => startRename(device, name)}
                           >
                             <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
                           </Button>
                         </div>
                       )}
                       <p className="text-xs text-muted-foreground truncate">
-                        {device.devicePlatform || "Unknown platform"}
-                        {device.deviceModel && device.customName
-                          ? ` · ${device.deviceModel}`
-                          : ""}
+                        {meta.label}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         Last used: {formatLastUsed(device)}
                       </p>
+                      {isApproved && meta.watch && (
+                        <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                          <Watch className="h-3.5 w-3.5" />
+                          {meta.watch} notifications supported
+                        </p>
+                      )}
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       <Badge variant={status.variant} size="sm">
@@ -441,13 +560,15 @@ const DeviceManagementPage = () => {
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-2">
-                    {device.deviceRegistrationStatus === "pending" ? (
+                  <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+                    {isPending ? (
                       <>
                         <Button
                           size="sm"
                           disabled={!currentUuid || isCurrent}
-                          onClick={() => requestPendingResponse(device, true)}
+                          onClick={() =>
+                            requestPendingResponse(device, name, true)
+                          }
                         >
                           <ShieldCheck className="h-4 w-4 mr-1.5" />
                           Approve
@@ -457,14 +578,15 @@ const DeviceManagementPage = () => {
                           variant="ghost"
                           className="text-destructive"
                           disabled={!currentUuid || isCurrent}
-                          onClick={() => requestPendingResponse(device, false)}
+                          onClick={() =>
+                            requestPendingResponse(device, name, false)
+                          }
                         >
                           Reject
                         </Button>
                       </>
                     ) : (
-                      !device.isPrimary &&
-                      device.deviceRegistrationStatus === "approved" && (
+                      canMakePrimary && (
                         <Button
                           size="sm"
                           variant="ghost"
@@ -481,7 +603,7 @@ const DeviceManagementPage = () => {
                       variant="ghost"
                       className="text-destructive ml-auto"
                       disabled={!currentUuid}
-                      onClick={() => requestRevoke(device)}
+                      onClick={() => requestRevoke(device, name)}
                     >
                       <Trash2 className="h-4 w-4 mr-1.5" />
                       Remove

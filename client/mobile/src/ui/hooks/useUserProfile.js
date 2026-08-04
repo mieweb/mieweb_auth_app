@@ -60,23 +60,30 @@ export const useUserProfile = () => {
     setErrorMessage("");
 
     try {
-      await Meteor.callAsync("user.updateProfile", initialProfile._id, {
+      await Meteor.callAsync("updateUserProfile", {
         firstName: profile.firstName,
         lastName: profile.lastName,
-        // Maybe email updates should be handled differently?
-        // email: profile.email,
+        email: profile.email,
       });
+
+      // Keep the in-memory session profile in sync so the dashboard greeting
+      // reflects the new name without a reload.
+      const current = Session.get("userProfile") || {};
+      Session.set("userProfile", {
+        ...current,
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+      });
+
       setSuccessMessage("Profile updated successfully!");
       setIsEditing(false);
-      // Optionally re-fetch profile or update Session
-    } catch {
-      setErrorMessage("Failed to update profile. Please try again.");
+      setTimeout(() => setSuccessMessage(""), 3000);
+    } catch (error) {
+      setErrorMessage(
+        error?.reason || error?.message || "Failed to update profile.",
+      );
     } finally {
       setIsSaving(false);
-      // Auto-dismiss success message
-      if (successMessage) {
-        setTimeout(() => setSuccessMessage(""), 3000);
-      }
     }
   };
 
@@ -94,41 +101,3 @@ export const useUserProfile = () => {
     setSuccessMessage, // Expose setter if needed externally (e.g., for Toaster)
   };
 };
-
-// Note: Assumes a Meteor method 'user.updateProfile' exists on the server.
-// You might need to create this method in your server-side code.
-// Example server-side method (place in imports/api or server/main.js):
-/*
-Meteor.methods({
-  'user.updateProfile': async function(userId, profileData) {
-    check(userId, String);
-    check(profileData, {
-      firstName: String,
-      lastName: String,
-      // email: Match.Optional(String) // Handle email updates carefully
-    });
-
-    // Add validation/permission checks here if needed
-    if (!this.userId || this.userId !== userId) {
-      throw new Meteor.Error('not-authorized', 'You are not authorized to update this profile.');
-    }
-
-    try {
-      const result = await DeviceDetails.updateAsync(
-        { userId: userId }, 
-        { $set: { 
-            firstName: profileData.firstName,
-            lastName: profileData.lastName,
-            // email: profileData.email, // Be cautious about updating email directly
-            lastUpdated: new Date()
-          }
-        }
-      );
-      return result > 0;
-    } catch (error) {
-      console.error("Error in user.updateProfile method:", error);
-      throw new Meteor.Error('update-failed', 'Could not update profile.');
-    }
-  }
-});
-*/

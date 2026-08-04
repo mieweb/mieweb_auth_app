@@ -352,6 +352,9 @@ if (Meteor.isServer) {
   const OWN_DEVICE_FIELDS = {
     userId: 1,
     username: 1,
+    firstName: 1,
+    lastName: 1,
+    email: 1,
     createdAt: 1,
     lastUpdated: 1,
     "devices.deviceUUID": 1,

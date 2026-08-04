@@ -2016,6 +2016,20 @@ Meteor.methods({
         },
       });
 
+      // Keep the denormalized copy on the device document in sync so the
+      // dashboard/profile (which reads DeviceDetails) reflects the change.
+      await DeviceDetails.updateAsync(
+        { userId: this.userId },
+        {
+          $set: {
+            firstName,
+            lastName,
+            email,
+            lastUpdated: new Date(),
+          },
+        },
+      );
+
       return { success: true, message: "Profile updated successfully" };
     } catch (error) {
       console.error("Error updating profile:", error);
