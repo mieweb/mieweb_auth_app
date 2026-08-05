@@ -365,6 +365,25 @@ Meteor.methods({
           ],
         },
       );
+
+      // Announce the trust change on every other approved device (the
+      // initiating device sees the result in the UI). Purely informational —
+      // no appId/actions, so the client never treats it as an approval
+      // request. If this wasn't the account owner, they find out immediately.
+      userDoc.devices
+        .filter(
+          (d) =>
+            d.deviceRegistrationStatus === "approved" &&
+            d.deviceUUID !== actorDeviceUUID,
+        )
+        .forEach((d) => {
+          notifyDevice(
+            d.fcmToken,
+            "Primary Device Changed",
+            `"${deviceLabel(device)}" is now the primary device for your account. If this wasn't you, contact your administrator.`,
+            { notificationType: "primary_changed" },
+          );
+        });
     };
 
     const currentPrimary = userDoc.devices.find(
