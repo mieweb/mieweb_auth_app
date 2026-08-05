@@ -6,6 +6,9 @@ import { DDPRateLimiter } from "meteor/ddp-rate-limiter";
 import crypto from "crypto";
 import { DeviceDetails } from "../utils/api/deviceDetails.js";
 import { ApprovalTokens } from "../utils/api/approvalTokens";
+import "../utils/api/notificationHistory.js"; // Method registration (primary-transfer approvals)
+import "../utils/api/pendingResponses.js"; // Method registration (primary-transfer approvals)
+import { APPROVAL_ACTIONS } from "../utils/constants.js";
 import { sendNotification } from "./firebase.js";
 
 /**
@@ -35,6 +38,9 @@ Meteor.startup(() => {
 
 // 1-40 chars; letters, numbers, spaces and ' . _ - (must start alphanumeric).
 const DEVICE_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 '._-]{0,39}$/;
+
+// How long the current primary device has to approve a primary transfer.
+const PRIMARY_TRANSFER_TIMEOUT_MS = 25000;
 
 const REAUTH_PATTERN = Match.OneOf(
   { biometricSecret: String },
@@ -313,13 +319,23 @@ Meteor.methods({
 
   /**
    * Mark one of the caller's approved devices as the primary device.
+   *
+   * Trust transfer rules:
+   * - If there is no current approved primary, or the request is initiated
+   *   FROM the current primary device, the transfer is immediate.
+   * - Otherwise the CURRENT primary must approve: an actionable push (with
+   *   the notificationId only that device receives) is sent to it and the
+   *   method waits for the response. This stops a newly-added or compromised
+   *   secondary device from silently taking over the primary role.
    */
-  async "devices.setPrimary"({ deviceUUID }) {
+  async "devices.setPrimary"({ deviceUUID, actorDeviceUUID }) {
     check(deviceUUID, String);
+    check(actorDeviceUUID, String);
     requireLogin(this);
 
     const userDoc = await getUserDevicesOrThrow(this.userId);
     const device = findOwnedDeviceOrThrow(userDoc, deviceUUID);
+    findOwnedDeviceOrThrow(userDoc, actorDeviceUUID);
 
     if (device.deviceRegistrationStatus !== "approved") {
       throw new Meteor.Error(
@@ -327,32 +343,150 @@ Meteor.methods({
         "Only an approved device can be made primary.",
       );
     }
+    if (device.isPrimary) {
+      return { success: true, approved: true };
+    }
 
     // Single atomic update so exactly one device ends up primary.
-    await DeviceDetails.rawCollection().updateOne(
-      { userId: this.userId },
-      {
-        $set: {
-          "devices.$[target].isPrimary": true,
-          "devices.$[others].isPrimary": false,
-          lastUpdated: new Date(),
+    const promote = async () => {
+      await DeviceDetails.rawCollection().updateOne(
+        { userId: this.userId },
+        {
+          $set: {
+            "devices.$[target].isPrimary": true,
+            "devices.$[others].isPrimary": false,
+            lastUpdated: new Date(),
+          },
         },
-      },
+        {
+          arrayFilters: [
+            { "target.deviceUUID": deviceUUID },
+            { "others.deviceUUID": { $ne: deviceUUID } },
+          ],
+        },
+      );
+    };
+
+    const currentPrimary = userDoc.devices.find(
+      (d) => d.isPrimary && d.deviceRegistrationStatus === "approved",
+    );
+
+    // Direct transfer: nothing to protect, or initiated from the primary
+    // device itself (which is exactly the trusted party we would ask).
+    if (!currentPrimary || currentPrimary.deviceUUID === actorDeviceUUID) {
+      await promote();
+      await logDeviceAudit({
+        userId: this.userId,
+        action: "setPrimary",
+        deviceUUID,
+        actorDeviceUUID,
+      });
+      return { success: true, approved: true };
+    }
+
+    // Approval required from the current primary device.
+    const user = await Meteor.users.findOneAsync(this.userId);
+    if (!user?.username) {
+      throw new Meteor.Error("not-found", "Account not found.");
+    }
+
+    const title = "Primary Device Change Request";
+    const body = `"${deviceLabel(device)}" is requesting to become the primary device for your account.`;
+
+    // The notificationId is delivered ONLY in the push to the current
+    // primary device, so only that device can respond to this request
+    // (notifications.handleResponse additionally enforces account ownership
+    // and approved-device status).
+    const notificationId = await Meteor.callAsync(
+      "notificationHistory.insert",
       {
-        arrayFilters: [
-          { "target.deviceUUID": deviceUUID },
-          { "others.deviceUUID": { $ne: deviceUUID } },
-        ],
+        userId: this.userId,
+        title,
+        body,
+        appId: currentPrimary.appId,
       },
     );
+    if (!notificationId) {
+      throw new Meteor.Error(
+        "primary-unreachable",
+        "Could not create the approval request. Please try again.",
+      );
+    }
+
+    await Meteor.callAsync(
+      "pendingResponses.create",
+      user.username,
+      notificationId,
+      PRIMARY_TRANSFER_TIMEOUT_MS,
+    );
+
+    let sent = null;
+    try {
+      sent = await sendNotification(currentPrimary.fcmToken, title, body, {
+        notificationType: "approval",
+        userId: this.userId,
+        notificationId,
+        appId: currentPrimary.appId,
+        actions: JSON.stringify(APPROVAL_ACTIONS),
+        isDismissal: "false",
+        isSync: "false",
+      });
+    } catch (error) {
+      console.error("Primary transfer push failed:", error.message);
+    }
+    if (!sent) {
+      await Meteor.callAsync(
+        "notificationHistory.updateStatus",
+        notificationId,
+        "timeout",
+      );
+      throw new Meteor.Error(
+        "primary-unreachable",
+        "Could not reach your primary device. Make sure it is online and try again.",
+      );
+    }
+
+    const action = await Meteor.callAsync(
+      "pendingResponses.waitForResponse",
+      user.username,
+      notificationId,
+      PRIMARY_TRANSFER_TIMEOUT_MS,
+    );
+
+    if (action === "approve" || action === "approved") {
+      await promote();
+      await logDeviceAudit({
+        userId: this.userId,
+        action: "setPrimary",
+        deviceUUID,
+        actorDeviceUUID,
+        details: `approved by primary ${currentPrimary.deviceUUID}`,
+      });
+      return { success: true, approved: true };
+    }
+
+    if (action === "timeout") {
+      await Meteor.callAsync(
+        "notificationHistory.updateStatus",
+        notificationId,
+        "timeout",
+      );
+      throw new Meteor.Error(
+        "primary-timeout",
+        "Your primary device did not respond. Try again when it is nearby.",
+      );
+    }
 
     await logDeviceAudit({
       userId: this.userId,
-      action: "setPrimary",
+      action: "setPrimaryRejected",
       deviceUUID,
+      actorDeviceUUID,
     });
-
-    return { success: true };
+    throw new Meteor.Error(
+      "primary-rejected",
+      "Your primary device rejected the request.",
+    );
   },
 
   /**
@@ -373,6 +507,23 @@ Meteor.methods({
     const userDoc = await getUserDevicesOrThrow(this.userId);
     const target = findOwnedDeviceOrThrow(userDoc, deviceUUID);
     findOwnedDeviceOrThrow(userDoc, actorDeviceUUID);
+
+    // The primary device (or the only approved device) can never be removed:
+    // the account always keeps at least one trusted device. To remove it,
+    // transfer the primary role to another device first — which requires the
+    // current primary's approval.
+    const approvedCount = userDoc.devices.filter(
+      (d) => d.deviceRegistrationStatus === "approved",
+    ).length;
+    if (
+      target.deviceRegistrationStatus === "approved" &&
+      (target.isPrimary || approvedCount === 1)
+    ) {
+      throw new Meteor.Error(
+        "primary-device-protected",
+        "The primary device cannot be removed. Make another device primary first.",
+      );
+    }
 
     const remaining = userDoc.devices.filter(
       (d) => d.deviceUUID !== deviceUUID,

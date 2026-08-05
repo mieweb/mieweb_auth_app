@@ -201,18 +201,20 @@ if (Meteor.isServer) {
             { userId: USER_A },
             {
               deviceUUID: "uuid-secondary",
+              actorDeviceUUID: "uuid-primary",
             },
           ),
           /device-not-approved/,
         );
       });
 
-      it("moves the primary flag atomically to the target device", async function () {
+      it("transfers directly when initiated from the current primary", async function () {
         await callMethod(
           "devices.setPrimary",
           { userId: USER_A },
           {
             deviceUUID: "uuid-secondary",
+            actorDeviceUUID: "uuid-primary",
           },
         );
 
@@ -220,6 +222,51 @@ if (Meteor.isServer) {
         const primaries = doc.devices.filter((d) => d.isPrimary);
         assert.strictEqual(primaries.length, 1);
         assert.strictEqual(primaries[0].deviceUUID, "uuid-secondary");
+      });
+
+      it("requires the current primary's approval when initiated elsewhere", async function () {
+        const userId = await Meteor.users.insertAsync({
+          username: "xferuser",
+          emails: [{ address: "xfer@example.com", verified: false }],
+        });
+        await DeviceDetails.insertAsync({
+          userId,
+          username: "xferuser",
+          email: "xfer@example.com",
+          devices: [
+            makeDevice(),
+            makeDevice({
+              deviceUUID: "uuid-secondary",
+              appId: "app-secondary",
+              biometricSecret: "xfer-bio",
+              isPrimary: false,
+            }),
+          ],
+          createdAt: new Date(),
+          lastUpdated: new Date(),
+        });
+
+        // Initiated from the secondary device → approval push to the primary
+        // is required. Firebase is not initialised in tests, so the push
+        // cannot be delivered and the method must fail closed (no transfer).
+        await assert.rejects(
+          callMethod(
+            "devices.setPrimary",
+            { userId },
+            {
+              deviceUUID: "uuid-secondary",
+              actorDeviceUUID: "uuid-secondary",
+            },
+          ),
+          /primary-unreachable/,
+        );
+
+        const doc = await DeviceDetails.findOneAsync({ userId });
+        const primary = doc.devices.find((d) => d.isPrimary);
+        assert.strictEqual(primary.deviceUUID, "uuid-primary");
+
+        await Meteor.users.removeAsync({ _id: userId });
+        await DeviceDetails.removeAsync({ userId });
       });
     });
 
@@ -242,20 +289,38 @@ if (Meteor.isServer) {
         assert.strictEqual(doc.devices.length, 2);
       });
 
-      it("removes the device and promotes a new primary when needed", async function () {
+      it("blocks removing the primary device", async function () {
+        await assert.rejects(
+          callMethod(
+            "devices.revoke",
+            { userId: USER_A },
+            {
+              deviceUUID: "uuid-primary",
+              actorDeviceUUID: "uuid-secondary",
+              reAuth: { biometricSecret: BIO_SECRET },
+            },
+          ),
+          /primary-device-protected/,
+        );
+
+        const doc = await DeviceDetails.findOneAsync({ userId: USER_A });
+        assert.strictEqual(doc.devices.length, 2);
+      });
+
+      it("removes a non-primary device", async function () {
         await callMethod(
           "devices.revoke",
           { userId: USER_A },
           {
-            deviceUUID: "uuid-primary",
-            actorDeviceUUID: "uuid-secondary",
+            deviceUUID: "uuid-secondary",
+            actorDeviceUUID: "uuid-primary",
             reAuth: { biometricSecret: BIO_SECRET },
           },
         );
 
         const doc = await DeviceDetails.findOneAsync({ userId: USER_A });
         assert.strictEqual(doc.devices.length, 1);
-        assert.strictEqual(doc.devices[0].deviceUUID, "uuid-secondary");
+        assert.strictEqual(doc.devices[0].deviceUUID, "uuid-primary");
         assert.strictEqual(doc.devices[0].isPrimary, true);
 
         const audit = await DeviceAuditLog.findOneAsync({
@@ -297,12 +362,13 @@ if (Meteor.isServer) {
 
         // Actor revokes itself (deviceUUID === actorDeviceUUID) from a
         // context WITH a connection — the caller's own token must die too.
+        // Target is a non-primary device (the primary is protected).
         await callMethod(
           "devices.revoke",
           { userId, connection: { id: "conn-1" } },
           {
-            deviceUUID: "uuid-primary",
-            actorDeviceUUID: "uuid-primary",
+            deviceUUID: "uuid-other",
+            actorDeviceUUID: "uuid-other",
             reAuth: { biometricSecret: "self-bio" },
           },
         );
@@ -314,7 +380,7 @@ if (Meteor.isServer) {
         await DeviceDetails.removeAsync({ userId });
       });
 
-      it("deregisters the whole account when the last device is removed", async function () {
+      it("blocks removing the last approved device (account keeps one trusted device)", async function () {
         const userId = await Meteor.users.insertAsync({
           username: "lastdevice",
           emails: [{ address: "last@example.com", verified: false }],
@@ -328,25 +394,26 @@ if (Meteor.isServer) {
           lastUpdated: new Date(),
         });
 
-        const result = await callMethod(
-          "devices.revoke",
-          { userId },
-          {
-            deviceUUID: "uuid-primary",
-            actorDeviceUUID: "uuid-primary",
-            reAuth: { biometricSecret: "last-bio" },
-          },
+        await assert.rejects(
+          callMethod(
+            "devices.revoke",
+            { userId },
+            {
+              deviceUUID: "uuid-primary",
+              actorDeviceUUID: "uuid-primary",
+              reAuth: { biometricSecret: "last-bio" },
+            },
+          ),
+          /primary-device-protected/,
         );
 
-        assert.strictEqual(result.accountRemoved, true);
-        assert.strictEqual(
-          await Meteor.users.find({ _id: userId }).countAsync(),
-          0,
-        );
         assert.strictEqual(
           await DeviceDetails.find({ userId }).countAsync(),
-          0,
+          1,
         );
+
+        await Meteor.users.removeAsync({ _id: userId });
+        await DeviceDetails.removeAsync({ userId });
       });
     });
 

@@ -172,7 +172,7 @@ const ConfirmActionModal = ({ action, busy, error, onClose, onConfirm }) => {
           )}
 
           {message && (
-            <Alert variant="error">
+            <Alert variant="danger">
               <AlertDescription>{message}</AlertDescription>
             </Alert>
           )}
@@ -258,6 +258,7 @@ const DeviceManagementPage = () => {
   const [renameValue, setRenameValue] = useState("");
   const [pendingAction, setPendingAction] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [transferringUuid, setTransferringUuid] = useState(null);
   const [actionError, setActionError] = useState("");
   const [pageError, setPageError] = useState("");
 
@@ -348,13 +349,20 @@ const DeviceManagementPage = () => {
   };
 
   const setPrimary = async (device) => {
+    if (!currentUuid) return;
     setPageError("");
+    setTransferringUuid(device.deviceUUID);
     try {
+      // May block for up to ~25s while the current primary device is asked
+      // to approve the transfer via an actionable push.
       await Meteor.callAsync("devices.setPrimary", {
         deviceUUID: device.deviceUUID,
+        actorDeviceUUID: currentUuid,
       });
     } catch (err) {
       setPageError(err.reason || err.message || "Failed to update device.");
+    } finally {
+      setTransferringUuid(null);
     }
   };
 
@@ -450,8 +458,17 @@ const DeviceManagementPage = () => {
         </p>
 
         {pageError && (
-          <Alert variant="error">
+          <Alert variant="danger">
             <AlertDescription>{pageError}</AlertDescription>
+          </Alert>
+        )}
+
+        {transferringUuid && (
+          <Alert variant="info">
+            <AlertDescription>
+              Approval request sent to your primary device. Approve it there to
+              complete the change.
+            </AlertDescription>
           </Alert>
         )}
 
@@ -607,24 +624,32 @@ const DeviceManagementPage = () => {
                         <Button
                           size="sm"
                           variant="ghost"
-                          disabled={!currentUuid}
+                          disabled={!currentUuid || !!transferringUuid}
                           onClick={() => setPrimary(device)}
                         >
                           <Star className="h-4 w-4 mr-1.5" />
-                          Make primary
+                          {transferringUuid === device.deviceUUID
+                            ? "Waiting for approval…"
+                            : "Make primary"}
                         </Button>
                       )
                     )}
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-destructive ml-auto"
-                      disabled={!currentUuid}
-                      onClick={() => requestRevoke(device, name)}
-                    >
-                      <Trash2 className="h-4 w-4 mr-1.5" />
-                      Remove
-                    </Button>
+                    {/* The primary (or only approved) device can never be
+                        removed — the account always keeps one trusted device.
+                        Transfer the primary role first (approved on the
+                        current primary) to remove this device. */}
+                    {!isEffectivePrimary && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-destructive ml-auto"
+                        disabled={!currentUuid}
+                        onClick={() => requestRevoke(device, name)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1.5" />
+                        Remove
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
