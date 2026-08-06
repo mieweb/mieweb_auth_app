@@ -202,10 +202,30 @@ if (Meteor.isServer) {
             {
               deviceUUID: "uuid-secondary",
               actorDeviceUUID: "uuid-primary",
+              reAuth: { biometricSecret: BIO_SECRET },
             },
           ),
           /device-not-approved/,
         );
+      });
+
+      it("rejects an invalid step-up proof", async function () {
+        await assert.rejects(
+          callMethod(
+            "devices.setPrimary",
+            { userId: USER_A },
+            {
+              deviceUUID: "uuid-secondary",
+              actorDeviceUUID: "uuid-primary",
+              reAuth: { biometricSecret: "wrong-secret" },
+            },
+          ),
+          /reauth-failed/,
+        );
+
+        const doc = await DeviceDetails.findOneAsync({ userId: USER_A });
+        const primary = doc.devices.find((d) => d.isPrimary);
+        assert.strictEqual(primary.deviceUUID, "uuid-primary");
       });
 
       it("transfers directly when initiated from the current primary", async function () {
@@ -215,6 +235,7 @@ if (Meteor.isServer) {
           {
             deviceUUID: "uuid-secondary",
             actorDeviceUUID: "uuid-primary",
+            reAuth: { biometricSecret: BIO_SECRET },
           },
         );
 
@@ -256,6 +277,7 @@ if (Meteor.isServer) {
             {
               deviceUUID: "uuid-secondary",
               actorDeviceUUID: "uuid-secondary",
+              reAuth: { biometricSecret: "xfer-bio" },
             },
           ),
           /primary-unreachable/,

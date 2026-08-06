@@ -42,6 +42,12 @@ const DEVICE_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 '._-]{0,39}$/;
 // How long the current primary device has to approve a primary transfer.
 const PRIMARY_TRANSFER_TIMEOUT_MS = 25000;
 
+// Delay before the "primary changed" notice is pushed. The initiating user
+// usually has the app OPEN when the change happens, and iOS shows no OS
+// banner for foreground pushes — the delay gives them time to background the
+// app so the confirmation arrives as a visible system notification.
+const PRIMARY_CHANGE_NOTICE_DELAY_MS = 10000;
+
 const REAUTH_PATTERN = Match.OneOf(
   { biometricSecret: String },
   { pin: String },
@@ -144,6 +150,15 @@ const notifyDevice = (fcmToken, title, body, data) => {
   }).catch((error) => {
     console.error("Device management notification failed:", error.message);
   });
+};
+
+/**
+ * Informational broadcast to a user's approved devices (fire-and-forget).
+ */
+export const notifyApprovedDevices = (devices, title, body, data) => {
+  (devices || [])
+    .filter((d) => d.deviceRegistrationStatus === "approved")
+    .forEach((d) => notifyDevice(d.fcmToken, title, body, data));
 };
 
 /**
@@ -320,17 +335,19 @@ Meteor.methods({
   /**
    * Mark one of the caller's approved devices as the primary device.
    *
-   * Trust transfer rules:
-   * - If there is no current approved primary, or the request is initiated
-   *   FROM the current primary device, the transfer is immediate.
-   * - Otherwise the CURRENT primary must approve: an actionable push (with
-   *   the notificationId only that device receives) is sent to it and the
-   *   method waits for the response. This stops a newly-added or compromised
-   *   secondary device from silently taking over the primary role.
+   * Trust transfer rules — the change is always confirmed by a human:
+   * - Step-up re-authentication (biometric/PIN) is ALWAYS required, so an
+   *   unlocked-but-unattended phone (or a hijacked session) cannot silently
+   *   change the primary.
+   * - If the request is initiated from a device other than the current
+   *   primary, the CURRENT primary must additionally approve: an actionable
+   *   push (with the notificationId only that device receives) is sent to it
+   *   and the method waits for the response.
    */
-  async "devices.setPrimary"({ deviceUUID, actorDeviceUUID }) {
+  async "devices.setPrimary"({ deviceUUID, actorDeviceUUID, reAuth }) {
     check(deviceUUID, String);
     check(actorDeviceUUID, String);
+    check(reAuth, REAUTH_PATTERN);
     requireLogin(this);
 
     const userDoc = await getUserDevicesOrThrow(this.userId);
@@ -346,6 +363,9 @@ Meteor.methods({
     if (device.isPrimary) {
       return { success: true, approved: true };
     }
+
+    // Confirm the human at the initiating device before any trust change.
+    await verifyStepUpAuth(this.userId, reAuth);
 
     // Single atomic update so exactly one device ends up primary.
     const promote = async () => {
@@ -366,24 +386,21 @@ Meteor.methods({
         },
       );
 
-      // Announce the trust change on every other approved device (the
-      // initiating device sees the result in the UI). Purely informational —
-      // no appId/actions, so the client never treats it as an approval
-      // request. If this wasn't the account owner, they find out immediately.
-      userDoc.devices
-        .filter(
-          (d) =>
-            d.deviceRegistrationStatus === "approved" &&
-            d.deviceUUID !== actorDeviceUUID,
-        )
-        .forEach((d) => {
-          notifyDevice(
-            d.fcmToken,
-            "Primary Device Changed",
-            `"${deviceLabel(device)}" is now the primary device for your account. If this wasn't you, contact your administrator.`,
-            { notificationType: "primary_changed" },
-          );
-        });
+      // Announce the trust change on EVERY approved device — including the
+      // initiating one, so the account owner always gets a record of the
+      // change on each device. Purely informational (no appId/actions).
+      // Sent after a short delay so users can background the app and get a
+      // visible OS banner (iOS shows none for foreground pushes); a device
+      // that still has the app open shows an in-app toast instead.
+      const recipients = userDoc.devices;
+      Meteor.setTimeout(() => {
+        notifyApprovedDevices(
+          recipients,
+          "Primary Device Changed",
+          `"${deviceLabel(device)}" is now the primary device for your account. If this wasn't you, contact your administrator.`,
+          { notificationType: "primary_changed" },
+        );
+      }, PRIMARY_CHANGE_NOTICE_DELAY_MS);
     };
 
     const currentPrimary = userDoc.devices.find(
@@ -707,6 +724,17 @@ Meteor.methods({
         status: approve ? "approved" : "rejected",
       },
     );
+
+    // A new trusted device joined the account — tell every other registered
+    // device so the owner learns about the addition immediately.
+    if (approve) {
+      notifyApprovedDevices(
+        userDoc.devices.filter((d) => d.deviceUUID !== deviceUUID),
+        "New Device Added",
+        `"${deviceLabel(target)}" was added to your account. If this wasn't you, contact your administrator.`,
+        { notificationType: "device_added_info" },
+      );
+    }
 
     await logDeviceAudit({
       userId: this.userId,

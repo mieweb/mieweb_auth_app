@@ -11,7 +11,10 @@ import {
   getFCMTokensByUsername,
   getApprovedFCMTokensByUserId,
 } from "../utils/api/deviceDetails.js";
-import { removeUserCompletely } from "./deviceManagement.js"; // Also registers self-service device management methods + rate limiting
+import {
+  removeUserCompletely,
+  notifyApprovedDevices,
+} from "./deviceManagement.js"; // Also registers self-service device management methods + rate limiting
 import { NotificationHistory } from "../utils/api/notificationHistory.js";
 import { ApprovalTokens } from "../utils/api/approvalTokens";
 import { PendingResponses } from "../utils/api/pendingResponses.js";
@@ -1890,6 +1893,19 @@ Meteor.methods({
             );
             console.log(
               `Secondary device ${sessionDeviceInfo.uuid} approved and database updated`,
+            );
+
+            // A new trusted device joined the account — tell every other
+            // registered device so the owner learns about the addition
+            // immediately (the new device itself sees the result in-app).
+            const updatedDoc = await DeviceDetails.findOneAsync({ userId });
+            notifyApprovedDevices(
+              (updatedDoc?.devices || []).filter(
+                (d) => d.deviceUUID !== sessionDeviceInfo.uuid,
+              ),
+              "New Device Added",
+              `"${sessionDeviceInfo.model || `Device ${sessionDeviceInfo.uuid.substring(0, 8)}...`}" was added to your account. If this wasn't you, contact your administrator.`,
+              { notificationType: "device_added_info" },
             );
           } else if (
             res === "timeout" ||

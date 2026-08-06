@@ -242,6 +242,29 @@ const setupNotificationHandler = (push) => {
         return;
       }
 
+      // Informational device-trust pushes (primary changed, device added,
+      // device-removed notice). When the app is OPEN, iOS shows no banner for
+      // foreground pushes (forceShow is deliberately off), so surface an
+      // in-app toast; backgrounded devices already got the OS banner.
+      if (
+        [
+          "primary_changed",
+          "device_added_info",
+          "device_removed_info",
+        ].includes(additionalData.notificationType)
+      ) {
+        if (additionalData.foreground) {
+          Session.set("deviceTrustNotice", {
+            message:
+              notification.message ||
+              additionalData.body ||
+              "Your device settings changed.",
+            timestamp: new Date().getTime(),
+          });
+        }
+        return;
+      }
+
       // Test notification received while the app is in the foreground.
       // Foreground pushes are delivered straight to this handler (no OS
       // banner, since forceShow is off), so surface an in-app toast that

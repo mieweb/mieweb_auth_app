@@ -28,6 +28,7 @@ import {
   Spinner,
 } from "@mieweb/ui";
 import { DeviceDetails } from "../../../../utils/api/deviceDetails";
+import SuccessToaster from "./Toasters/SuccessToaster";
 
 const STATUS_BADGES = {
   approved: { variant: "success", label: "Approved" },
@@ -103,7 +104,13 @@ const getBiometricProof = () =>
         description: "Confirm it's you to manage your devices",
         disableBackup: true,
       },
-      (secret) => resolve({ biometricSecret: secret }),
+      (secret) =>
+        // Some devices "succeed" with an empty secret when no biometric
+        // credential is stored — treat that as a failure so the caller falls
+        // back to PIN instead of sending an invalid proof to the server.
+        secret
+          ? resolve({ biometricSecret: secret })
+          : reject(new Error("No biometric credential found on this device.")),
       (err) =>
         reject(new Error(err?.message || "Biometric verification cancelled.")),
     );
@@ -112,13 +119,18 @@ const getBiometricProof = () =>
 /**
  * Step-up confirmation modal for destructive device actions.
  *
- * Biometrics are attempted FIRST (auto-triggered on open when available); the
- * PIN entry is only shown as a fallback when biometrics are unavailable, fail,
- * or the user chooses "Use PIN instead".
+ * Preference order: biometrics FIRST (auto-triggered on open), PIN as the
+ * fallback — when biometrics fail, are cancelled, or the user chooses
+ * "Use PIN instead".
+ *
+ * NOTE: deliberately NO Fingerprint.isAvailable pre-check — it misreports
+ * Face ID on iOS simulators even when enrolled, while loadBiometricSecret
+ * works (the login flow relies on the same direct call). Failures simply
+ * drop to PIN.
  */
 const ConfirmActionModal = ({ action, busy, error, onClose, onConfirm }) => {
-  const biometricsAvailable = !!window.Fingerprint;
-  const [mode, setMode] = useState(biometricsAvailable ? "biometric" : "pin");
+  const bioSupported = !!window.Fingerprint;
+  const [mode, setMode] = useState(bioSupported ? "biometric" : "pin");
   const [verifying, setVerifying] = useState(false);
   const [pin, setPin] = useState("");
   const [localError, setLocalError] = useState("");
@@ -138,9 +150,10 @@ const ConfirmActionModal = ({ action, busy, error, onClose, onConfirm }) => {
     }
   };
 
-  // Auto-trigger the biometric prompt as soon as the modal opens.
+  // Auto-trigger the biometric prompt as soon as the modal opens (same
+  // direct-call pattern as the biometric login flow).
   useEffect(() => {
-    if (biometricsAvailable) runBiometric();
+    if (bioSupported) runBiometric();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -218,7 +231,7 @@ const ConfirmActionModal = ({ action, busy, error, onClose, onConfirm }) => {
               >
                 {busy ? "Verifying…" : action.confirmLabel}
               </Button>
-              {biometricsAvailable && (
+              {bioSupported && (
                 <Button
                   variant="ghost"
                   className="w-full"
@@ -258,7 +271,6 @@ const DeviceManagementPage = () => {
   const [renameValue, setRenameValue] = useState("");
   const [pendingAction, setPendingAction] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [transferringUuid, setTransferringUuid] = useState(null);
   const [actionError, setActionError] = useState("");
   const [pageError, setPageError] = useState("");
 
@@ -270,6 +282,11 @@ const DeviceManagementPage = () => {
     const userDoc = DeviceDetails.findOne({ userId });
     return { devices: userDoc?.devices || [], isLoading: !handle.ready() };
   }, []);
+
+  // Device-trust push received while the app is open (set by
+  // push-notifications.js) — shown as a toast since iOS foreground pushes
+  // have no OS banner.
+  const trustNotice = useTracker(() => Session.get("deviceTrustNotice"), []);
 
   const approvedCount = devices.filter(
     (d) => d.deviceRegistrationStatus === "approved",
@@ -348,22 +365,25 @@ const DeviceManagementPage = () => {
     }
   };
 
-  const setPrimary = async (device) => {
-    if (!currentUuid) return;
-    setPageError("");
-    setTransferringUuid(device.deviceUUID);
-    try {
-      // May block for up to ~25s while the current primary device is asked
-      // to approve the transfer via an actionable push.
-      await Meteor.callAsync("devices.setPrimary", {
-        deviceUUID: device.deviceUUID,
-        actorDeviceUUID: currentUuid,
-      });
-    } catch (err) {
-      setPageError(err.reason || err.message || "Failed to update device.");
-    } finally {
-      setTransferringUuid(null);
-    }
+  const requestSetPrimary = (device, name) => {
+    const currentDevice = devices.find((d) => d.deviceUUID === currentUuid);
+    const currentIsPrimary =
+      currentDevice &&
+      currentDevice.deviceRegistrationStatus === "approved" &&
+      (currentDevice.isPrimary || approvedCount <= 1);
+
+    setActionError("");
+    setPendingAction({
+      type: "setPrimary",
+      device,
+      title: `Make "${name}" your primary device?`,
+      description:
+        "The primary device receives new-device approval requests for your account.",
+      warning: currentIsPrimary
+        ? "This device will hand over its primary role. Verify it's you to continue."
+        : "Your current primary device will be asked to approve this change — keep it nearby.",
+      confirmLabel: "Make primary",
+    });
   };
 
   const requestRevoke = (device, name) => {
@@ -419,6 +439,21 @@ const DeviceManagementPage = () => {
           wipeLocalAndLogout();
           return;
         }
+      } else if (pendingAction.type === "setPrimary") {
+        // May block for up to ~25s while the current primary device is asked
+        // to approve the transfer via an actionable push.
+        await Meteor.callAsync("devices.setPrimary", {
+          deviceUUID: pendingAction.device.deviceUUID,
+          actorDeviceUUID: currentUuid,
+          reAuth,
+        });
+        // The server pushes the confirmation after a short delay so it can
+        // land as a visible OS banner — tell the user how to see it.
+        Session.set("deviceTrustNotice", {
+          message:
+            "Primary device updated. A confirmation notification arrives in ~10s — close or background the app to see it.",
+          timestamp: new Date().getTime(),
+        });
       } else {
         await Meteor.callAsync("devices.approvePending", {
           deviceUUID: pendingAction.device.deviceUUID,
@@ -437,6 +472,10 @@ const DeviceManagementPage = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      <SuccessToaster
+        message={trustNotice?.message || ""}
+        onClose={() => Session.set("deviceTrustNotice", null)}
+      />
       <header className="relative z-50 bg-card shadow-sm sm:sticky sm:top-0">
         <div className="px-4 py-2.5 flex items-center gap-2">
           <Button
@@ -460,15 +499,6 @@ const DeviceManagementPage = () => {
         {pageError && (
           <Alert variant="danger">
             <AlertDescription>{pageError}</AlertDescription>
-          </Alert>
-        )}
-
-        {transferringUuid && (
-          <Alert variant="info">
-            <AlertDescription>
-              Approval request sent to your primary device. Approve it there to
-              complete the change.
-            </AlertDescription>
           </Alert>
         )}
 
@@ -624,13 +654,11 @@ const DeviceManagementPage = () => {
                         <Button
                           size="sm"
                           variant="ghost"
-                          disabled={!currentUuid || !!transferringUuid}
-                          onClick={() => setPrimary(device)}
+                          disabled={!currentUuid}
+                          onClick={() => requestSetPrimary(device, name)}
                         >
                           <Star className="h-4 w-4 mr-1.5" />
-                          {transferringUuid === device.deviceUUID
-                            ? "Waiting for approval…"
-                            : "Make primary"}
+                          Make primary
                         </Button>
                       )
                     )}
