@@ -221,6 +221,50 @@ const setupNotificationHandler = (push) => {
         }, 2000);
       }
 
+      // This device was revoked from the account (via My Devices on another
+      // device or by an admin). Wipe local credentials and sign out — the
+      // server has already deleted this device's record and invalidated its
+      // sessions, so this is a cleanup courtesy for the user.
+      if (additionalData.notificationType === "device_revoked") {
+        [
+          "biometricsEnabled",
+          "biometricUserId",
+          "lastLoggedInEmail",
+          "pendingNotification",
+        ].forEach((key) => {
+          try {
+            localStorage.removeItem(key);
+          } catch {}
+        });
+        Meteor.logout(() => {
+          window.location.replace("/");
+        });
+        return;
+      }
+
+      // Informational device-trust pushes (primary changed, device added,
+      // device-removed notice). When the app is OPEN, iOS shows no banner for
+      // foreground pushes (forceShow is deliberately off), so surface an
+      // in-app toast; backgrounded devices already got the OS banner.
+      if (
+        [
+          "primary_changed",
+          "device_added_info",
+          "device_removed_info",
+        ].includes(additionalData.notificationType)
+      ) {
+        if (additionalData.foreground) {
+          Session.set("deviceTrustNotice", {
+            message:
+              notification.message ||
+              additionalData.body ||
+              "Your device settings changed.",
+            timestamp: new Date().getTime(),
+          });
+        }
+        return;
+      }
+
       // Test notification received while the app is in the foreground.
       // Foreground pushes are delivered straight to this handler (no OS
       // banner, since forceShow is off), so surface an in-app toast that

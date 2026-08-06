@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
 import { Meteor } from "meteor/meteor";
 import { Session } from "meteor/session";
+import { useTracker } from "meteor/react-meteor-data";
 import { DeviceDetails } from "../../../../../utils/api/deviceDetails";
 
 export const useUserProfile = () => {
   const initialProfile = Session.get("userProfile") || {};
   const [profile, setProfile] = useState({
-    firstName: "",
-    lastName: "",
+    firstName: initialProfile.firstName || "",
+    lastName: initialProfile.lastName || "",
     email: initialProfile.email || "",
   });
   const [isEditing, setIsEditing] = useState(false);
@@ -15,38 +16,25 @@ export const useUserProfile = () => {
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
-  // Fetch user details on mount
-  useEffect(() => {
-    let isMounted = true;
-
-    const fetchUserDetails = async () => {
-      if (!initialProfile._id) return;
-      try {
-        const userDoc = await DeviceDetails.findOneAsync({
-          userId: initialProfile._id,
-        });
-        if (isMounted && userDoc) {
-          setProfile({
-            firstName: userDoc.firstName || "",
-            lastName: userDoc.lastName || "",
-            email: userDoc.email || "",
-          });
-        } else if (isMounted) {
-          setErrorMessage("User profile not found.");
-        }
-      } catch {
-        if (isMounted) {
-          setErrorMessage("Failed to fetch profile.");
-        }
-      }
-    };
-
-    fetchUserDetails();
-
-    return () => {
-      isMounted = false;
-    };
+  // Reactive profile source: subscribe to the user's own device document and
+  // re-run whenever it arrives/changes. (A one-shot Minimongo read at mount
+  // races the subscription and misses the data, showing "User" forever.)
+  const userDoc = useTracker(() => {
+    if (!initialProfile._id) return null;
+    Meteor.subscribe("deviceDetails.byUser", initialProfile._id);
+    return DeviceDetails.findOne({ userId: initialProfile._id });
   }, [initialProfile._id]);
+
+  useEffect(() => {
+    // Don't clobber in-progress edits with a reactive refresh.
+    if (!userDoc || isEditing) return;
+    setProfile({
+      firstName: userDoc.firstName || "",
+      lastName: userDoc.lastName || "",
+      email: userDoc.email || initialProfile.email || "",
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userDoc?.firstName, userDoc?.lastName, userDoc?.email, isEditing]);
 
   const handleProfileChange = (e) => {
     const { name, value } = e.target;
@@ -60,23 +48,30 @@ export const useUserProfile = () => {
     setErrorMessage("");
 
     try {
-      await Meteor.callAsync("user.updateProfile", initialProfile._id, {
+      await Meteor.callAsync("updateUserProfile", {
         firstName: profile.firstName,
         lastName: profile.lastName,
-        // Maybe email updates should be handled differently?
-        // email: profile.email,
+        email: profile.email,
       });
+
+      // Keep the in-memory session profile in sync so the dashboard greeting
+      // reflects the new name without a reload.
+      const current = Session.get("userProfile") || {};
+      Session.set("userProfile", {
+        ...current,
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+      });
+
       setSuccessMessage("Profile updated successfully!");
       setIsEditing(false);
-      // Optionally re-fetch profile or update Session
-    } catch {
-      setErrorMessage("Failed to update profile. Please try again.");
+      setTimeout(() => setSuccessMessage(""), 3000);
+    } catch (error) {
+      setErrorMessage(
+        error?.reason || error?.message || "Failed to update profile.",
+      );
     } finally {
       setIsSaving(false);
-      // Auto-dismiss success message
-      if (successMessage) {
-        setTimeout(() => setSuccessMessage(""), 3000);
-      }
     }
   };
 
@@ -94,41 +89,3 @@ export const useUserProfile = () => {
     setSuccessMessage, // Expose setter if needed externally (e.g., for Toaster)
   };
 };
-
-// Note: Assumes a Meteor method 'user.updateProfile' exists on the server.
-// You might need to create this method in your server-side code.
-// Example server-side method (place in imports/api or server/main.js):
-/*
-Meteor.methods({
-  'user.updateProfile': async function(userId, profileData) {
-    check(userId, String);
-    check(profileData, {
-      firstName: String,
-      lastName: String,
-      // email: Match.Optional(String) // Handle email updates carefully
-    });
-
-    // Add validation/permission checks here if needed
-    if (!this.userId || this.userId !== userId) {
-      throw new Meteor.Error('not-authorized', 'You are not authorized to update this profile.');
-    }
-
-    try {
-      const result = await DeviceDetails.updateAsync(
-        { userId: userId }, 
-        { $set: { 
-            firstName: profileData.firstName,
-            lastName: profileData.lastName,
-            // email: profileData.email, // Be cautious about updating email directly
-            lastUpdated: new Date()
-          }
-        }
-      );
-      return result > 0;
-    } catch (error) {
-      console.error("Error in user.updateProfile method:", error);
-      throw new Meteor.Error('update-failed', 'Could not update profile.');
-    }
-  }
-});
-*/

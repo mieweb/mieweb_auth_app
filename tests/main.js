@@ -1,6 +1,7 @@
 import assert from "assert";
 import "./duo.js";
 import "./healthcheck.js";
+import "./deviceManagement.js";
 
 describe("meteor-app", function () {
   it("package.json has correct name", async function () {
