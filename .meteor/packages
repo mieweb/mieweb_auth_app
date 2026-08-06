@@ -22,6 +22,7 @@ react-meteor-data       # React higher-order component for reactively tracking M
 http
 accounts-password@3.2.2
 accounts-base@3.2.0
+ddp-rate-limiter@1.2.2    # Brute-force protection for auth/device management methods
 check@1.5.0
 session@1.2.2
 sha@1.0.10

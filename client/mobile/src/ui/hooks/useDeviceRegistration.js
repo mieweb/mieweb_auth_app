@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { Meteor } from "meteor/meteor";
 import { Session } from "meteor/session";
 import { Tracker } from "meteor/tracker";
-import { DeviceDetails } from "../../../../../utils/api/deviceDetails";
 
 export const useDeviceRegistration = () => {
   const [capturedDeviceUuid, setCapturedDeviceUuid] = useState(null);
@@ -10,6 +9,12 @@ export const useDeviceRegistration = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let lastCheckedUuid = null;
+
+    // Uses the devices.checkRegistrationByUUID method instead of subscribing
+    // to a publication: a second subscription over DeviceDetails published a
+    // conflicting projection of the `devices` field and clobbered the full
+    // device list in Minimongo (DDP merges top-level fields only).
     const sessionTracker = Tracker.autorun(() => {
       const deviceInfo = Session.get("capturedDeviceInfo");
 
@@ -21,31 +26,17 @@ export const useDeviceRegistration = () => {
       }
       setCapturedDeviceUuid(deviceInfo.uuid);
 
-      const subscriber = Meteor.subscribe(
-        "deviceDetails.byDevice",
-        deviceInfo.uuid,
-        {
-          onStop: (error) => {
-            if (error) {
-              setIsLoading(false);
-            }
-          },
-          onReady: () => {
-            const deviceDetailsDoc = DeviceDetails.findOne({
-              "devices.deviceUUID": deviceInfo.uuid,
-            });
+      if (deviceInfo.uuid === lastCheckedUuid) return;
+      lastCheckedUuid = deviceInfo.uuid;
 
-            setBoolRegisteredDevice(!!deviceDetailsDoc);
-            setIsLoading(false);
-          },
+      Meteor.call(
+        "devices.checkRegistrationByUUID",
+        deviceInfo.uuid,
+        (error, result) => {
+          setBoolRegisteredDevice(!error && !!result?.registered);
+          setIsLoading(false);
         },
       );
-
-      return () => {
-        if (subscriber) {
-          subscriber.stop();
-        }
-      };
     });
 
     return () => {

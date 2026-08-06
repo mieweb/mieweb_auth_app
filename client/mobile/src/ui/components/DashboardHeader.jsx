@@ -10,9 +10,12 @@ import {
   BellRing,
   MoreVertical,
   ChevronDown,
+  Smartphone,
+  FileText,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { openSupportLink } from "../../../../../utils/openExternal";
+import { openDiagnostics } from "../../../diagnostics";
 import {
   Button,
   AppHeaderDivider,
@@ -141,6 +144,12 @@ export const DashboardHeader = ({
               }
             >
               <DropdownItem
+                icon={<Smartphone className="h-4 w-4" />}
+                onClick={() => navigate("/settings/devices")}
+              >
+                My devices
+              </DropdownItem>
+              <DropdownItem
                 icon={<Bell className="h-4 w-4" />}
                 onClick={() => navigate("/settings/notifications")}
               >
@@ -151,6 +160,12 @@ export const DashboardHeader = ({
                 onClick={() => openSupportLink()}
               >
                 Help &amp; Support
+              </DropdownItem>
+              <DropdownItem
+                icon={<FileText className="h-4 w-4" />}
+                onClick={openDiagnostics}
+              >
+                Diagnostics
               </DropdownItem>
 
               <DropdownSeparator />

@@ -29,6 +29,7 @@ const BiometricRegistrationModal = lazy(() =>
   })),
 );
 const NotificationSettings = lazy(() => import("../NotificationSettings"));
+const DeviceManagementPage = lazy(() => import("../DeviceManagementPage"));
 
 // --- Lazy-loaded web pages ---
 const WebLandingPage = lazy(() =>
@@ -180,6 +181,18 @@ export const AppRoutes = ({ isRegistered, deviceUuid }) => {
                 isMobile ? (
                   <ProtectedRoute>
                     <NotificationSettings />
+                  </ProtectedRoute>
+                ) : (
+                  <MobileAppRequired />
+                )
+              }
+            />
+            <Route
+              path="/settings/devices"
+              element={
+                isMobile ? (
+                  <ProtectedRoute>
+                    <DeviceManagementPage />
                   </ProtectedRoute>
                 ) : (
                   <MobileAppRequired />

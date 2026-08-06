@@ -120,6 +120,8 @@ App.configurePlugin("cordova-plugin-inappbrowser", {});
 App.configurePlugin("cordova-plugin-customurlscheme", {
   URL_SCHEME: "mieauth",
 });
+App.configurePlugin("cordova-plugin-native-logs", {});
+App.configurePlugin("cordova-plugin-diagnostics-viewer", {});
 
 App.addResourceFile(
   "private/android/google-services.json",

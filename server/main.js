@@ -5,7 +5,16 @@ import { sendNotification, sendDeviceApprovalNotification } from "./firebase";
 import { Accounts } from "meteor/accounts-base";
 import { check, Match } from "meteor/check";
 import { Random } from "meteor/random";
-import { DeviceDetails } from "../utils/api/deviceDetails.js";
+import {
+  DeviceDetails,
+  registerDeviceDetails,
+  getFCMTokensByUsername,
+  getApprovedFCMTokensByUserId,
+} from "../utils/api/deviceDetails.js";
+import {
+  removeUserCompletely,
+  notifyApprovedDevices,
+} from "./deviceManagement.js"; // Also registers self-service device management methods + rate limiting
 import { NotificationHistory } from "../utils/api/notificationHistory.js";
 import { ApprovalTokens } from "../utils/api/approvalTokens";
 import { PendingResponses } from "../utils/api/pendingResponses.js";
@@ -26,6 +35,7 @@ import "./adminApi"; // Admin REST API endpoints
 import "../utils/api/duoIntegrations.js"; // Duo integration credential methods
 import "./duo/index.js"; // Duo Auth API v2 compatibility layer (/auth/v2/*)
 import "./duo/adminApiV1.js"; // Duo Admin API v1 compatibility layer (/admin/v1/*)
+import "./diagnostics.js"; // Diagnostics log email method
 import { adminPageTemplate } from "./templates/admin";
 import { APPROVAL_TOKEN_EXPIRY_MS } from "../utils/constants.js";
 import {
@@ -253,10 +263,7 @@ const sendSyncNotificationToDevices = async (
   action,
 ) => {
   try {
-    const fcmTokens = await Meteor.callAsync(
-      "deviceDetails.getApprovedFCMTokensByUserId",
-      userId,
-    );
+    const fcmTokens = await getApprovedFCMTokensByUserId(userId);
     if (!fcmTokens || fcmTokens.length === 0) return;
 
     const syncData = {
@@ -606,20 +613,7 @@ WebApp.connectHandlers.use("/send-notification", (req, res, next) => {
       console.log(`Processing notification for user: ${username}`);
 
       // Get FCM tokens
-      const fcmTokens = await new Promise((resolve, reject) => {
-        Meteor.call(
-          "deviceDetails.getFCMTokenByUsername",
-          username,
-          (error, result) => {
-            if (error) {
-              console.error("Error getting FCM tokens:", error);
-              reject(error);
-            } else {
-              resolve(result);
-            }
-          },
-        );
-      });
+      const fcmTokens = await getFCMTokensByUsername(username);
 
       if (!fcmTokens || fcmTokens.length === 0) {
         console.error(`No FCM tokens found for username: ${username}`);
@@ -1439,6 +1433,12 @@ Meteor.methods({
           "Your device registration is still pending admin approval. You cannot respond to notifications until your device is approved.",
         );
       }
+
+      // Record last activity on the responding device (shown in My Devices).
+      await DeviceDetails.updateAsync(
+        { userId: resolvedUserId, "devices.deviceUUID": respondingDeviceUUID },
+        { $set: { "devices.$.lastUsed": new Date() } },
+      );
     }
 
     const targetNotification = await NotificationHistory.findOneAsync({
@@ -1601,6 +1601,12 @@ Meteor.methods({
     // and establish a real DDP session (this.userId on subsequent method calls).
     const stampedToken = Accounts._generateStampedLoginToken();
     await Accounts._insertLoginToken(user._id, stampedToken);
+
+    // Record last activity on this device (shown in My Devices).
+    await DeviceDetails.updateAsync(
+      { userId: userDoc.userId, "devices.deviceUUID": device.deviceUUID },
+      { $set: { "devices.$.lastUsed": new Date() } },
+    );
 
     // Return necessary user information for the session
     return {
@@ -1771,7 +1777,7 @@ Meteor.methods({
         });
       }
 
-      const deviceResp = await Meteor.callAsync("deviceDetails", {
+      const deviceResp = await registerDeviceDetails({
         username: normalizedRegistration.username,
         biometricSecret,
         userId,
@@ -1889,6 +1895,19 @@ Meteor.methods({
             console.log(
               `Secondary device ${sessionDeviceInfo.uuid} approved and database updated`,
             );
+
+            // A new trusted device joined the account — tell every other
+            // registered device so the owner learns about the addition
+            // immediately (the new device itself sees the result in-app).
+            const updatedDoc = await DeviceDetails.findOneAsync({ userId });
+            notifyApprovedDevices(
+              (updatedDoc?.devices || []).filter(
+                (d) => d.deviceUUID !== sessionDeviceInfo.uuid,
+              ),
+              "New Device Added",
+              `"${sessionDeviceInfo.model || `Device ${sessionDeviceInfo.uuid.substring(0, 8)}...`}" was added to your account. If this wasn't you, contact your administrator.`,
+              { notificationType: "device_added_info" },
+            );
           } else if (
             res === "timeout" ||
             res === "rejected" ||
@@ -2005,14 +2024,34 @@ Meteor.methods({
     }
 
     try {
+      // Only reset the verified flag when the address actually changes — a
+      // new address must never inherit the old one's verified status.
+      const currentUser = await Meteor.users.findOneAsync(this.userId);
+      const emailChanged = currentUser?.emails?.[0]?.address !== email;
+
       // Update the user's profile in the database
       await Meteor.users.updateAsync(this.userId, {
         $set: {
           "profile.firstName": firstName,
           "profile.lastName": lastName,
           "emails.0.address": email,
+          ...(emailChanged && { "emails.0.verified": false }),
         },
       });
+
+      // Keep the denormalized copy on the device document in sync so the
+      // dashboard/profile (which reads DeviceDetails) reflects the change.
+      await DeviceDetails.updateAsync(
+        { userId: this.userId },
+        {
+          $set: {
+            firstName,
+            lastName,
+            email,
+            lastUpdated: new Date(),
+          },
+        },
+      );
 
       return { success: true, message: "Profile updated successfully" };
     } catch (error) {
@@ -2103,10 +2142,7 @@ Meteor.methods({
     check(actions, Array);
 
     try {
-      const fcmTokens = await Meteor.callAsync(
-        "deviceDetails.getFCMTokenByUsername",
-        username,
-      );
+      const fcmTokens = await getFCMTokensByUsername(username);
 
       if (!fcmTokens || fcmTokens.length === 0) {
         throw new Meteor.Error("no-devices", "No devices found for user");
@@ -2175,10 +2211,7 @@ Meteor.methods({
 
     let fcmTokens = [];
     try {
-      fcmTokens = await Meteor.callAsync(
-        "deviceDetails.getApprovedFCMTokensByUserId",
-        userId,
-      );
+      fcmTokens = await getApprovedFCMTokensByUserId(userId);
     } catch (error) {
       // The lookup throws "invalid-username" when the user has no device
       // document at all; treat that the same as having no approved devices.
@@ -2345,6 +2378,14 @@ Meteor.methods({
 
     const { userId, primaryDeviceUUID, secondaryDeviceUUID, approved } =
       options;
+
+    // Only the account owner may respond to their own device approval request.
+    if (!this.userId || this.userId !== userId) {
+      throw new Meteor.Error(
+        "not-authorized",
+        "You may only respond to your own device approval requests.",
+      );
+    }
 
     // Find the user and devices
     const userDeviceDoc = await DeviceDetails.findOneAsync({ userId });
@@ -2514,28 +2555,26 @@ Meteor.methods({
   "users.removeCompletely": async function (userId) {
     check(userId, String);
 
+    // Server-internal only: account deletion is driven by trusted server
+    // flows (admin API, Duo admin API, expired-approval cleanup) — never
+    // directly by a client connection.
+    if (this.connection) {
+      throw new Meteor.Error(
+        "not-authorized",
+        "This method can only be called by the server.",
+      );
+    }
+
     console.log(`Completely removing user ${userId}`);
 
     try {
-      // Remove user from Meteor.users collection
-      const userRemoved = await Meteor.users.removeAsync({ _id: userId });
-
-      // Remove user's device details
-      const deviceRemoved = await DeviceDetails.removeAsync({ userId });
-
-      // Remove any pending approval tokens
-      const tokensRemoved = await ApprovalTokens.removeAsync({ userId });
+      const result = await removeUserCompletely(userId);
 
       console.log(
-        `User removal complete - User: ${userRemoved}, Devices: ${deviceRemoved}, Tokens: ${tokensRemoved}`,
+        `User removal complete - User: ${result.userRemoved}, Devices: ${result.deviceRemoved}, Tokens: ${result.tokensRemoved}`,
       );
 
-      return {
-        success: true,
-        userRemoved: userRemoved > 0,
-        deviceRemoved: deviceRemoved > 0,
-        tokensRemoved: tokensRemoved > 0,
-      };
+      return result;
     } catch (error) {
       console.error(`Error removing user ${userId}:`, error);
       throw new Meteor.Error("user-removal-failed", error.message);
