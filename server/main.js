@@ -35,6 +35,7 @@ import "./adminApi"; // Admin REST API endpoints
 import "../utils/api/duoIntegrations.js"; // Duo integration credential methods
 import "./duo/index.js"; // Duo Auth API v2 compatibility layer (/auth/v2/*)
 import "./duo/adminApiV1.js"; // Duo Admin API v1 compatibility layer (/admin/v1/*)
+import "./diagnostics.js"; // Diagnostics log email method
 import { adminPageTemplate } from "./templates/admin";
 import { APPROVAL_TOKEN_EXPIRY_MS } from "../utils/constants.js";
 import {
