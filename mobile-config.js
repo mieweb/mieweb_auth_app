@@ -5,7 +5,7 @@ App.info({
   author: "Anshul Abrol",
   email: "abrol.anshul10@gmail.com",
   website: "https://mieauth-prod.os.mieweb.org",
-  version: '1.5.0',
+  version: "1.5.0",
 });
 
 App.setPreference("android-targetSdkVersion", "35");
@@ -120,6 +120,8 @@ App.configurePlugin("cordova-plugin-inappbrowser", {});
 App.configurePlugin("cordova-plugin-customurlscheme", {
   URL_SCHEME: "mieauth",
 });
+App.configurePlugin("cordova-plugin-native-logs", {});
+App.configurePlugin("cordova-plugin-diagnostics-viewer", {});
 
 App.addResourceFile(
   "private/android/google-services.json",

@@ -2,7 +2,9 @@
 cordova-plugin-android-permissions@1.1.5
 cordova-plugin-customurlscheme@5.0.2
 cordova-plugin-device@3.0.0
+cordova-plugin-diagnostics-viewer@0.1.1
 cordova-plugin-fingerprint-aio@6.0.0
 cordova-plugin-inappbrowser@6.0.0
+cordova-plugin-native-logs@1.0.5
 cordova-plugin-splashscreen@6.0.2
 cordova.plugins.diagnostic@7.3.1
