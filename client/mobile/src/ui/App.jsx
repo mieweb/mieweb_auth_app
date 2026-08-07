@@ -60,8 +60,12 @@ const ConnectionError = ({ onRetry }) => {
 };
 
 export const App = () => {
-  const { capturedDeviceUuid, boolRegisteredDevice, isLoading } =
-    useDeviceRegistration();
+  const {
+    capturedDeviceUuid,
+    boolRegisteredDevice,
+    registrationError,
+    isLoading,
+  } = useDeviceRegistration();
   const [showError, setShowError] = useState(false);
   const loadingRef = useRef(isLoading);
 
@@ -81,7 +85,7 @@ export const App = () => {
 
   return (
     <>
-      {showError ? (
+      {showError || registrationError ? (
         <ConnectionError onRetry={handleRetry} />
       ) : isLoading ? (
         <LoadingState />
