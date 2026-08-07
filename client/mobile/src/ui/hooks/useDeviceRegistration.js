@@ -10,6 +10,18 @@ export const useDeviceRegistration = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Web browsers have no Cordova device UUID — device registration only
+    // applies to the mobile app. Without this guard the hook waits forever
+    // for device info that never arrives and the web landing page is
+    // replaced by the Connection Issues screen after the loading timeout.
+    if (!Meteor.isCordova) {
+      setCapturedDeviceUuid(null);
+      setBoolRegisteredDevice(false);
+      setRegistrationError(null);
+      setIsLoading(false);
+      return undefined;
+    }
+
     let lastCheckedUuid = null;
 
     // Uses the devices.checkRegistrationByUUID method instead of subscribing
