@@ -6,6 +6,7 @@ import { Tracker } from "meteor/tracker";
 export const useDeviceRegistration = () => {
   const [capturedDeviceUuid, setCapturedDeviceUuid] = useState(null);
   const [boolRegisteredDevice, setBoolRegisteredDevice] = useState(null);
+  const [registrationError, setRegistrationError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -20,20 +21,32 @@ export const useDeviceRegistration = () => {
 
       if (!deviceInfo || !deviceInfo.uuid) {
         setCapturedDeviceUuid(null);
-        setBoolRegisteredDevice(false);
-        setIsLoading(false);
+        setBoolRegisteredDevice(null);
+        setIsLoading(true);
         return;
       }
       setCapturedDeviceUuid(deviceInfo.uuid);
 
       if (deviceInfo.uuid === lastCheckedUuid) return;
       lastCheckedUuid = deviceInfo.uuid;
+      setRegistrationError(null);
+      setIsLoading(true);
 
       Meteor.call(
         "devices.checkRegistrationByUUID",
         deviceInfo.uuid,
         (error, result) => {
-          setBoolRegisteredDevice(!error && !!result?.registered);
+          if (error || typeof result?.registered !== "boolean") {
+            console.error("Unable to check device registration:", error);
+            setRegistrationError(
+              error || new Error("Invalid device registration response"),
+            );
+            setIsLoading(false);
+            return;
+          }
+
+          setRegistrationError(null);
+          setBoolRegisteredDevice(result.registered);
           setIsLoading(false);
         },
       );
@@ -44,5 +57,10 @@ export const useDeviceRegistration = () => {
     };
   }, []);
 
-  return { capturedDeviceUuid, boolRegisteredDevice, isLoading };
+  return {
+    capturedDeviceUuid,
+    boolRegisteredDevice,
+    registrationError,
+    isLoading,
+  };
 };
