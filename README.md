@@ -359,6 +359,8 @@ credential validation. See
 
 ## Mobile development
 
+The iOS app requires iOS 15.0 or later.
+
 ### Device and emulator runs
 
 Meteor already tracks both mobile platforms in `.meteor/platforms`. With the
