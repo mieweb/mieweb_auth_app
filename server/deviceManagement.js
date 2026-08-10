@@ -56,7 +56,7 @@ const REAUTH_PATTERN = Match.OneOf(
 /**
  * Constant-time string comparison (hash first so lengths never leak).
  */
-const timingSafeEquals = (a, b) => {
+export const timingSafeEquals = (a, b) => {
   const hashA = crypto.createHash("sha256").update(String(a)).digest();
   const hashB = crypto.createHash("sha256").update(String(b)).digest();
   return crypto.timingSafeEqual(hashA, hashB);
