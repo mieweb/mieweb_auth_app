@@ -1,5 +1,6 @@
 import { Meteor } from "meteor/meteor";
 import { Session } from "meteor/session";
+import { Tracker } from "meteor/tracker";
 import { IOS_APPROVAL_CATEGORIES } from "../../utils/constants.js";
 
 // Session validation with retry logic
@@ -113,6 +114,11 @@ const configurePushNotifications = () => {
       sound: true,
       priority: "high",
       foreground: true,
+      // NOTE: `forceShow` must stay OFF. With forceShow the plugin only shows
+      // the OS banner for foreground pushes and does NOT dispatch them to the
+      // JS `notification` handler until tapped (see PushPlugin.m
+      // willPresentNotification), which breaks the auto-opening approve/reject
+      // actions modal. Foreground pushes are surfaced in-app instead.
       // Statically register the APPROVAL category so its action buttons are
       // rendered by the system — including when the notification is mirrored to
       // a paired Apple Watch. The watch only shows actions that come from a
@@ -129,7 +135,39 @@ const configurePushNotifications = () => {
 const setupRegistrationHandler = (push) => {
   push.on("registration", (data) => {
     Session.set("deviceToken", data.registrationId);
-    Meteor.call("deviceDetails.storeFCMToken", data.registrationId);
+  });
+};
+
+// Last (user, device, token) combination successfully sent to the server, so
+// the autorun below doesn't repeat the call on unrelated reactive changes.
+let lastReconciledKey = null;
+
+// Keep the server's stored FCM token in sync with the live one. Tokens rotate
+// (reinstall, OS restore, Firebase refresh) and a stale stored token means
+// pushes silently stop. Reactive on login state, captured device info and the
+// token itself, so it works regardless of which becomes available first.
+const setupTokenReconciliation = () => {
+  Tracker.autorun(() => {
+    const userId = Meteor.userId();
+    const fcmToken = Session.get("deviceToken");
+    const deviceUUID = Session.get("capturedDeviceInfo")?.uuid;
+
+    if (!userId || !fcmToken || !deviceUUID) return;
+
+    const key = `${userId}:${deviceUUID}:${fcmToken}`;
+    if (key === lastReconciledKey) return;
+    lastReconciledKey = key;
+
+    Meteor.call("devices.updateFCMToken", { deviceUUID, fcmToken }, (error) => {
+      if (error) {
+        // Allow a retry on the next reactive change (e.g. re-login).
+        lastReconciledKey = null;
+        console.warn(
+          "FCM token reconciliation failed:",
+          error.reason || error.message,
+        );
+      }
+    });
   });
 };
 
@@ -216,6 +254,64 @@ const setupNotificationHandler = (push) => {
         }, 2000);
       }
 
+      // This device was revoked from the account (via My Devices on another
+      // device or by an admin). Wipe local credentials and sign out — the
+      // server has already deleted this device's record and invalidated its
+      // sessions, so this is a cleanup courtesy for the user.
+      if (additionalData.notificationType === "device_revoked") {
+        [
+          "biometricsEnabled",
+          "biometricUserId",
+          "lastLoggedInEmail",
+          "pendingNotification",
+        ].forEach((key) => {
+          try {
+            localStorage.removeItem(key);
+          } catch {}
+        });
+        Meteor.logout(() => {
+          window.location.replace("/");
+        });
+        return;
+      }
+
+      // Informational device-trust pushes (primary changed, device added,
+      // device-removed notice). When the app is OPEN, iOS shows no banner for
+      // foreground pushes (forceShow is deliberately off), so surface an
+      // in-app toast; backgrounded devices already got the OS banner.
+      if (
+        [
+          "primary_changed",
+          "device_added_info",
+          "device_removed_info",
+        ].includes(additionalData.notificationType)
+      ) {
+        if (additionalData.foreground) {
+          Session.set("deviceTrustNotice", {
+            message:
+              notification.message ||
+              additionalData.body ||
+              "Your device settings changed.",
+            timestamp: new Date().getTime(),
+          });
+        }
+        return;
+      }
+
+      // Test notification received while the app is in the foreground.
+      // Foreground pushes are delivered straight to this handler (no OS
+      // banner, since forceShow is off), so surface an in-app toast that
+      // explains what happened instead of silently swallowing the push.
+      if (
+        additionalData.notificationType === "test" &&
+        additionalData.foreground
+      ) {
+        Session.set("testNotificationForeground", {
+          timestamp: new Date().getTime(),
+        });
+        return;
+      }
+
       // Standard notification handling
       if (additionalData.appId) {
         Session.set("notificationReceivedId", {
@@ -254,6 +350,7 @@ export const initializePushNotifications = () => {
 
     // Register handlers
     setupRegistrationHandler(push);
+    setupTokenReconciliation();
     setupActionHandlers(push);
     setupNotificationHandler(push);
     setupErrorHandler(push);

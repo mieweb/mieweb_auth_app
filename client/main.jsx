@@ -8,6 +8,8 @@ import { captureDeviceInfo } from "./mobile/capture-device-info";
 import { initializeBiometrics } from "./mobile/biometrics";
 import { initializeDeepLinks } from "./mobile/deep-links";
 import { initializePushNotifications } from "./mobile/push-notifications";
+import { checkNotificationPermission } from "./mobile/notification-permissions";
+import { initializeDiagnostics } from "./mobile/diagnostics";
 
 // During a hot code push the WebView is fully reloaded while the new bundle
 // loads. Without covering that gap the user sees a blank/black screen. Show the
@@ -39,6 +41,20 @@ Meteor.startup(() => {
         initializeBiometrics();
         initializeDeepLinks();
         initializePushNotifications();
+        initializeDiagnostics();
+        // Record whether the OS-level notification permission is granted so the
+        // UI can prompt the user to re-enable it if they denied/dismissed it.
+        checkNotificationPermission();
+      },
+      false,
+    );
+
+    // Re-check on resume so returning from the system settings screen (or any
+    // change made while backgrounded) is reflected in the app.
+    document.addEventListener(
+      "resume",
+      () => {
+        checkNotificationPermission();
       },
       false,
     );

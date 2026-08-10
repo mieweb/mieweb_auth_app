@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Session } from "meteor/session";
 import { Meteor } from "meteor/meteor";
+import { useTracker } from "meteor/react-meteor-data";
 import { openExternal } from "../../../../utils/openExternal";
 
 // Import Hooks
@@ -14,6 +15,7 @@ import { useSessionTimeout } from "./hooks/useSessionTimeout";
 import { DashboardHeader } from "./components/DashboardHeader";
 import { ProfileSection } from "./components/ProfileSection";
 import { NotificationList } from "./components/NotificationList";
+import SuccessToaster from "./Toasters/SuccessToaster";
 import Pagination from "./Pagination/Pagination";
 import ActionsModal from "./Modal/ActionsModal";
 import ResultModal from "./Modal/ResultModal";
@@ -51,6 +53,24 @@ export const LandingPage = () => {
 
   const { isDarkMode, toggleDarkMode } = useDarkMode();
   useSessionTimeout();
+
+  // Device-trust push received while the app is open (set by
+  // push-notifications.js) — shown as a toast since iOS foreground pushes
+  // have no OS banner.
+  const trustNotice = useTracker(() => Session.get("deviceTrustNotice"), []);
+
+  // Self-report this device's live OS info once per dashboard load so the
+  // server record heals "Unknown" model/platform placeholders and updates
+  // last-used — which is what the My Devices page (on every device) shows.
+  useEffect(() => {
+    const info = Session.get("capturedDeviceInfo");
+    if (!userId || !info?.uuid) return;
+    Meteor.call("devices.updateInfo", {
+      deviceUUID: info.uuid,
+      deviceModel: info.model,
+      devicePlatform: info.platform,
+    });
+  }, [userId]);
 
   const {
     profile,
@@ -136,6 +156,10 @@ export const LandingPage = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      <SuccessToaster
+        message={trustNotice?.message || ""}
+        onClose={() => Session.set("deviceTrustNotice", null)}
+      />
       <DashboardHeader
         title="MIE Auth"
         isDarkMode={isDarkMode}

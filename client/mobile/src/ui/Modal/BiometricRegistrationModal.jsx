@@ -47,7 +47,8 @@ const BiometricRegistrationModal = ({
   const handleSuccess = () => {
     setStatus("success");
     localStorage.setItem("biometricsEnabled", "true");
-    localStorage.setItem("biometricUserId", userData?.biometricSecret);
+    localStorage.removeItem("biometricUserId");
+    localStorage.removeItem("biometricRecoveryNeeded");
     setTimeout(() => {
       onClose();
       onComplete(true);
