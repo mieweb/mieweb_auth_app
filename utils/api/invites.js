@@ -21,7 +21,7 @@ export const getInviteTokenPrefix = (token = "") =>
   token.slice(0, INVITE_TOKEN_PREFIX_LENGTH);
 
 export const buildInviteLockFields = (invite) => ({
-  email: true,
+  email: Boolean(invite?.email),
   username: Boolean(invite?.username),
   firstName: Boolean(invite?.firstName),
   lastName: Boolean(invite?.lastName),

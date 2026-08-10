@@ -9,9 +9,12 @@ export const adminPageTemplate = () => `<!DOCTYPE html>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin Dashboard - MIEWeb Auth</title>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin></script>
+  <!-- Pin Babel to v7: v8 (unpkg "latest") defaults JSX to the automatic runtime,
+       emitting \`import { jsx } from "react/jsx-runtime"\` which breaks this classic
+       (non-module) UMD setup with "Cannot use import statement outside a module". -->
+  <script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
@@ -268,6 +271,151 @@ const ApiKeysTab = ({ toast, toastErr }) => {
                   <p className="text-xs text-gray-500">Key: <code className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-700">{k.keyPrefix}••••••••••••••</code> · Created: {new Date(k.createdAt).toLocaleDateString()} · Last used: {k.lastUsed ? new Date(k.lastUsed).toLocaleDateString() : 'Never'}</p>
                 </div>
                 <button onClick={() => handleDelete(k.clientId)} className="text-red-500 hover:text-red-700 text-xs font-medium px-3 py-1 rounded hover:bg-red-50">Delete</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ─── Tab: Duo Integrations ───────────────────────────────────────
+const DuoTab = ({ toast, toastErr }) => {
+  const [integrations, setIntegrations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [newName, setNewName] = useState('');
+  const [newType, setNewType] = useState('auth');
+  const [newCred, setNewCred] = useState(null);
+  const [confirm, setConfirm] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api('/api/admin/duo/list');
+      if (res.success) setIntegrations(res.integrations);
+    } catch (err) {
+      toastErr(err.message || 'Failed to load integrations', 'error', err);
+    }
+    setLoading(false);
+  }, [toastErr]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleCreate = async () => {
+    if (!newName.trim()) return;
+    try {
+      const res = await api('/api/admin/duo/create', { method: 'POST', body: JSON.stringify({ name: newName.trim(), type: newType }) });
+      if (res.success) {
+        setNewCred({ name: res.name, ikey: res.ikey, skey: res.skey });
+        setNewName('');
+        toast('Duo integration created', 'success');
+        load();
+      } else {
+        toast(res.error || 'Failed to create integration', 'error');
+      }
+    } catch (err) {
+      toastErr(err.message || 'An unexpected error occurred', 'error', err);
+    }
+  };
+
+  const handleToggle = async (name, enabled) => {
+    try {
+      const res = await api('/api/admin/duo/set-enabled', { method: 'POST', body: JSON.stringify({ name, enabled }) });
+      if (res.success) { toast(enabled ? 'Integration enabled' : 'Integration disabled', 'success'); load(); }
+      else toast(res.error || 'Failed to update integration', 'error');
+    } catch (err) {
+      toastErr(err.message || 'An unexpected error occurred', 'error', err);
+    }
+  };
+
+  const handleRegenerate = (name) => {
+    setConfirm({
+      title: 'Regenerate Credentials',
+      message: \`Rotate the ikey/skey for "\${name}"? The old credentials will stop working immediately.\`,
+      danger: true,
+      onConfirm: async () => {
+        try {
+          setConfirm(null);
+          const res = await api('/api/admin/duo/regenerate', { method: 'POST', body: JSON.stringify({ name }) });
+          if (res.success) { setNewCred({ name: res.name, ikey: res.ikey, skey: res.skey }); toast('Credentials rotated', 'success'); load(); }
+          else toast(res.error || 'Failed to rotate credentials', 'error');
+        } catch (err) {
+          toastErr(err.message || 'An unexpected error occurred', 'error', err);
+        }
+      }
+    });
+  };
+
+  const handleDelete = (name) => {
+    setConfirm({
+      title: 'Delete Duo Integration',
+      message: \`Permanently delete the Duo integration "\${name}"? This cannot be undone.\`,
+      danger: true,
+      onConfirm: async () => {
+        try {
+          setConfirm(null);
+          const res = await api('/api/admin/duo/delete', { method: 'DELETE', body: JSON.stringify({ name }) });
+          if (res.success) { toast('Integration deleted', 'success'); load(); }
+          else toast(res.error || 'Failed to delete integration', 'error');
+        } catch (err) {
+          toastErr(err.message || 'An unexpected error occurred', 'error', err);
+        }
+      }
+    });
+  };
+
+  return (
+    <div className="space-y-6 fade-in">
+      {confirm && <ConfirmDialog {...confirm} onCancel={() => setConfirm(null)} />}
+      {/* Create */}
+      <div className="bg-white rounded-xl shadow-sm border p-5">
+        <h3 className="font-semibold text-gray-900 mb-3">Create New Duo Integration</h3>
+        <div className="flex flex-wrap gap-3">
+          <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Name (e.g. authentik-prod)" className="flex-1 min-w-[200px] px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+          <select value={newType} onChange={e => setNewType(e.target.value)} className="px-3 py-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+            <option value="auth">Auth API</option>
+            <option value="admin">Admin API</option>
+          </select>
+          <button onClick={handleCreate} disabled={!newName.trim()} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white text-sm rounded-lg">Create</button>
+        </div>
+        {newCred && (
+          <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+            <p className="text-xs font-medium text-green-800 mb-2">⚠️ Copy the secret key now — it won't be shown again:</p>
+            <div className="space-y-1 text-xs">
+              <div><span className="text-gray-500">Name:</span> <code className="bg-green-100 px-1.5 py-0.5 rounded">{newCred.name}</code></div>
+              <div><span className="text-gray-500">Integration key (ikey):</span> <code className="bg-green-100 px-1.5 py-0.5 rounded select-all">{newCred.ikey}</code></div>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500 shrink-0">Secret key (skey):</span>
+                <code className="bg-green-100 px-1.5 py-0.5 rounded break-all select-all flex-1">{newCred.skey}</code>
+                <button onClick={() => { navigator.clipboard.writeText(newCred.skey); toast('Secret key copied', 'success'); }} className="shrink-0 px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded">📋 Copy</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+      {/* List */}
+      <div className="bg-white rounded-xl shadow-sm border">
+        <div className="px-5 py-4 border-b"><h3 className="font-semibold text-gray-900">Duo Integrations</h3></div>
+        {loading ? <div className="p-8 text-center"><span className="spinner" /></div> : integrations.length === 0 ? (
+          <p className="p-8 text-center text-gray-400 text-sm">No Duo integrations found</p>
+        ) : (
+          <div className="divide-y">
+            {integrations.map(d => (
+              <div key={d.name} className="px-5 py-3 flex items-center justify-between hover:bg-gray-50">
+                <div>
+                  <p className="font-medium text-sm text-gray-900">
+                    {d.name}
+                    <span className={\`ml-2 text-[10px] uppercase px-1.5 py-0.5 rounded-full \${d.type === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}\`}>{d.type || 'auth'}</span>
+                    {!d.enabled && <span className="ml-2 text-[10px] uppercase px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600">disabled</span>}
+                  </p>
+                  <p className="text-xs text-gray-500">ikey: <code className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-700">{d.ikey}</code> · Created: {new Date(d.createdAt).toLocaleDateString()} · Last used: {d.lastUsed ? new Date(d.lastUsed).toLocaleString() : 'Never'}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => handleToggle(d.name, !d.enabled)} className={\`text-xs font-medium px-3 py-1 rounded \${d.enabled ? 'text-amber-600 hover:bg-amber-50' : 'text-green-600 hover:bg-green-50'}\`}>{d.enabled ? 'Disable' : 'Enable'}</button>
+                  <button onClick={() => handleRegenerate(d.name)} className="text-blue-600 hover:text-blue-800 text-xs font-medium px-3 py-1 rounded hover:bg-blue-50">Rotate</button>
+                  <button onClick={() => handleDelete(d.name)} className="text-red-500 hover:text-red-700 text-xs font-medium px-3 py-1 rounded hover:bg-red-50">Delete</button>
+                </div>
               </div>
             ))}
           </div>
@@ -618,12 +766,170 @@ const EmailsTab = ({ toast, toastErr }) => {
   );
 };
 
-// ─── Dashboard ───────────────────────────────────────────────────
+// ─── Tab: Diagnostics ────────────────────────────────────────
+const DiagnosticsTab = ({ toast, toastErr }) => {
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState(null);
+  const [notFound, setNotFound] = useState(false);
+  const [pushResults, setPushResults] = useState({});
+  const [pushing, setPushing] = useState(null);
+
+  const lookup = async (e) => {
+    if (e) e.preventDefault();
+    if (!query.trim()) return;
+    setLoading(true);
+    setData(null);
+    setNotFound(false);
+    setPushResults({});
+    try {
+      const res = await api('/api/admin/diagnostics/user?q=' + encodeURIComponent(query.trim()));
+      if (res.success) setData(res);
+    } catch (err) {
+      if (err.status === 404) setNotFound(true);
+      else toastErr(err.message || 'Lookup failed', 'error', err);
+    }
+    setLoading(false);
+  };
+
+  const testPush = async (userId, deviceUUID) => {
+    setPushing(deviceUUID);
+    try {
+      const res = await api('/api/admin/diagnostics/test-push', { method: 'POST', body: JSON.stringify({ userId, deviceUUID }) });
+      setPushResults(prev => ({ ...prev, [deviceUUID]: res }));
+      toast(res.success ? 'Test push accepted by FCM' : 'Test push failed — see result below', res.success ? 'success' : 'warning');
+    } catch (err) {
+      toastErr(err.message || 'Test push failed', 'error', err);
+    }
+    setPushing(null);
+  };
+
+  const statusBadge = (status) => {
+    const colors = { approved: 'bg-green-100 text-green-700', pending: 'bg-yellow-100 text-yellow-700', approve: 'bg-green-100 text-green-700', reject: 'bg-red-100 text-red-700', rejected: 'bg-red-100 text-red-700', dismissed: 'bg-gray-100 text-gray-600' };
+    return <span className={\`text-xs px-2 py-0.5 rounded-full font-medium \${colors[status] || 'bg-gray-100 text-gray-600'}\`}>{status}</span>;
+  };
+
+  return (
+    <div className="space-y-6 fade-in">
+      {/* Search */}
+      <div className="bg-white rounded-xl shadow-sm border p-5">
+        <h3 className="font-semibold text-gray-900 mb-1">User Diagnostics</h3>
+        <p className="text-xs text-gray-500 mb-3">Inspect a user's account, devices, FCM token state, and recent notifications — e.g. to troubleshoot pushes that are not being delivered.</p>
+        <form onSubmit={lookup} className="flex gap-3">
+          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Username, email, or userId" className="flex-1 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+          <button type="submit" disabled={loading || !query.trim()} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white text-sm rounded-lg">{loading ? <span className="spinner" /> : 'Look up'}</button>
+        </form>
+        {notFound && <p className="text-sm text-red-500 mt-3">No user or device record matched that query.</p>}
+      </div>
+
+      {data && (
+        <React.Fragment>
+          {/* Warnings */}
+          {data.warnings.length > 0 && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+              <p className="text-xs font-semibold text-yellow-800 mb-1">⚠️ Potential issues</p>
+              <ul className="list-disc ml-5 space-y-0.5">
+                {data.warnings.map((w, i) => <li key={i} className="text-xs text-yellow-800">{w}</li>)}
+              </ul>
+            </div>
+          )}
+
+          {/* Account */}
+          <div className="bg-white rounded-xl shadow-sm border">
+            <div className="px-5 py-4 border-b"><h3 className="font-semibold text-gray-900">Account</h3></div>
+            {data.account ? (
+              <div className="px-5 py-4 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-sm">
+                <div><p className="text-xs text-gray-400">Username</p><p className="text-gray-900">{data.account.username}</p></div>
+                <div><p className="text-xs text-gray-400">Email</p><p className="text-gray-900 truncate">{data.account.email || '—'}</p></div>
+                <div><p className="text-xs text-gray-400">Status</p>{statusBadge(data.account.registrationStatus)}</div>
+                <div><p className="text-xs text-gray-400">User ID</p><code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">{data.account.userId}</code></div>
+                <div><p className="text-xs text-gray-400">Active sessions</p><p className="text-gray-900">{data.account.activeSessionCount}</p></div>
+                <div><p className="text-xs text-gray-400">Created</p><p className="text-gray-900">{data.account.createdAt ? new Date(data.account.createdAt).toLocaleString() : '—'}</p></div>
+              </div>
+            ) : <p className="p-5 text-sm text-red-500">No user account found (device record is orphaned).</p>}
+          </div>
+
+          {/* Devices */}
+          <div className="bg-white rounded-xl shadow-sm border">
+            <div className="px-5 py-4 border-b flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900">Devices &amp; Push Tokens</h3>
+              {data.deviceRecord && <span className="text-xs text-gray-400">Record updated: {data.deviceRecord.lastUpdated ? new Date(data.deviceRecord.lastUpdated).toLocaleString() : '—'}</span>}
+            </div>
+            {!data.deviceRecord || data.deviceRecord.devices.length === 0 ? (
+              <p className="p-8 text-center text-gray-400 text-sm">No devices registered</p>
+            ) : (
+              <div className="divide-y">
+                {data.deviceRecord.devices.map((d) => {
+                  const pr = pushResults[d.deviceUUID];
+                  return (
+                    <div key={d.deviceUUID} className="px-5 py-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm text-gray-900 font-medium">
+                            {d.customName || d.deviceModel || 'Unknown'} ({d.devicePlatform || '?'})
+                            {' '}{statusBadge(d.status)}
+                            {d.isPrimary && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full ml-1">Primary</span>}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">UUID: <code className="bg-gray-100 px-1 py-0.5 rounded">{d.deviceUUID}</code></p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            FCM token: {d.fcmToken.present
+                              ? <React.Fragment><code className="bg-gray-100 px-1 py-0.5 rounded">{d.fcmToken.preview}</code> · {d.fcmToken.length} chars · sha256 <code className="bg-gray-100 px-1 py-0.5 rounded">{d.fcmToken.sha256}</code></React.Fragment>
+                              : <span className="text-red-500 font-medium">missing</span>}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            Biometric secret: {d.hasBiometricSecret ? 'stored' : 'missing'} · Last used: {d.lastUsed ? new Date(d.lastUsed).toLocaleString() : 'never'} · Updated: {d.lastUpdated ? new Date(d.lastUpdated).toLocaleString() : '—'}
+                          </p>
+                          {pr && (
+                            <div className={\`mt-2 text-xs rounded-lg px-3 py-2 border \${pr.success ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-700'}\`}>
+                              <span className="font-semibold">{pr.success ? '✓ Sent' : '✗ ' + (pr.fcmErrorCode || pr.result)}</span> — {pr.message}
+                            </div>
+                          )}
+                        </div>
+                        <button onClick={() => testPush(data.deviceRecord.userId, d.deviceUUID)} disabled={pushing === d.deviceUUID || !d.fcmToken.present}
+                          className="shrink-0 text-blue-600 hover:text-blue-800 disabled:text-gray-300 text-xs font-medium px-3 py-1 rounded border border-blue-200 hover:bg-blue-50">
+                          {pushing === d.deviceUUID ? <span className="spinner" /> : 'Send test push'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Recent notifications */}
+          <div className="bg-white rounded-xl shadow-sm border">
+            <div className="px-5 py-4 border-b"><h3 className="font-semibold text-gray-900">Recent Notifications</h3></div>
+            {data.notifications.length === 0 ? (
+              <p className="p-8 text-center text-gray-400 text-sm">No notification history</p>
+            ) : (
+              <div className="divide-y">
+                {data.notifications.map((n) => (
+                  <div key={n.notificationId} className="px-5 py-2.5 flex items-center justify-between gap-4 hover:bg-gray-50">
+                    <div className="min-w-0">
+                      <p className="text-sm text-gray-900 truncate">{n.title}</p>
+                      <p className="text-xs text-gray-400">{new Date(n.createdAt).toLocaleString()}{n.clientId ? \` · \${n.clientId}\` : ''}</p>
+                    </div>
+                    {statusBadge(n.status)}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </React.Fragment>
+      )}
+    </div>
+  );
+};
+
+// ─── Dashboard ─────────────────────────────────────────────────
 const TABS = [
   { id: 'keys', label: 'API Keys', icon: '🔑' },
+  { id: 'duo', label: 'Duo', icon: '🔐' },
   { id: 'users', label: 'Users', icon: '👤' },
   { id: 'devices', label: 'Devices', icon: '📱' },
-  { id: 'emails', label: 'Emails', icon: '📧' }
+  { id: 'emails', label: 'Emails', icon: '📧' },
+  { id: 'diagnostics', label: 'Diagnostics', icon: '🩺' }
 ];
 
 const Dashboard = ({ adminId, onLogout }) => {
@@ -665,9 +971,11 @@ const Dashboard = ({ adminId, onLogout }) => {
           ))}
         </div>
         {tab === 'keys' && <ApiKeysTab toast={toast} toastErr={toastWithSessionCheck} />}
+        {tab === 'duo' && <DuoTab toast={toast} toastErr={toastWithSessionCheck} />}
         {tab === 'users' && <UsersTab toast={toast} toastErr={toastWithSessionCheck} />}
         {tab === 'devices' && <DevicesTab toast={toast} toastErr={toastWithSessionCheck} />}
         {tab === 'emails' && <EmailsTab toast={toast} toastErr={toastWithSessionCheck} />}
+        {tab === 'diagnostics' && <DiagnosticsTab toast={toast} toastErr={toastWithSessionCheck} />}
       </div>
     </div>
   );

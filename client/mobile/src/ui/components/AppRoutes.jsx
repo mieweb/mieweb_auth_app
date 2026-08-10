@@ -1,4 +1,4 @@
-import React, { lazy, Suspense } from "react";
+import React, { lazy, Suspense, useEffect } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -8,6 +8,7 @@ import {
 import { Meteor } from "meteor/meteor";
 import { Spinner } from "@mieweb/ui";
 import { ProtectedRoute } from "./ProtectedRoute";
+import { ChunkLoadErrorBoundary } from "./ChunkLoadErrorBoundary";
 
 // --- Eagerly loaded (always needed) ---
 import { LoginPage } from "../Login";
@@ -27,6 +28,8 @@ const BiometricRegistrationModal = lazy(() =>
     default: m.BiometricRegistrationModal,
   })),
 );
+const NotificationSettings = lazy(() => import("../NotificationSettings"));
+const DeviceManagementPage = lazy(() => import("../DeviceManagementPage"));
 
 // --- Lazy-loaded web pages ---
 const WebLandingPage = lazy(() =>
@@ -71,111 +74,151 @@ const PageLoader = () => (
 export const AppRoutes = ({ isRegistered, deviceUuid }) => {
   const isMobile = Meteor.isCordova;
 
+  // The app rendered successfully, so any previous chunk-load failure is
+  // resolved. Clear the one-shot reload guard so a future hot code push can
+  // self-heal again instead of being blocked by a stale flag.
+  useEffect(() => {
+    try {
+      window.sessionStorage.removeItem("chunkReloadAttempted");
+    } catch {
+      // ignore
+    }
+  }, []);
+
   return (
-    <Router>
-      <Suspense fallback={<PageLoader />}>
-        <Routes>
-          {/* --- Root redirect --- */}
-          <Route
-            path="/"
-            element={
-              isMobile ? (
+    <ChunkLoadErrorBoundary fallback={() => <PageLoader />}>
+      <Router>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            {/* --- Root redirect --- */}
+            <Route
+              path="/"
+              element={
+                isMobile ? (
+                  isRegistered ? (
+                    <Navigate to="/login" replace />
+                  ) : (
+                    <Navigate to="/onboarding" replace />
+                  )
+                ) : (
+                  <WebLandingPage />
+                )
+              }
+            />
+
+            {/* --- Public web pages --- */}
+            <Route path="/faq" element={<FAQPage />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+            <Route path="/support" element={<SupportPage />} />
+            <Route path="/delete-account" element={<DeleteAccountPage />} />
+            <Route
+              path="/test-notification"
+              element={<WebNotificationPage />}
+            />
+
+            {/* --- Mobile-only auth routes (redirect web visitors) --- */}
+            <Route
+              path="/login"
+              element={
+                isMobile ? (
+                  <LoginPage deviceDetails={deviceUuid} />
+                ) : (
+                  <MobileAppRequired mode="login" />
+                )
+              }
+            />
+            <Route
+              path="/onboarding"
+              element={
                 isRegistered ? (
                   <Navigate to="/login" replace />
+                ) : isMobile ? (
+                  <RegistrationOnboardingPage />
                 ) : (
-                  <Navigate to="/onboarding" replace />
+                  <MobileAppRequired mode="register" />
                 )
-              ) : (
-                <WebLandingPage />
-              )
-            }
-          />
+              }
+            />
+            <Route
+              path="/register"
+              element={
+                isRegistered ? (
+                  <Navigate to="/login" replace />
+                ) : isMobile ? (
+                  <RegistrationPage deviceDetails={deviceUuid} />
+                ) : (
+                  <MobileAppRequired mode="register" />
+                )
+              }
+            />
+            <Route
+              path="/welcome"
+              element={
+                isMobile ? (
+                  <WelcomePage deviceDetails={deviceUuid} />
+                ) : (
+                  <MobileAppRequired />
+                )
+              }
+            />
 
-          {/* --- Public web pages --- */}
-          <Route path="/faq" element={<FAQPage />} />
-          <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
-          <Route path="/support" element={<SupportPage />} />
-          <Route path="/delete-account" element={<DeleteAccountPage />} />
-          <Route path="/test-notification" element={<WebNotificationPage />} />
+            {/* --- Protected mobile routes --- */}
+            <Route
+              path="/dashboard"
+              element={
+                isMobile ? (
+                  <ProtectedRoute>
+                    <LandingPage deviceDetails={deviceUuid} />
+                  </ProtectedRoute>
+                ) : (
+                  <MobileAppRequired />
+                )
+              }
+            />
+            <Route
+              path="/settings/notifications"
+              element={
+                isMobile ? (
+                  <ProtectedRoute>
+                    <NotificationSettings />
+                  </ProtectedRoute>
+                ) : (
+                  <MobileAppRequired />
+                )
+              }
+            />
+            <Route
+              path="/settings/devices"
+              element={
+                isMobile ? (
+                  <ProtectedRoute>
+                    <DeviceManagementPage />
+                  </ProtectedRoute>
+                ) : (
+                  <MobileAppRequired />
+                )
+              }
+            />
+            <Route
+              path="/biometricModal"
+              element={
+                isMobile ? (
+                  <BiometricRegistrationModal deviceDetails={deviceUuid} />
+                ) : (
+                  <MobileAppRequired />
+                )
+              }
+            />
+            <Route
+              path="/pending-registration"
+              element={<PendingRegistrationPage />}
+            />
 
-          {/* --- Mobile-only auth routes (redirect web visitors) --- */}
-          <Route
-            path="/login"
-            element={
-              isMobile ? (
-                <LoginPage deviceDetails={deviceUuid} />
-              ) : (
-                <MobileAppRequired mode="login" />
-              )
-            }
-          />
-          <Route
-            path="/onboarding"
-            element={
-              isRegistered ? (
-                <Navigate to="/login" replace />
-              ) : isMobile ? (
-                <RegistrationOnboardingPage />
-              ) : (
-                <MobileAppRequired mode="register" />
-              )
-            }
-          />
-          <Route
-            path="/register"
-            element={
-              isRegistered ? (
-                <Navigate to="/login" replace />
-              ) : isMobile ? (
-                <RegistrationPage deviceDetails={deviceUuid} />
-              ) : (
-                <MobileAppRequired mode="register" />
-              )
-            }
-          />
-          <Route
-            path="/welcome"
-            element={
-              isMobile ? (
-                <WelcomePage deviceDetails={deviceUuid} />
-              ) : (
-                <MobileAppRequired />
-              )
-            }
-          />
-
-          {/* --- Protected mobile routes --- */}
-          <Route
-            path="/dashboard"
-            element={
-              isMobile ? (
-                <ProtectedRoute>
-                  <LandingPage deviceDetails={deviceUuid} />
-                </ProtectedRoute>
-              ) : (
-                <MobileAppRequired />
-              )
-            }
-          />
-          <Route
-            path="/biometricModal"
-            element={
-              isMobile ? (
-                <BiometricRegistrationModal deviceDetails={deviceUuid} />
-              ) : (
-                <MobileAppRequired />
-              )
-            }
-          />
-          <Route
-            path="/pending-registration"
-            element={<PendingRegistrationPage />}
-          />
-
-          {/* --- Catch-all 404 --- */}
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
-      </Suspense>
-    </Router>
+            {/* --- Catch-all 404 --- */}
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </Suspense>
+      </Router>
+    </ChunkLoadErrorBoundary>
   );
 };

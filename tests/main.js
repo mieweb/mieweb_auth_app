@@ -1,4 +1,7 @@
 import assert from "assert";
+import "./duo.js";
+import "./healthcheck.js";
+import "./deviceManagement.js";
 
 describe("meteor-app", function () {
   it("package.json has correct name", async function () {
@@ -289,6 +292,106 @@ describe("meteor-app", function () {
         assert.strictEqual(await Meteor.users.find().countAsync(), 0);
         assert.strictEqual(await DeviceDetails.find().countAsync(), 0);
         assert.strictEqual(await ApprovalTokens.find().countAsync(), 0);
+      });
+    });
+
+    describe("Biometric credential recovery", function () {
+      const { DeviceDetails } = require("../utils/api/deviceDetails");
+      let userId;
+
+      beforeEach(async function () {
+        await Meteor.users.removeAsync({});
+        await DeviceDetails.removeAsync({});
+        userId = await Accounts.createUserAsync({
+          email: "biometric-recovery@example.com",
+          username: "biometric-recovery",
+          password: "123456",
+        });
+        await DeviceDetails.insertAsync({
+          userId,
+          email: "biometric-recovery@example.com",
+          username: "biometric-recovery",
+          devices: [
+            {
+              deviceUUID: "approved-device",
+              biometricSecret: "old-secret",
+              deviceRegistrationStatus: "approved",
+            },
+            {
+              deviceUUID: "pending-device",
+              biometricSecret: "pending-secret",
+              deviceRegistrationStatus: "pending",
+            },
+          ],
+        });
+      });
+
+      it("rotates the secret for the authenticated approved device", async function () {
+        const handler =
+          Meteor.server.method_handlers["users.rotateBiometricSecret"];
+        const result = await handler.apply({ userId, connection: null }, [
+          {
+            deviceUUID: "approved-device",
+            biometricSecret: "new-secret",
+          },
+        ]);
+
+        const userDoc = await DeviceDetails.findOneAsync({ userId });
+        const approvedDevice = userDoc.devices.find(
+          (device) => device.deviceUUID === "approved-device",
+        );
+        assert.deepStrictEqual(result, { success: true });
+        assert.strictEqual(approvedDevice.biometricSecret, "new-secret");
+      });
+
+      it("rejects rotation without an authenticated user", async function () {
+        const handler =
+          Meteor.server.method_handlers["users.rotateBiometricSecret"];
+
+        await assert.rejects(
+          handler.apply({ userId: null, connection: null }, [
+            {
+              deviceUUID: "approved-device",
+              biometricSecret: "new-secret",
+            },
+          ]),
+          (error) => error.error === "not-authorized",
+        );
+      });
+
+      it("rejects rotation for an unapproved device", async function () {
+        const handler =
+          Meteor.server.method_handlers["users.rotateBiometricSecret"];
+
+        await assert.rejects(
+          handler.apply({ userId, connection: null }, [
+            {
+              deviceUUID: "pending-device",
+              biometricSecret: "new-secret",
+            },
+          ]),
+          (error) => error.error === "device-not-approved",
+        );
+      });
+
+      it("rejects rotation for another user's device", async function () {
+        const otherUserId = await Accounts.createUserAsync({
+          email: "other-biometric-user@example.com",
+          username: "other-biometric-user",
+          password: "123456",
+        });
+        const handler =
+          Meteor.server.method_handlers["users.rotateBiometricSecret"];
+
+        await assert.rejects(
+          handler.apply({ userId: otherUserId, connection: null }, [
+            {
+              deviceUUID: "approved-device",
+              biometricSecret: "new-secret",
+            },
+          ]),
+          (error) => error.error === "device-not-approved",
+        );
       });
     });
 
@@ -1116,4 +1219,69 @@ describe("meteor-app", function () {
       });
     });
   }
+
+  describe("Watch support — notification action contract", function () {
+    const {
+      APPROVAL_CATEGORY_ID,
+      APPROVE_ACTION,
+      REJECT_ACTION,
+      APPROVAL_ACTIONS,
+      IOS_APPROVAL_CATEGORIES,
+      REQUIRED_ACTION_DATA_FIELDS,
+    } = require("../utils/constants");
+
+    it("registers a static iOS category id matching aps.category", function () {
+      // The server sets aps.category = "APPROVAL"; the statically registered
+      // iOS category id must equal it or Apple Watch renders no buttons.
+      assert.strictEqual(APPROVAL_CATEGORY_ID, "APPROVAL");
+      assert.ok(
+        Object.prototype.hasOwnProperty.call(
+          IOS_APPROVAL_CATEGORIES,
+          APPROVAL_CATEGORY_ID,
+        ),
+        "iOS categories must contain the APPROVAL category",
+      );
+    });
+
+    it("iOS APPROVAL category actions match the push.on() handler ids", function () {
+      const category = IOS_APPROVAL_CATEGORIES[APPROVAL_CATEGORY_ID];
+      // `yes`/`no` map to the approve/reject UNNotificationActions; the
+      // `callback` is the action identifier emitted to push.on(...).
+      assert.strictEqual(category.yes.callback, APPROVE_ACTION);
+      assert.strictEqual(category.no.callback, REJECT_ACTION);
+      // Both actions MUST run in the background (foreground: false). watchOS
+      // hides foreground actions for mirrored notifications, so background
+      // actions are what render Approve/Reject on the wrist and route through
+      // the push.on() handlers. Reject is destructive.
+      assert.strictEqual(category.yes.foreground, false);
+      assert.strictEqual(category.no.foreground, false);
+      assert.strictEqual(category.no.destructive, true);
+    });
+
+    it("Android action descriptors expose approve and reject callbacks", function () {
+      // On Android these become NotificationCompat actions (bridged to Wear OS).
+      const callbacks = APPROVAL_ACTIONS.map((a) => a.callback);
+      assert.deepStrictEqual(callbacks, [APPROVE_ACTION, REJECT_ACTION]);
+      APPROVAL_ACTIONS.forEach((action) => {
+        assert.strictEqual(
+          typeof action.title,
+          "string",
+          "each action needs a title to render a button",
+        );
+        assert.strictEqual(
+          action.foreground,
+          true,
+          "actions run in foreground to reach the handler",
+        );
+      });
+    });
+
+    it("requires userId and notificationId for a tray/watch action", function () {
+      // handleActionFromTray bails unless both are present in the data payload.
+      assert.deepStrictEqual(REQUIRED_ACTION_DATA_FIELDS, [
+        "userId",
+        "notificationId",
+      ]);
+    });
+  });
 });

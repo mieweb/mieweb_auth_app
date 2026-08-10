@@ -272,6 +272,11 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Setup Android SDK 36
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+
       - name: Install Meteor
         run: |
           curl https://install.meteor.com/ | sh
@@ -311,6 +316,30 @@ jobs:
           meteor build ./android-build \
             --platforms android \
             --server=https://mieauth-dev.os.mieweb.org
+
+      - name: Verify AAB targets Android API 36
+        run: |
+          BUNDLETOOL_VERSION="1.18.2"
+          BUNDLETOOL_JAR="${RUNNER_TEMP}/bundletool.jar"
+          UNSIGNED_AAB=$(find android-build -name "*.aab" -type f | head -1)
+          if [ -z "$UNSIGNED_AAB" ]; then
+            echo "ERROR: No AAB file found"
+            exit 1
+          fi
+
+          curl -fsSL \
+            "https://github.com/google/bundletool/releases/download/${BUNDLETOOL_VERSION}/bundletool-all-${BUNDLETOOL_VERSION}.jar" \
+            -o "$BUNDLETOOL_JAR"
+
+          TARGET_SDK=$(java -jar "$BUNDLETOOL_JAR" dump manifest \
+            --bundle="$UNSIGNED_AAB" \
+            --xpath=/manifest/uses-sdk/@android:targetSdkVersion)
+
+          if [ "$TARGET_SDK" != "36" ]; then
+            echo "ERROR: Expected target SDK 36, found ${TARGET_SDK:-unknown}"
+            exit 1
+          fi
+          echo "Verified AAB target SDK: $TARGET_SDK"
 
       - name: Decode Keystore
         run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > mieauth-release-key.jks

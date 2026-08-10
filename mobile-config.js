@@ -5,16 +5,27 @@ App.info({
   author: "Anshul Abrol",
   email: "abrol.anshul10@gmail.com",
   website: "https://mieauth-prod.os.mieweb.org",
-  version: '1.4.33',
+  version: '1.5.9',
 });
 
-App.setPreference("android-targetSdkVersion", "35");
-App.setPreference("android-compileSdkVersion", "35");
+App.setPreference("android-targetSdkVersion", "36");
+App.setPreference("android-compileSdkVersion", "36");
+App.setPreference("android-buildToolsVersion", "36.0.0");
+App.setPreference("deployment-target", "15.0", "ios");
 // Preferences per latest Meteor docs
-App.setPreference("BackgroundColor", "#000000ff");
+// Use the brand color (matches SplashScreenBackgroundColor) instead of black so
+// the WebView background shown during hot code push reloads is not a black flash.
+App.setPreference("BackgroundColor", "#27AAE1ff");
 App.setPreference("HideKeyboardFormAccessoryBar", true);
 App.setPreference("Orientation", "default");
 App.setPreference("Orientation", "all", "ios");
+
+// cordova.plugins.diagnostic is only used to open the OS app-settings screen
+// (switchToSettings(), part of the always-installed core module) so users can
+// re-enable notifications after denying them. Restrict it to the core module so
+// the optional Location/Bluetooth/Camera/etc. modules — and their associated
+// permissions and iOS usage-description strings — are NOT added to the app.
+App.setPreference("cordova.plugins.diagnostic.modules", "");
 
 App.setPreference("FadeSplashScreen", true);
 App.setPreference("AutoHideSplashScreen", true);
@@ -28,6 +39,14 @@ App.setPreference("CordovaWebViewEngine", "CDVWKWebViewEngine", "ios");
 App.appendToConfig(`
   <edit-config target="NSCameraUsageDescription" file="*-Info.plist" mode="merge">
     <string>MIE Auth needs camera access to scan QR codes for account registration.</string>
+  </edit-config>
+`);
+
+// App uses only standard HTTPS/TLS (exempt encryption), so declare it here to
+// skip the TestFlight export-compliance prompt on every upload.
+App.appendToConfig(`
+  <edit-config target="ITSAppUsesNonExemptEncryption" file="*-Info.plist" mode="overwrite">
+    <false/>
   </edit-config>
 `);
 
@@ -103,6 +122,8 @@ App.configurePlugin("cordova-plugin-inappbrowser", {});
 App.configurePlugin("cordova-plugin-customurlscheme", {
   URL_SCHEME: "mieauth",
 });
+App.configurePlugin("cordova-plugin-native-logs", {});
+App.configurePlugin("cordova-plugin-diagnostics-viewer", {});
 
 App.addResourceFile(
   "private/android/google-services.json",
