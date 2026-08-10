@@ -5,7 +5,7 @@ App.info({
   author: "Anshul Abrol",
   email: "abrol.anshul10@gmail.com",
   website: "https://mieauth-prod.os.mieweb.org",
-  version: '1.5.10',
+  version: "1.5.10",
 });
 
 App.setPreference("android-targetSdkVersion", "36");
@@ -34,6 +34,10 @@ App.setPreference("SplashScreenBackgroundColor", "#27AAE1");
 // Enable camera access in WebView for html5-qrcode (getUserMedia)
 App.setPreference("AllowInlineMediaPlayback", true);
 App.setPreference("CordovaWebViewEngine", "CDVWKWebViewEngine", "ios");
+
+// iOS 16.4+ blocks Safari Web Inspector unless the WKWebView opts in
+// (Safari > Develop > <device> shows nothing otherwise).
+App.setPreference("InspectableWebview", true, "ios");
 
 // Add necessary iOS permissions for Camera
 App.appendToConfig(`
