@@ -60,57 +60,56 @@ something that stays on the original physical phone:
 
 ## Phase 1 — Server: v2 installation identity (additive only)
 
-- [ ] Extend the device schema in
+- [x] Extend the device schema in
       [utils/api/deviceDetails.js](utils/api/deviceDetails.js) with new optional fields:
       `installationId`, `publicKey`, `identityVersion` (1 = legacy, 2 = migrated),
       `migratedAt`, `migrationProof` (`"biometric" | "fcm-challenge" | "manual-approval"`).
-- [ ] Create `MigrationChallenges` collection (`utils/api/migrationChallenges.js`):
+- [x] Create `MigrationChallenges` collection (`utils/api/migrationChallenges.js`):
       `{ userId, deviceUUID, challenge, createdAt, expiresAt (5 min), usedAt }` with a
       TTL index on `expiresAt`.
-- [ ] Add method `devices.beginIdentityMigration({ deviceUUID, installationId, publicKey })`: - requires `this.userId` - device must exist, belong to caller, and be `approved` - device must not already have `identityVersion: 2` - creates a challenge record and returns `{ challengeId }` (NOT the challenge value)
-- [ ] Add method `devices.proveMigrationByBiometric({ challengeId, biometricSecret, signedChallenge })`: - timing-safe compare of `biometricSecret` against the stored device secret
+- [x] Add method `devices.beginIdentityMigration({ deviceUUID, installationId, publicKey })`: - requires `this.userId` - device must exist, belong to caller, and be `approved` - device must not already have `identityVersion: 2` - creates a challenge record and returns `{ challengeId }` (NOT the challenge value)
+- [x] Add method `devices.proveMigrationByBiometric({ challengeId, biometricSecret, signedChallenge })`: - timing-safe compare of `biometricSecret` against the stored device secret
       (reuse the pattern in [server/deviceManagement.js](server/deviceManagement.js#L80)) - verify `signedChallenge` against the submitted `publicKey` - on success: set `identityVersion: 2`, `migrationProof: "biometric"`, bind
       `installationId`/`publicKey`, mark challenge used
-- [ ] Add method `devices.requestMigrationPushChallenge({ challengeId })`: - sends the challenge value via `sendNotification` (see
+- [x] Add method `devices.requestMigrationPushChallenge({ challengeId })`: - sends the challenge value via `sendNotification` (see
       [server/firebase.js](server/firebase.js)) as a **data-only** push to the FCM
       token **already stored in Mongo** for that device — never to a token supplied by
       the caller
-- [ ] Add method `devices.proveMigrationByPush({ challengeId, challengeValue, signedChallenge })`: - challenge value must match, be unexpired and unused - verify signature; on success set `identityVersion: 2`,
+- [x] Add method `devices.proveMigrationByPush({ challengeId, challengeValue, signedChallenge })`: - challenge value must match, be unexpired and unused - verify signature; on success set `identityVersion: 2`,
       `migrationProof: "fcm-challenge"`, bind identity, mark used
-- [ ] Only after successful migration may `devices.updateFCMToken` replace the stored
-      token for that device (update the Phase 0 method to enforce this once Phase 3
-      client code ships).
-- [ ] Signature scheme: ECDSA P-256, SHA-256 over the raw challenge bytes; verify with
+- [x] Only after successful migration may `devices.updateFCMToken` replace the stored
+      token for that device (delivered flag-gated via `IDENTITY_ENFORCEMENT`, Phase 5).
+- [x] Signature scheme: ECDSA P-256, SHA-256 over the raw challenge bytes; verify with
       Node `crypto.verify`. Public key transported as base64 SPKI DER.
-- [ ] Tests in [tests/deviceManagement.js](tests/deviceManagement.js): expired challenge
+- [x] Tests in [tests/identityMigration.js](tests/identityMigration.js): expired challenge
       rejected, reused challenge rejected, wrong signature rejected, cross-user attempt
       rejected, successful biometric path, successful push path.
 
 ## Phase 2 — Client: generate identity + silent migration
 
-- [ ] Add a Cordova-compatible keypair module `client/mobile/installation-identity.js`: - generate an ECDSA P-256 keypair via WebCrypto (`crypto.subtle`), marked
+- [x] Add a Cordova-compatible keypair module `client/mobile/installation-identity.js`: - generate an ECDSA P-256 keypair via WebCrypto (`crypto.subtle`), marked
       non-extractable where possible - persist via a secure-storage plugin with iOS `ThisDeviceOnly` accessibility;
       fall back to documenting the storage guarantee actually achieved - expose `getOrCreateIdentity()` → `{ installationId, publicKeyB64, sign(bytes) }`
-- [ ] On app start after login (hook into the dashboard-load path used by
+- [x] On app start after login (hook into the dashboard-load path used by
       `devices.checkRegistrationByUUID` /
       [client/mobile/src/ui/hooks/useDeviceRegistration.js](client/mobile/src/ui/hooks/useDeviceRegistration.js)):
       if this device is approved and has no v2 identity, run the migration flow
       automatically — no UI unless it fails.
-- [ ] Migration flow order: 1. `devices.beginIdentityMigration` 2. try biometric proof (reuse `loadBiometricSecret` pattern from
+- [x] Migration flow order: 1. `devices.beginIdentityMigration` 2. try biometric proof (reuse `loadBiometricSecret` pattern from
       [client/mobile/src/ui/Login.jsx](client/mobile/src/ui/Login.jsx)) 3. if biometric unavailable → `devices.requestMigrationPushChallenge`, listen for
       the data push in
       [client/mobile/push-notifications.js](client/mobile/push-notifications.js)
       (`notificationType: "migration_challenge"`), then `devices.proveMigrationByPush` 4. if both fail → do nothing yet (Phase 4 adds the fallback UI)
-- [ ] Retry at most once per app launch; never block the UI on migration.
-- [ ] Add a `migration_challenge` branch to the notification handler that does NOT
+- [x] Retry at most once per app launch; never block the UI on migration.
+- [x] Add a `migration_challenge` branch to the notification handler that does NOT
       surface a banner/modal (data-only handling).
 
 ## Phase 3 — Observation rollout
 
-- [ ] Add counters the admin can read (extend
+- [x] Add counters the admin can read (extend
       [server/adminApi.js](server/adminApi.js) diagnostics): totals of devices at
       `identityVersion` 1 vs 2, and counts per `migrationProof`.
-- [ ] Add a `migrationEvents` capped log (userId, deviceUUID, outcome, error) for
+- [x] Add a `migrationEvents` capped log (userId, deviceUUID, outcome, error) for
       debugging failed silent migrations.
 - [ ] Ship the release. Wait until v2 coverage is high (target: >90% of devices active
       in the last 30 days) before Phase 5. Check weekly via the admin diagnostics tab.
@@ -122,9 +121,9 @@ something that stays on the original physical phone:
       attempts: "We couldn't verify this installation" with actions: - request approval from another approved device (reuse the secondary-approval
       push flow in [server/firebase.js](server/firebase.js)
       `sendSecondaryDeviceApprovalRequest`) - contact admin (existing admin approval flow in [server/main.js](server/main.js))
-- [ ] Approval via either path sets `identityVersion: 2`,
+- [x] Approval via either path sets `identityVersion: 2`,
       `migrationProof: "manual-approval"` and binds the new installation identity.
-- [ ] Add "Mark as lost" to
+- [x] Add "Mark as lost" to
       [client/mobile/src/ui/DeviceManagementPage.jsx](client/mobile/src/ui/DeviceManagementPage.jsx):
       revokes the device (existing revocation path in
       [server/deviceManagement.js](server/deviceManagement.js)), clears its resume
@@ -132,11 +131,11 @@ something that stays on the original physical phone:
 
 ## Phase 5 — Enforcement
 
-- [ ] `devices.updateFCMToken`: require `identityVersion: 2` + a signed challenge.
-- [ ] `notifications.handleResponse` ([server/main.js](server/main.js)): require the
+- [x] `devices.updateFCMToken`: require `identityVersion: 2` + a signed challenge.
+- [x] `notifications.handleResponse` ([server/main.js](server/main.js)): require the
       responding device to be v2 and verify a signature over
       `notificationId + action`.
-- [ ] Login: after `checkRegistrationStatus`, also verify the **current device** is
+- [x] Login: after `checkRegistrationStatus`, also verify the **current device** is
       approved and v2 (new method `devices.checkDeviceApproval({ deviceUUID })`) — fixes
       the account-level-only check in
       [client/mobile/src/ui/Login.jsx](client/mobile/src/ui/Login.jsx).
