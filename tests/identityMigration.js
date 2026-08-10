@@ -373,5 +373,44 @@ if (Meteor.isServer) {
         );
       });
     });
+
+    describe("migration event logging", function () {
+      const { MigrationEvents } = require("../utils/api/migrationEvents");
+
+      // logMigrationEvent is fire-and-forget; give the insert a beat to land.
+      const waitForEvents = () => new Promise((r) => setTimeout(r, 50));
+
+      afterEach(async function () {
+        await MigrationEvents.removeAsync({
+          userId: { $in: [USER_A, USER_B] },
+        });
+      });
+
+      it("records successful and failed attempts", async function () {
+        const keyPair = makeKeyPair();
+        const { challengeId, signingChallenge } = await beginMigration(keyPair);
+
+        await assert.rejects(
+          callMethod(
+            "devices.proveMigrationByBiometric",
+            { userId: USER_A },
+            {
+              challengeId,
+              biometricSecret: "wrong-secret",
+              signedChallenge: keyPair.sign(signingChallenge),
+            },
+          ),
+          /proof-failed/,
+        );
+        await waitForEvents();
+
+        const events = await MigrationEvents.find({
+          userId: USER_A,
+        }).fetchAsync();
+        const outcomes = events.map((e) => `${e.action}:${e.outcome}`);
+        assert.ok(outcomes.includes("begin:success"));
+        assert.ok(outcomes.includes("prove-biometric:proof-failed"));
+      });
+    });
   });
 }

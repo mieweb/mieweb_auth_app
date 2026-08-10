@@ -774,6 +774,13 @@ const DiagnosticsTab = ({ toast, toastErr }) => {
   const [notFound, setNotFound] = useState(false);
   const [pushResults, setPushResults] = useState({});
   const [pushing, setPushing] = useState(null);
+  const [migration, setMigration] = useState(null);
+
+  useEffect(() => {
+    api('/api/admin/diagnostics/identity-migration')
+      .then(res => { if (res.success) setMigration(res); })
+      .catch(() => {});
+  }, []);
 
   const lookup = async (e) => {
     if (e) e.preventDefault();
@@ -811,6 +818,30 @@ const DiagnosticsTab = ({ toast, toastErr }) => {
 
   return (
     <div className="space-y-6 fade-in">
+      {/* Identity migration rollout coverage */}
+      {migration && (
+        <div className="bg-white rounded-xl shadow-sm border p-5">
+          <h3 className="font-semibold text-gray-900 mb-1">Identity Migration (v1 → v2)</h3>
+          <p className="text-xs text-gray-500 mb-3">Coverage of the installation-identity rollout. Enforcement (Phase 5) requires &gt;90% of devices active in the last 30 days to be v2.</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+            <div className="bg-gray-50 rounded-lg p-3"><p className="text-xs text-gray-500">Devices (total)</p><p className="font-semibold text-lg">{migration.devices.total}</p></div>
+            <div className="bg-gray-50 rounded-lg p-3"><p className="text-xs text-gray-500">v2 migrated</p><p className="font-semibold text-lg">{migration.devices.v2} <span className="text-xs text-gray-400">/ {migration.devices.v1} still v1</span></p></div>
+            <div className="bg-gray-50 rounded-lg p-3"><p className="text-xs text-gray-500">30-day-active coverage</p><p className="font-semibold text-lg">{migration.devices.activeLast30d ? Math.round(100 * migration.devices.v2ActiveLast30d / migration.devices.activeLast30d) : 0}%</p></div>
+            <div className="bg-gray-50 rounded-lg p-3"><p className="text-xs text-gray-500">By proof</p><p className="text-xs">{Object.entries(migration.devices.byProof).map(([k, v]) => k + ': ' + v).join(' · ') || '—'}</p></div>
+          </div>
+          {migration.recentFailures.length > 0 && (
+            <div className="mt-3">
+              <p className="text-xs font-semibold text-gray-700 mb-1">Recent failures</p>
+              <ul className="text-xs text-gray-600 space-y-0.5">
+                {migration.recentFailures.slice(0, 5).map((f, i) => (
+                  <li key={i}><code className="bg-gray-100 px-1 rounded">{f.action}</code> → {f.outcome}{f.message ? ' — ' + f.message : ''} <span className="text-gray-400">({new Date(f.createdAt).toLocaleString()})</span></li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Search */}
       <div className="bg-white rounded-xl shadow-sm border p-5">
         <h3 className="font-semibold text-gray-900 mb-1">User Diagnostics</h3>

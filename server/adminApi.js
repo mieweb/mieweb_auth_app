@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { ApiKeys } from "../utils/api/apiKeys";
 import { DeviceDetails } from "../utils/api/deviceDetails";
 import { EmailLog } from "../utils/api/emailLog";
+import { MigrationEvents } from "../utils/api/migrationEvents";
 import { NotificationHistory } from "../utils/api/notificationHistory";
 import { sendNotification } from "./firebase";
 import {
@@ -1007,6 +1008,105 @@ WebApp.connectHandlers.use(
               : `FCM rejected the message: ${fcmErr.message}`,
           });
         }
+      } catch (err) {
+        const mapped = mapMeteorError(err);
+        sendJson(res, mapped.status, {
+          error: mapped.error,
+          errorCode: mapped.errorCode,
+        });
+      }
+    });
+  },
+);
+
+// Rollout coverage for the v1 -> v2 identity migration (migration-plan.md
+// Phase 3): device counts per identity version / proof, and recent failures.
+WebApp.connectHandlers.use(
+  "/api/admin/diagnostics/identity-migration",
+  async (req, res) => {
+    setCors(res);
+    if (req.method === "OPTIONS") {
+      res.writeHead(200);
+      res.end();
+      return;
+    }
+    if (req.method !== "GET")
+      return sendJson(res, 405, { error: "Method not allowed" });
+
+    await requireAdminAuth(req, res, async () => {
+      try {
+        const THIRTY_DAYS_AGO = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+        const [stats] = await DeviceDetails.rawCollection()
+          .aggregate([
+            { $unwind: "$devices" },
+            {
+              $group: {
+                _id: null,
+                total: { $sum: 1 },
+                v2: {
+                  $sum: {
+                    $cond: [{ $eq: ["$devices.identityVersion", 2] }, 1, 0],
+                  },
+                },
+                v2ActiveLast30d: {
+                  $sum: {
+                    $cond: [
+                      {
+                        $and: [
+                          { $eq: ["$devices.identityVersion", 2] },
+                          { $gte: ["$devices.lastUsed", THIRTY_DAYS_AGO] },
+                        ],
+                      },
+                      1,
+                      0,
+                    ],
+                  },
+                },
+                activeLast30d: {
+                  $sum: {
+                    $cond: [
+                      { $gte: ["$devices.lastUsed", THIRTY_DAYS_AGO] },
+                      1,
+                      0,
+                    ],
+                  },
+                },
+                byProof: { $push: "$devices.migrationProof" },
+              },
+            },
+          ])
+          .toArray();
+
+        const proofCounts = {};
+        (stats?.byProof || []).forEach((proof) => {
+          if (proof) proofCounts[proof] = (proofCounts[proof] || 0) + 1;
+        });
+
+        const recentFailures = await MigrationEvents.find(
+          { outcome: { $ne: "success" } },
+          { sort: { createdAt: -1 }, limit: 20 },
+        ).fetchAsync();
+
+        sendJson(res, 200, {
+          success: true,
+          devices: {
+            total: stats?.total || 0,
+            v2: stats?.v2 || 0,
+            v1: (stats?.total || 0) - (stats?.v2 || 0),
+            activeLast30d: stats?.activeLast30d || 0,
+            v2ActiveLast30d: stats?.v2ActiveLast30d || 0,
+            byProof: proofCounts,
+          },
+          recentFailures: recentFailures.map((event) => ({
+            action: event.action,
+            outcome: event.outcome,
+            message: event.message,
+            userId: event.userId,
+            deviceUUID: event.deviceUUID,
+            createdAt: event.createdAt,
+          })),
+        });
       } catch (err) {
         const mapped = mapMeteorError(err);
         sendJson(res, mapped.status, {
