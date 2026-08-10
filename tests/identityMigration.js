@@ -452,6 +452,140 @@ if (Meteor.isServer) {
       });
     });
 
+    describe("identity enforcement (IDENTITY_ENFORCEMENT flag)", function () {
+      const migrateDeviceV1ToV2 = async () => {
+        const keyPair = makeKeyPair();
+        const { challengeId, signingChallenge } = await beginMigration(keyPair);
+        await callMethod(
+          "devices.proveMigrationByBiometric",
+          { userId: USER_A },
+          {
+            challengeId,
+            biometricSecret: BIO_SECRET,
+            signedChallenge: keyPair.sign(signingChallenge),
+          },
+        );
+        return keyPair;
+      };
+
+      afterEach(function () {
+        delete process.env.IDENTITY_ENFORCEMENT;
+      });
+
+      it("flag off: token update succeeds without a proof", async function () {
+        const result = await callMethod(
+          "devices.updateFCMToken",
+          { userId: USER_A },
+          { deviceUUID: "uuid-v1", fcmToken: "fcm-rotated" },
+        );
+        assert.strictEqual(result.updated, true);
+      });
+
+      it("flag on: rejects a v1 device without identity", async function () {
+        process.env.IDENTITY_ENFORCEMENT = "true";
+        await assert.rejects(
+          callMethod(
+            "devices.updateFCMToken",
+            { userId: USER_A },
+            { deviceUUID: "uuid-v1", fcmToken: "fcm-rotated" },
+          ),
+          /identity-required/,
+        );
+      });
+
+      it("flag on: rejects a missing or stale proof from a v2 device", async function () {
+        const keyPair = await migrateDeviceV1ToV2();
+        process.env.IDENTITY_ENFORCEMENT = "true";
+
+        await assert.rejects(
+          callMethod(
+            "devices.updateFCMToken",
+            { userId: USER_A },
+            { deviceUUID: "uuid-v1", fcmToken: "fcm-rotated" },
+          ),
+          /identity-proof-invalid/,
+        );
+
+        const staleSignedAt = Date.now() - 10 * 60 * 1000;
+        await assert.rejects(
+          callMethod(
+            "devices.updateFCMToken",
+            { userId: USER_A },
+            {
+              deviceUUID: "uuid-v1",
+              fcmToken: "fcm-rotated",
+              identityProof: {
+                signedAt: staleSignedAt,
+                signature: keyPair.sign(
+                  `updateFCMToken:uuid-v1:fcm-rotated|${staleSignedAt}`,
+                ),
+              },
+            },
+          ),
+          /identity-proof-invalid/,
+        );
+      });
+
+      it("flag on: accepts a fresh valid proof from a v2 device", async function () {
+        const keyPair = await migrateDeviceV1ToV2();
+        process.env.IDENTITY_ENFORCEMENT = "true";
+
+        const signedAt = Date.now();
+        const result = await callMethod(
+          "devices.updateFCMToken",
+          { userId: USER_A },
+          {
+            deviceUUID: "uuid-v1",
+            fcmToken: "fcm-rotated",
+            identityProof: {
+              signedAt,
+              signature: keyPair.sign(
+                `updateFCMToken:uuid-v1:fcm-rotated|${signedAt}`,
+              ),
+            },
+          },
+        );
+        assert.strictEqual(result.updated, true);
+      });
+
+      it("flag on: rejects a proof signed by a different key", async function () {
+        await migrateDeviceV1ToV2();
+        const attacker = makeKeyPair();
+        process.env.IDENTITY_ENFORCEMENT = "true";
+
+        const signedAt = Date.now();
+        await assert.rejects(
+          callMethod(
+            "devices.updateFCMToken",
+            { userId: USER_A },
+            {
+              deviceUUID: "uuid-v1",
+              fcmToken: "fcm-rotated",
+              identityProof: {
+                signedAt,
+                signature: attacker.sign(
+                  `updateFCMToken:uuid-v1:fcm-rotated|${signedAt}`,
+                ),
+              },
+            },
+          ),
+          /identity-proof-invalid/,
+        );
+      });
+
+      it("devices.checkDeviceApproval reports device state and flag", async function () {
+        const result = await callMethod(
+          "devices.checkDeviceApproval",
+          { userId: USER_A },
+          { deviceUUID: "uuid-v1" },
+        );
+        assert.strictEqual(result.registered, true);
+        assert.strictEqual(result.approved, true);
+        assert.strictEqual(result.identityVersion, 1);
+        assert.strictEqual(result.enforced, false);
+      });
+    });
+
     describe("migration event logging", function () {
       const { MigrationEvents } = require("../utils/api/migrationEvents");
 

@@ -2,7 +2,7 @@ import { Meteor } from "meteor/meteor";
 import { Session } from "meteor/session";
 import { Tracker } from "meteor/tracker";
 import { IOS_APPROVAL_CATEGORIES } from "../../utils/constants.js";
-import { completePushMigration } from "./identity-migration.js";
+import { completePushMigration, signOperation } from "./identity-migration.js";
 
 // Session validation with retry logic
 const validateSessionWithRetry = (callback, retries = 3, interval = 1000) => {
@@ -24,13 +24,17 @@ const validateSessionWithRetry = (callback, retries = 3, interval = 1000) => {
 };
 
 const sendUserAction = (userId, action, notificationId, deviceUUID) => {
-  validateSessionWithRetry(() => {
+  validateSessionWithRetry(async () => {
+    // Phase 5: sign the exact notification + action with the installation
+    // key. Null when unavailable — server accepts that until enforcement.
+    const identityProof = await signOperation(`${notificationId}:${action}`);
     Meteor.call(
       "notifications.handleResponse",
       userId,
       action,
       notificationId,
       deviceUUID,
+      identityProof,
       (error, result) => {
         // Clear the in-flight flag so future notifications can open the modal
         Session.set("actionPerformedFromTray", false);
@@ -159,16 +163,24 @@ const setupTokenReconciliation = () => {
     if (key === lastReconciledKey) return;
     lastReconciledKey = key;
 
-    Meteor.call("devices.updateFCMToken", { deviceUUID, fcmToken }, (error) => {
-      if (error) {
-        // Allow a retry on the next reactive change (e.g. re-login).
-        lastReconciledKey = null;
-        console.warn(
-          "FCM token reconciliation failed:",
-          error.reason || error.message,
+    signOperation(`updateFCMToken:${deviceUUID}:${fcmToken}`).then(
+      (identityProof) => {
+        Meteor.call(
+          "devices.updateFCMToken",
+          { deviceUUID, fcmToken, identityProof },
+          (error) => {
+            if (error) {
+              // Allow a retry on the next reactive change (e.g. re-login).
+              lastReconciledKey = null;
+              console.warn(
+                "FCM token reconciliation failed:",
+                error.reason || error.message,
+              );
+            }
+          },
         );
-      }
-    });
+      },
+    );
   });
 };
 
