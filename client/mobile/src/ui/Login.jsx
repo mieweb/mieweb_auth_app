@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { openSupportLink } from "../../../../utils/openExternal";
+import { migrateWithBiometricSecret } from "../../identity-migration";
 import { Meteor } from "meteor/meteor";
 import { Session } from "meteor/session";
 import { Random } from "meteor/random";
@@ -227,6 +228,9 @@ export const LoginPage = ({ deviceDetails }) => {
                   username: result.username,
                   _id: result._id,
                 });
+                // Fire-and-forget: the device-bound secret is already in hand,
+                // so upgrade this installation to a v2 identity silently.
+                migrateWithBiometricSecret(biometricSecret);
                 navigate("/dashboard");
               } else {
                 await new Promise((res) => Meteor.logout(res));

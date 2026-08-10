@@ -2,6 +2,7 @@ import { Meteor } from "meteor/meteor";
 import { Session } from "meteor/session";
 import { Tracker } from "meteor/tracker";
 import { IOS_APPROVAL_CATEGORIES } from "../../utils/constants.js";
+import { completePushMigration } from "./identity-migration.js";
 
 // Session validation with retry logic
 const validateSessionWithRetry = (callback, retries = 3, interval = 1000) => {
@@ -222,6 +223,12 @@ const setupNotificationHandler = (push) => {
   push.on("notification", (notification) => {
     Meteor.startup(() => {
       const additionalData = notification.additionalData || {};
+
+      // Data-only identity-migration challenge — handled silently, no UI.
+      if (additionalData.notificationType === "migration_challenge") {
+        completePushMigration(additionalData);
+        return;
+      }
 
       // Skip if action was already handled from the notification tray. Do NOT
       // clear the flag here — the tray-action request may still be in flight,
