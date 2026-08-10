@@ -1,5 +1,6 @@
 import { Meteor } from "meteor/meteor";
 import { Session } from "meteor/session";
+import { Tracker } from "meteor/tracker";
 import { IOS_APPROVAL_CATEGORIES } from "../../utils/constants.js";
 
 // Session validation with retry logic
@@ -134,7 +135,39 @@ const configurePushNotifications = () => {
 const setupRegistrationHandler = (push) => {
   push.on("registration", (data) => {
     Session.set("deviceToken", data.registrationId);
-    Meteor.call("deviceDetails.storeFCMToken", data.registrationId);
+  });
+};
+
+// Last (user, device, token) combination successfully sent to the server, so
+// the autorun below doesn't repeat the call on unrelated reactive changes.
+let lastReconciledKey = null;
+
+// Keep the server's stored FCM token in sync with the live one. Tokens rotate
+// (reinstall, OS restore, Firebase refresh) and a stale stored token means
+// pushes silently stop. Reactive on login state, captured device info and the
+// token itself, so it works regardless of which becomes available first.
+const setupTokenReconciliation = () => {
+  Tracker.autorun(() => {
+    const userId = Meteor.userId();
+    const fcmToken = Session.get("deviceToken");
+    const deviceUUID = Session.get("capturedDeviceInfo")?.uuid;
+
+    if (!userId || !fcmToken || !deviceUUID) return;
+
+    const key = `${userId}:${deviceUUID}:${fcmToken}`;
+    if (key === lastReconciledKey) return;
+    lastReconciledKey = key;
+
+    Meteor.call("devices.updateFCMToken", { deviceUUID, fcmToken }, (error) => {
+      if (error) {
+        // Allow a retry on the next reactive change (e.g. re-login).
+        lastReconciledKey = null;
+        console.warn(
+          "FCM token reconciliation failed:",
+          error.reason || error.message,
+        );
+      }
+    });
   });
 };
 
@@ -317,6 +350,7 @@ export const initializePushNotifications = () => {
 
     // Register handlers
     setupRegistrationHandler(push);
+    setupTokenReconciliation();
     setupActionHandlers(push);
     setupNotificationHandler(push);
     setupErrorHandler(push);

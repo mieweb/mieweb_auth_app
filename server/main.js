@@ -2065,39 +2065,6 @@ Meteor.methods({
   },
 
   /**
-   * Map FCM token to user
-   * @param {String} userId - User ID
-   * @param {String} fcmToken - FCM token
-   * @returns {Object} Result
-   */
-  async "users.mapFCMTokenToUser"(userId, fcmToken) {
-    check(userId, String);
-    check(fcmToken, String);
-
-    if (!this.userId) {
-      throw new Meteor.Error("not-authorized", "User must be logged in");
-    }
-
-    const user = Meteor.users.findOne(userId);
-    if (!user) {
-      throw new Meteor.Error("user-not-found", "User not found");
-    }
-
-    // Find device log with this FCM token
-    const deviceLog = await DeviceDetails.findOneAsync({ userId, fcmToken });
-
-    // If device log exists, update it, otherwise create a new entry
-    if (deviceLog) {
-      await DeviceDetails.updateAsync(
-        { _id: deviceLog._id },
-        { $set: { fcmToken: fcmToken, lastUpdated: new Date() } },
-      );
-    }
-
-    return { success: true };
-  },
-
-  /**
    * Check if any users exist in the system
    * @returns {Boolean} Whether users exist
    */
