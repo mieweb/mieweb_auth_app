@@ -10,6 +10,10 @@ import "../utils/api/notificationHistory.js"; // Method registration (primary-tr
 import "../utils/api/pendingResponses.js"; // Method registration (primary-transfer approvals)
 import { APPROVAL_ACTIONS } from "../utils/constants.js";
 import { sendNotification } from "./firebase.js";
+import {
+  requireDeviceProof,
+  isIdentityEnforced,
+} from "./identityEnforcement.js";
 
 /**
  * Self-service device management ("My Devices").
@@ -239,6 +243,26 @@ Meteor.methods({
     return {
       registered: !!device,
       status: device?.deviceRegistrationStatus || null,
+    };
+  },
+
+  /**
+   * Post-login check of the CALLING USER'S current device (Phase 5): the
+   * account-level registrationStatus alone is not enough — a restored backup
+   * can present an approved account from an unverified installation.
+   */
+  async "devices.checkDeviceApproval"({ deviceUUID }) {
+    check(deviceUUID, String);
+    requireLogin(this);
+
+    const userDoc = await DeviceDetails.findOneAsync({ userId: this.userId });
+    const device = userDoc?.devices?.find((d) => d.deviceUUID === deviceUUID);
+
+    return {
+      registered: !!device,
+      approved: device?.deviceRegistrationStatus === "approved",
+      identityVersion: device?.identityVersion || 1,
+      enforced: isIdentityEnforced(),
     };
   },
 
@@ -754,10 +778,16 @@ Meteor.methods({
    * device's registration/approval status.
    */
   async "devices.updateFCMToken"(options) {
-    check(options, { deviceUUID: String, fcmToken: String });
+    check(options, {
+      deviceUUID: String,
+      fcmToken: String,
+      identityProof: Match.Maybe(
+        Match.OneOf(null, { signedAt: Number, signature: String }),
+      ),
+    });
     requireLogin(this);
 
-    const { deviceUUID, fcmToken } = options;
+    const { deviceUUID, fcmToken, identityProof } = options;
 
     if (!fcmToken || fcmToken.length > 4096) {
       throw new Meteor.Error("invalid-token", "Invalid FCM token.");
@@ -771,6 +801,14 @@ Meteor.methods({
     if (!device || device.fcmToken === fcmToken) {
       return { success: true, updated: false };
     }
+
+    // Phase 5 (flag-gated): token replacement must be signed by the device's
+    // verified installation key.
+    requireDeviceProof(
+      device,
+      `updateFCMToken:${deviceUUID}:${fcmToken}`,
+      identityProof,
+    );
 
     await DeviceDetails.updateAsync(
       { userId: this.userId, "devices.deviceUUID": deviceUUID },
@@ -792,6 +830,7 @@ const RATE_LIMITED_METHODS = new Set([
   "users.loginWithBiometric",
   "users.register",
   "devices.checkRegistrationByUUID",
+  "devices.checkDeviceApproval",
   "devices.updateInfo",
   "devices.updateFCMToken",
   "devices.rename",

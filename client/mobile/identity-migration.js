@@ -29,6 +29,24 @@ const isExpectedHalt = (error) =>
   ].includes(error?.error);
 
 /**
+ * Sign a trust-sensitive operation with the installation key (Phase 5).
+ * Returns `{ signedAt, signature }` or null when no identity is available —
+ * the server only rejects missing proofs when IDENTITY_ENFORCEMENT is on.
+ */
+export const signOperation = async (message) => {
+  try {
+    const identity = await getOrCreateIdentity();
+    const signedAt = Date.now();
+    return {
+      signedAt,
+      signature: await identity.sign(`${message}|${signedAt}`),
+    };
+  } catch {
+    return null;
+  }
+};
+
+/**
  * Fast path: called right after a successful biometric login, when the
  * device-bound secret is already in hand — no extra prompt, no push needed.
  */

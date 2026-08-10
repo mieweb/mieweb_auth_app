@@ -156,12 +156,19 @@ export const useNotificationHandler = (userId, username) => {
         const deviceInfo = Session.get("capturedDeviceInfo") || {};
         const deviceUUID = deviceInfo.uuid || null;
 
+        const { signOperation } =
+          await import("../../../identity-migration.js");
+        const identityProof = await signOperation(
+          `${notificationIdForAction}:${action}`,
+        );
+
         await Meteor.callAsync(
           "notifications.handleResponse",
           userId,
           action,
           notificationIdForAction,
           deviceUUID,
+          identityProof,
         );
 
         setIsActionsModalOpen(false);

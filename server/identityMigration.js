@@ -41,7 +41,7 @@ const asP256KeyObject = (publicKeyB64) => {
 };
 
 // WebCrypto ECDSA produces IEEE P1363 (r||s) signatures over SHA-256.
-const verifySignature = (publicKeyB64, message, signatureB64) => {
+export const verifySignature = (publicKeyB64, message, signatureB64) => {
   const keyObject = asP256KeyObject(publicKeyB64);
   if (!keyObject) return false;
   try {
