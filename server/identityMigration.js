@@ -5,6 +5,7 @@ import { Random } from "meteor/random";
 import crypto from "crypto";
 import { DeviceDetails } from "../utils/api/deviceDetails.js";
 import { MigrationChallenges } from "../utils/api/migrationChallenges.js";
+import { logMigrationEvent } from "../utils/api/migrationEvents.js";
 import { timingSafeEquals } from "./deviceManagement.js";
 import { sendNotification } from "./firebase.js";
 
@@ -109,13 +110,38 @@ const bindIdentity = async (userId, challenge, migrationProof) => {
   );
 };
 
+// Rollout observability (Phase 3): record every attempt's outcome so admins
+// can measure v2 coverage and fix recurring failures before enforcement.
+const logged = (action, handler) =>
+  async function (options) {
+    try {
+      const result = await handler.call(this, options);
+      logMigrationEvent({
+        action,
+        userId: this.userId,
+        deviceUUID: options?.deviceUUID,
+        outcome: "success",
+      });
+      return result;
+    } catch (error) {
+      logMigrationEvent({
+        action,
+        userId: this.userId,
+        deviceUUID: options?.deviceUUID,
+        outcome: error.error || "error",
+        message: error.reason || error.message,
+      });
+      throw error;
+    }
+  };
+
 Meteor.methods({
   /**
    * Start a v2 identity migration for the caller's own approved device.
    * Returns a signing challenge (proves possession of the new private key).
    * The separate push challenge is only ever delivered via FCM.
    */
-  async "devices.beginIdentityMigration"(options) {
+  "devices.beginIdentityMigration": logged("begin", async function (options) {
     check(options, {
       deviceUUID: String,
       installationId: String,
@@ -173,118 +199,136 @@ Meteor.methods({
       signingChallenge: challenge.signingChallenge,
       expiresAt: challenge.expiresAt,
     };
-  },
+  }),
 
   /**
    * Prove the migration with the device-bound biometric secret plus a
    * signature over the signing challenge by the new installation key.
    */
-  async "devices.proveMigrationByBiometric"(options) {
-    check(options, {
-      challengeId: String,
-      biometricSecret: String,
-      signedChallenge: String,
-    });
-    requireLogin(this);
+  "devices.proveMigrationByBiometric": logged(
+    "prove-biometric",
+    async function (options) {
+      check(options, {
+        challengeId: String,
+        biometricSecret: String,
+        signedChallenge: String,
+      });
+      requireLogin(this);
 
-    const { challengeId, biometricSecret, signedChallenge } = options;
-    const challenge = await getLiveChallengeOrThrow(this.userId, challengeId);
+      const { challengeId, biometricSecret, signedChallenge } = options;
+      const challenge = await getLiveChallengeOrThrow(this.userId, challengeId);
 
-    const userDoc = await DeviceDetails.findOneAsync({ userId: this.userId });
-    const device = userDoc?.devices?.find(
-      (d) => d.deviceUUID === challenge.deviceUUID,
-    );
+      const userDoc = await DeviceDetails.findOneAsync({ userId: this.userId });
+      const device = userDoc?.devices?.find(
+        (d) => d.deviceUUID === challenge.deviceUUID,
+      );
 
-    if (
-      !device?.biometricSecret ||
-      !timingSafeEquals(device.biometricSecret, biometricSecret)
-    ) {
-      throw new Meteor.Error("proof-failed", "Biometric verification failed.");
-    }
-    if (
-      !verifySignature(
-        challenge.publicKey,
-        challenge.signingChallenge,
-        signedChallenge,
-      )
-    ) {
-      throw new Meteor.Error("proof-failed", "Signature verification failed.");
-    }
+      if (
+        !device?.biometricSecret ||
+        !timingSafeEquals(device.biometricSecret, biometricSecret)
+      ) {
+        throw new Meteor.Error(
+          "proof-failed",
+          "Biometric verification failed.",
+        );
+      }
+      if (
+        !verifySignature(
+          challenge.publicKey,
+          challenge.signingChallenge,
+          signedChallenge,
+        )
+      ) {
+        throw new Meteor.Error(
+          "proof-failed",
+          "Signature verification failed.",
+        );
+      }
 
-    await consumeChallenge(challengeId);
-    await bindIdentity(this.userId, challenge, "biometric");
-    return { success: true, migrationProof: "biometric" };
-  },
+      await consumeChallenge(challengeId);
+      await bindIdentity(this.userId, challenge, "biometric");
+      return { success: true, migrationProof: "biometric" };
+    },
+  ),
 
   /**
    * Deliver the push challenge to the FCM token ALREADY STORED in Mongo for
    * the device under migration — never to a caller-supplied token. Only the
    * physical phone holding that registration can receive it.
    */
-  async "devices.requestMigrationPushChallenge"(options) {
-    check(options, { challengeId: String });
-    requireLogin(this);
+  "devices.requestMigrationPushChallenge": logged(
+    "request-push",
+    async function (options) {
+      check(options, { challengeId: String });
+      requireLogin(this);
 
-    const challenge = await getLiveChallengeOrThrow(
-      this.userId,
-      options.challengeId,
-    );
-
-    const userDoc = await DeviceDetails.findOneAsync({ userId: this.userId });
-    const device = userDoc?.devices?.find(
-      (d) => d.deviceUUID === challenge.deviceUUID,
-    );
-
-    if (!device?.fcmToken) {
-      throw new Meteor.Error(
-        "no-stored-token",
-        "No FCM token is stored for this device — push proof is unavailable.",
+      const challenge = await getLiveChallengeOrThrow(
+        this.userId,
+        options.challengeId,
       );
-    }
 
-    // Empty title/body + isSync makes this a silent data-only push.
-    const messageId = await sendNotification(device.fcmToken, "", "", {
-      notificationType: "migration_challenge",
-      isSync: "true",
-      challengeId: options.challengeId,
-      pushChallenge: challenge.pushChallenge,
-    });
+      const userDoc = await DeviceDetails.findOneAsync({ userId: this.userId });
+      const device = userDoc?.devices?.find(
+        (d) => d.deviceUUID === challenge.deviceUUID,
+      );
 
-    return { success: true, sent: !!messageId };
-  },
+      if (!device?.fcmToken) {
+        throw new Meteor.Error(
+          "no-stored-token",
+          "No FCM token is stored for this device — push proof is unavailable.",
+        );
+      }
+
+      // Empty title/body + isSync makes this a silent data-only push.
+      const messageId = await sendNotification(device.fcmToken, "", "", {
+        notificationType: "migration_challenge",
+        isSync: "true",
+        challengeId: options.challengeId,
+        pushChallenge: challenge.pushChallenge,
+      });
+
+      return { success: true, sent: !!messageId };
+    },
+  ),
 
   /**
    * Prove the migration by echoing the push-delivered challenge plus a
    * signature over the signing challenge by the new installation key.
    */
-  async "devices.proveMigrationByPush"(options) {
-    check(options, {
-      challengeId: String,
-      pushChallenge: String,
-      signedChallenge: String,
-    });
-    requireLogin(this);
+  "devices.proveMigrationByPush": logged(
+    "prove-push",
+    async function (options) {
+      check(options, {
+        challengeId: String,
+        pushChallenge: String,
+        signedChallenge: String,
+      });
+      requireLogin(this);
 
-    const { challengeId, pushChallenge, signedChallenge } = options;
-    const challenge = await getLiveChallengeOrThrow(this.userId, challengeId);
+      const { challengeId, pushChallenge, signedChallenge } = options;
+      const challenge = await getLiveChallengeOrThrow(this.userId, challengeId);
 
-    if (!timingSafeEquals(challenge.pushChallenge, pushChallenge)) {
-      throw new Meteor.Error("proof-failed", "Push challenge did not match.");
-    }
-    if (
-      !verifySignature(
-        challenge.publicKey,
-        challenge.signingChallenge,
-        signedChallenge,
-      )
-    ) {
-      throw new Meteor.Error("proof-failed", "Signature verification failed.");
-    }
+      if (!timingSafeEquals(challenge.pushChallenge, pushChallenge)) {
+        throw new Meteor.Error("proof-failed", "Push challenge did not match.");
+      }
+      if (
+        !verifySignature(
+          challenge.publicKey,
+          challenge.signingChallenge,
+          signedChallenge,
+        )
+      ) {
+        throw new Meteor.Error(
+          "proof-failed",
+          "Signature verification failed.",
+        );
+      }
 
-    await consumeChallenge(challengeId);
-    await bindIdentity(this.userId, challenge, "fcm-challenge");
-    return { success: true, migrationProof: "fcm-challenge" };
-  },
+      await consumeChallenge(challengeId);
+      await bindIdentity(this.userId, challenge, "fcm-challenge");
+      return { success: true, migrationProof: "fcm-challenge" };
+    },
+  ),
 });
 
 const MIGRATION_METHODS = new Set([
