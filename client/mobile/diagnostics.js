@@ -20,6 +20,7 @@ const getDeviceInfo = () => {
     platform: device.platform || "Unknown",
     version: device.version || "Unknown",
     model: device.model || "Unknown",
+    uuid: device.uuid || "Unknown",
   };
 };
 

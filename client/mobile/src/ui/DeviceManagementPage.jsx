@@ -595,6 +595,11 @@ const DeviceManagementPage = () => {
                       <p className="text-xs text-muted-foreground">
                         Last used: {formatLastUsed(device)}
                       </p>
+                      {isCurrent && (
+                        <p className="text-[10px] text-muted-foreground/70 break-all">
+                          UUID: {device.deviceUUID}
+                        </p>
+                      )}
                       {isApproved && meta.watch && (
                         <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                           <Watch className="h-3.5 w-3.5" />

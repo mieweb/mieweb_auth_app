@@ -766,13 +766,170 @@ const EmailsTab = ({ toast, toastErr }) => {
   );
 };
 
-// ─── Dashboard ───────────────────────────────────────────────────
+// ─── Tab: Diagnostics ────────────────────────────────────────
+const DiagnosticsTab = ({ toast, toastErr }) => {
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState(null);
+  const [notFound, setNotFound] = useState(false);
+  const [pushResults, setPushResults] = useState({});
+  const [pushing, setPushing] = useState(null);
+
+  const lookup = async (e) => {
+    if (e) e.preventDefault();
+    if (!query.trim()) return;
+    setLoading(true);
+    setData(null);
+    setNotFound(false);
+    setPushResults({});
+    try {
+      const res = await api('/api/admin/diagnostics/user?q=' + encodeURIComponent(query.trim()));
+      if (res.success) setData(res);
+    } catch (err) {
+      if (err.status === 404) setNotFound(true);
+      else toastErr(err.message || 'Lookup failed', 'error', err);
+    }
+    setLoading(false);
+  };
+
+  const testPush = async (userId, deviceUUID) => {
+    setPushing(deviceUUID);
+    try {
+      const res = await api('/api/admin/diagnostics/test-push', { method: 'POST', body: JSON.stringify({ userId, deviceUUID }) });
+      setPushResults(prev => ({ ...prev, [deviceUUID]: res }));
+      toast(res.success ? 'Test push accepted by FCM' : 'Test push failed — see result below', res.success ? 'success' : 'warning');
+    } catch (err) {
+      toastErr(err.message || 'Test push failed', 'error', err);
+    }
+    setPushing(null);
+  };
+
+  const statusBadge = (status) => {
+    const colors = { approved: 'bg-green-100 text-green-700', pending: 'bg-yellow-100 text-yellow-700', approve: 'bg-green-100 text-green-700', reject: 'bg-red-100 text-red-700', rejected: 'bg-red-100 text-red-700', dismissed: 'bg-gray-100 text-gray-600' };
+    return <span className={\`text-xs px-2 py-0.5 rounded-full font-medium \${colors[status] || 'bg-gray-100 text-gray-600'}\`}>{status}</span>;
+  };
+
+  return (
+    <div className="space-y-6 fade-in">
+      {/* Search */}
+      <div className="bg-white rounded-xl shadow-sm border p-5">
+        <h3 className="font-semibold text-gray-900 mb-1">User Diagnostics</h3>
+        <p className="text-xs text-gray-500 mb-3">Inspect a user's account, devices, FCM token state, and recent notifications — e.g. to troubleshoot pushes that are not being delivered.</p>
+        <form onSubmit={lookup} className="flex gap-3">
+          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Username, email, or userId" className="flex-1 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+          <button type="submit" disabled={loading || !query.trim()} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white text-sm rounded-lg">{loading ? <span className="spinner" /> : 'Look up'}</button>
+        </form>
+        {notFound && <p className="text-sm text-red-500 mt-3">No user or device record matched that query.</p>}
+      </div>
+
+      {data && (
+        <React.Fragment>
+          {/* Warnings */}
+          {data.warnings.length > 0 && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+              <p className="text-xs font-semibold text-yellow-800 mb-1">⚠️ Potential issues</p>
+              <ul className="list-disc ml-5 space-y-0.5">
+                {data.warnings.map((w, i) => <li key={i} className="text-xs text-yellow-800">{w}</li>)}
+              </ul>
+            </div>
+          )}
+
+          {/* Account */}
+          <div className="bg-white rounded-xl shadow-sm border">
+            <div className="px-5 py-4 border-b"><h3 className="font-semibold text-gray-900">Account</h3></div>
+            {data.account ? (
+              <div className="px-5 py-4 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-sm">
+                <div><p className="text-xs text-gray-400">Username</p><p className="text-gray-900">{data.account.username}</p></div>
+                <div><p className="text-xs text-gray-400">Email</p><p className="text-gray-900 truncate">{data.account.email || '—'}</p></div>
+                <div><p className="text-xs text-gray-400">Status</p>{statusBadge(data.account.registrationStatus)}</div>
+                <div><p className="text-xs text-gray-400">User ID</p><code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">{data.account.userId}</code></div>
+                <div><p className="text-xs text-gray-400">Active sessions</p><p className="text-gray-900">{data.account.activeSessionCount}</p></div>
+                <div><p className="text-xs text-gray-400">Created</p><p className="text-gray-900">{data.account.createdAt ? new Date(data.account.createdAt).toLocaleString() : '—'}</p></div>
+              </div>
+            ) : <p className="p-5 text-sm text-red-500">No user account found (device record is orphaned).</p>}
+          </div>
+
+          {/* Devices */}
+          <div className="bg-white rounded-xl shadow-sm border">
+            <div className="px-5 py-4 border-b flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900">Devices &amp; Push Tokens</h3>
+              {data.deviceRecord && <span className="text-xs text-gray-400">Record updated: {data.deviceRecord.lastUpdated ? new Date(data.deviceRecord.lastUpdated).toLocaleString() : '—'}</span>}
+            </div>
+            {!data.deviceRecord || data.deviceRecord.devices.length === 0 ? (
+              <p className="p-8 text-center text-gray-400 text-sm">No devices registered</p>
+            ) : (
+              <div className="divide-y">
+                {data.deviceRecord.devices.map((d) => {
+                  const pr = pushResults[d.deviceUUID];
+                  return (
+                    <div key={d.deviceUUID} className="px-5 py-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm text-gray-900 font-medium">
+                            {d.customName || d.deviceModel || 'Unknown'} ({d.devicePlatform || '?'})
+                            {' '}{statusBadge(d.status)}
+                            {d.isPrimary && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full ml-1">Primary</span>}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">UUID: <code className="bg-gray-100 px-1 py-0.5 rounded">{d.deviceUUID}</code></p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            FCM token: {d.fcmToken.present
+                              ? <React.Fragment><code className="bg-gray-100 px-1 py-0.5 rounded">{d.fcmToken.preview}</code> · {d.fcmToken.length} chars · sha256 <code className="bg-gray-100 px-1 py-0.5 rounded">{d.fcmToken.sha256}</code></React.Fragment>
+                              : <span className="text-red-500 font-medium">missing</span>}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            Biometric secret: {d.hasBiometricSecret ? 'stored' : 'missing'} · Last used: {d.lastUsed ? new Date(d.lastUsed).toLocaleString() : 'never'} · Updated: {d.lastUpdated ? new Date(d.lastUpdated).toLocaleString() : '—'}
+                          </p>
+                          {pr && (
+                            <div className={\`mt-2 text-xs rounded-lg px-3 py-2 border \${pr.success ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-700'}\`}>
+                              <span className="font-semibold">{pr.success ? '✓ Sent' : '✗ ' + (pr.fcmErrorCode || pr.result)}</span> — {pr.message}
+                            </div>
+                          )}
+                        </div>
+                        <button onClick={() => testPush(data.deviceRecord.userId, d.deviceUUID)} disabled={pushing === d.deviceUUID || !d.fcmToken.present}
+                          className="shrink-0 text-blue-600 hover:text-blue-800 disabled:text-gray-300 text-xs font-medium px-3 py-1 rounded border border-blue-200 hover:bg-blue-50">
+                          {pushing === d.deviceUUID ? <span className="spinner" /> : 'Send test push'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Recent notifications */}
+          <div className="bg-white rounded-xl shadow-sm border">
+            <div className="px-5 py-4 border-b"><h3 className="font-semibold text-gray-900">Recent Notifications</h3></div>
+            {data.notifications.length === 0 ? (
+              <p className="p-8 text-center text-gray-400 text-sm">No notification history</p>
+            ) : (
+              <div className="divide-y">
+                {data.notifications.map((n) => (
+                  <div key={n.notificationId} className="px-5 py-2.5 flex items-center justify-between gap-4 hover:bg-gray-50">
+                    <div className="min-w-0">
+                      <p className="text-sm text-gray-900 truncate">{n.title}</p>
+                      <p className="text-xs text-gray-400">{new Date(n.createdAt).toLocaleString()}{n.clientId ? \` · \${n.clientId}\` : ''}</p>
+                    </div>
+                    {statusBadge(n.status)}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </React.Fragment>
+      )}
+    </div>
+  );
+};
+
+// ─── Dashboard ─────────────────────────────────────────────────
 const TABS = [
   { id: 'keys', label: 'API Keys', icon: '🔑' },
   { id: 'duo', label: 'Duo', icon: '🔐' },
   { id: 'users', label: 'Users', icon: '👤' },
   { id: 'devices', label: 'Devices', icon: '📱' },
-  { id: 'emails', label: 'Emails', icon: '📧' }
+  { id: 'emails', label: 'Emails', icon: '📧' },
+  { id: 'diagnostics', label: 'Diagnostics', icon: '🩺' }
 ];
 
 const Dashboard = ({ adminId, onLogout }) => {
@@ -818,6 +975,7 @@ const Dashboard = ({ adminId, onLogout }) => {
         {tab === 'users' && <UsersTab toast={toast} toastErr={toastWithSessionCheck} />}
         {tab === 'devices' && <DevicesTab toast={toast} toastErr={toastWithSessionCheck} />}
         {tab === 'emails' && <EmailsTab toast={toast} toastErr={toastWithSessionCheck} />}
+        {tab === 'diagnostics' && <DiagnosticsTab toast={toast} toastErr={toastWithSessionCheck} />}
       </div>
     </div>
   );

@@ -30,6 +30,7 @@ Meteor.methods({
         platform: String,
         version: String,
         model: String,
+        uuid: Match.Maybe(String),
       }),
     );
 
@@ -50,7 +51,7 @@ Meteor.methods({
     const normalizedEmail = recipientEmail.trim();
     const attachmentLogs = redactLogs(logs.slice(-MAX_LOG_LENGTH));
     const deviceSummary = device
-      ? `${device.platform} ${device.version} (${device.model})`
+      ? `${device.platform} ${device.version} (${device.model})${device.uuid ? ` — UUID: ${device.uuid}` : ""}`
       : "Unknown device";
     const subject = "MIE Auth diagnostics logs";
 
