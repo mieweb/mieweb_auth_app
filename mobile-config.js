@@ -5,11 +5,12 @@ App.info({
   author: "Anshul Abrol",
   email: "abrol.anshul10@gmail.com",
   website: "https://mieauth-prod.os.mieweb.org",
-  version: '1.5.4',
+  version: "1.5.4",
 });
 
 App.setPreference("android-targetSdkVersion", "35");
 App.setPreference("android-compileSdkVersion", "35");
+App.setPreference("deployment-target", "15.0", "ios");
 // Preferences per latest Meteor docs
 // Use the brand color (matches SplashScreenBackgroundColor) instead of black so
 // the WebView background shown during hot code push reloads is not a black flash.
