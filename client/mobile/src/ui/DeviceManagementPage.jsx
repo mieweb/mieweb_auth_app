@@ -8,6 +8,7 @@ import {
   Check,
   Fingerprint as FingerprintIcon,
   Pencil,
+  ShieldAlert,
   ShieldCheck,
   Smartphone,
   Star,
@@ -386,22 +387,38 @@ const DeviceManagementPage = () => {
     });
   };
 
-  const requestRevoke = (device, name) => {
+  const requestRevoke = (device, name, lost = false) => {
     const isCurrent = device.deviceUUID === currentUuid;
     const isLast = devices.length === 1;
     setActionError("");
     setPendingAction({
       type: "revoke",
+      lost,
       device,
-      title: `Remove "${name}"?`,
-      description:
-        "This device will no longer receive authentication requests and will be signed out.",
+      title: lost ? `Mark "${name}" as lost?` : `Remove "${name}"?`,
+      description: lost
+        ? "The lost device will be signed out everywhere, stop receiving authentication requests, and be removed from your account."
+        : "This device will no longer receive authentication requests and will be signed out.",
       warning: isLast
         ? "This is your only device. Removing it deregisters your account entirely — you will need to register again and be re-approved by an administrator."
         : isCurrent
           ? "You are removing the device you are currently using. You will be signed out immediately."
           : "Your other devices will be signed out and will need to sign in again.",
-      confirmLabel: "Remove device",
+      confirmLabel: lost ? "Mark as lost" : "Remove device",
+    });
+  };
+
+  const requestVerifyIdentity = (device, name) => {
+    setActionError("");
+    setPendingAction({
+      type: "verifyIdentity",
+      device,
+      title: `Verify "${name}"?`,
+      description:
+        "Confirms that installation as trusted after it couldn't be verified automatically (for example after a phone restore). Open the app on that device first, then confirm here within a few minutes.",
+      warning:
+        "Only verify a device you recognize and control. If you don't recognize it, remove it instead.",
+      confirmLabel: "Verify device",
     });
   };
 
@@ -431,6 +448,7 @@ const DeviceManagementPage = () => {
           deviceUUID: pendingAction.device.deviceUUID,
           actorDeviceUUID: currentUuid,
           reAuth,
+          lost: !!pendingAction.lost,
         });
         if (
           result.accountRemoved ||
@@ -453,6 +471,12 @@ const DeviceManagementPage = () => {
           message:
             "Primary device updated. A confirmation notification arrives in ~10s — close or background the app to see it.",
           timestamp: new Date().getTime(),
+        });
+      } else if (pendingAction.type === "verifyIdentity") {
+        await Meteor.callAsync("devices.approveIdentityMigration", {
+          deviceUUID: pendingAction.device.deviceUUID,
+          actorDeviceUUID: currentUuid,
+          reAuth,
         });
       } else {
         await Meteor.callAsync("devices.approvePending", {
@@ -667,6 +691,22 @@ const DeviceManagementPage = () => {
                         </Button>
                       )
                     )}
+                    {/* Phase 4 fallback: an approved device whose installation
+                        identity is still unverified (e.g. restored from a
+                        backup) can be vouched for from another device. */}
+                    {isApproved &&
+                      device.identityVersion !== 2 &&
+                      !isCurrent && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={!currentUuid}
+                          onClick={() => requestVerifyIdentity(device, name)}
+                        >
+                          <ShieldCheck className="h-4 w-4 mr-1.5" />
+                          Verify
+                        </Button>
+                      )}
                     {/* The primary (or only approved) device can never be
                         removed — the account always keeps one trusted device.
                         Transfer the primary role first (approved on the
@@ -681,6 +721,18 @@ const DeviceManagementPage = () => {
                       >
                         <Trash2 className="h-4 w-4 mr-1.5" />
                         Remove
+                      </Button>
+                    )}
+                    {!isEffectivePrimary && !isCurrent && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-destructive"
+                        disabled={!currentUuid}
+                        onClick={() => requestRevoke(device, name, true)}
+                      >
+                        <ShieldAlert className="h-4 w-4 mr-1.5" />
+                        Lost
                       </Button>
                     )}
                   </div>

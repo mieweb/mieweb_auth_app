@@ -369,6 +369,7 @@ if (Meteor.isServer) {
     "devices.deviceModel": 1,
     "devices.devicePlatform": 1,
     "devices.deviceRegistrationStatus": 1,
+    "devices.identityVersion": 1,
     "devices.isPrimary": 1,
     "devices.isFirstDevice": 1,
     "devices.isSecondaryDevice": 1,
