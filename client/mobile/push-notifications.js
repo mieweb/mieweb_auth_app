@@ -1,6 +1,8 @@
 import { Meteor } from "meteor/meteor";
 import { Session } from "meteor/session";
+import { Tracker } from "meteor/tracker";
 import { IOS_APPROVAL_CATEGORIES } from "../../utils/constants.js";
+import { completePushMigration, signOperation } from "./identity-migration.js";
 
 // Session validation with retry logic
 const validateSessionWithRetry = (callback, retries = 3, interval = 1000) => {
@@ -22,13 +24,17 @@ const validateSessionWithRetry = (callback, retries = 3, interval = 1000) => {
 };
 
 const sendUserAction = (userId, action, notificationId, deviceUUID) => {
-  validateSessionWithRetry(() => {
+  validateSessionWithRetry(async () => {
+    // Phase 5: sign the exact notification + action with the installation
+    // key. Null when unavailable — server accepts that until enforcement.
+    const identityProof = await signOperation(`${notificationId}:${action}`);
     Meteor.call(
       "notifications.handleResponse",
       userId,
       action,
       notificationId,
       deviceUUID,
+      identityProof,
       (error, result) => {
         // Clear the in-flight flag so future notifications can open the modal
         Session.set("actionPerformedFromTray", false);
@@ -134,7 +140,47 @@ const configurePushNotifications = () => {
 const setupRegistrationHandler = (push) => {
   push.on("registration", (data) => {
     Session.set("deviceToken", data.registrationId);
-    Meteor.call("deviceDetails.storeFCMToken", data.registrationId);
+  });
+};
+
+// Last (user, device, token) combination successfully sent to the server, so
+// the autorun below doesn't repeat the call on unrelated reactive changes.
+let lastReconciledKey = null;
+
+// Keep the server's stored FCM token in sync with the live one. Tokens rotate
+// (reinstall, OS restore, Firebase refresh) and a stale stored token means
+// pushes silently stop. Reactive on login state, captured device info and the
+// token itself, so it works regardless of which becomes available first.
+const setupTokenReconciliation = () => {
+  Tracker.autorun(() => {
+    const userId = Meteor.userId();
+    const fcmToken = Session.get("deviceToken");
+    const deviceUUID = Session.get("capturedDeviceInfo")?.uuid;
+
+    if (!userId || !fcmToken || !deviceUUID) return;
+
+    const key = `${userId}:${deviceUUID}:${fcmToken}`;
+    if (key === lastReconciledKey) return;
+    lastReconciledKey = key;
+
+    signOperation(`updateFCMToken:${deviceUUID}:${fcmToken}`).then(
+      (identityProof) => {
+        Meteor.call(
+          "devices.updateFCMToken",
+          { deviceUUID, fcmToken, identityProof },
+          (error) => {
+            if (error) {
+              // Allow a retry on the next reactive change (e.g. re-login).
+              lastReconciledKey = null;
+              console.warn(
+                "FCM token reconciliation failed:",
+                error.reason || error.message,
+              );
+            }
+          },
+        );
+      },
+    );
   });
 };
 
@@ -189,6 +235,12 @@ const setupNotificationHandler = (push) => {
   push.on("notification", (notification) => {
     Meteor.startup(() => {
       const additionalData = notification.additionalData || {};
+
+      // Data-only identity-migration challenge — handled silently, no UI.
+      if (additionalData.notificationType === "migration_challenge") {
+        completePushMigration(additionalData);
+        return;
+      }
 
       // Skip if action was already handled from the notification tray. Do NOT
       // clear the flag here — the tray-action request may still be in flight,
@@ -317,6 +369,7 @@ export const initializePushNotifications = () => {
 
     // Register handlers
     setupRegistrationHandler(push);
+    setupTokenReconciliation();
     setupActionHandlers(push);
     setupNotificationHandler(push);
     setupErrorHandler(push);

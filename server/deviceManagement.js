@@ -10,6 +10,10 @@ import "../utils/api/notificationHistory.js"; // Method registration (primary-tr
 import "../utils/api/pendingResponses.js"; // Method registration (primary-transfer approvals)
 import { APPROVAL_ACTIONS } from "../utils/constants.js";
 import { sendNotification } from "./firebase.js";
+import {
+  requireDeviceProof,
+  isIdentityEnforced,
+} from "./identityEnforcement.js";
 
 /**
  * Self-service device management ("My Devices").
@@ -56,7 +60,7 @@ const REAUTH_PATTERN = Match.OneOf(
 /**
  * Constant-time string comparison (hash first so lengths never leak).
  */
-const timingSafeEquals = (a, b) => {
+export const timingSafeEquals = (a, b) => {
   const hashA = crypto.createHash("sha256").update(String(a)).digest();
   const hashB = crypto.createHash("sha256").update(String(b)).digest();
   return crypto.timingSafeEqual(hashA, hashB);
@@ -76,7 +80,7 @@ const requireLogin = (context) => {
  * Accepts either the device-bound biometric secret of one of the caller's
  * approved devices, or the account PIN.
  */
-const verifyStepUpAuth = async (userId, reAuth) => {
+export const verifyStepUpAuth = async (userId, reAuth) => {
   if (reAuth.biometricSecret) {
     const userDoc = await DeviceDetails.findOneAsync({ userId });
     const verified = (userDoc?.devices || []).some(
@@ -239,6 +243,26 @@ Meteor.methods({
     return {
       registered: !!device,
       status: device?.deviceRegistrationStatus || null,
+    };
+  },
+
+  /**
+   * Post-login check of the CALLING USER'S current device (Phase 5): the
+   * account-level registrationStatus alone is not enough — a restored backup
+   * can present an approved account from an unverified installation.
+   */
+  async "devices.checkDeviceApproval"({ deviceUUID }) {
+    check(deviceUUID, String);
+    requireLogin(this);
+
+    const userDoc = await DeviceDetails.findOneAsync({ userId: this.userId });
+    const device = userDoc?.devices?.find((d) => d.deviceUUID === deviceUUID);
+
+    return {
+      registered: !!device,
+      approved: device?.deviceRegistrationStatus === "approved",
+      identityVersion: device?.identityVersion || 1,
+      enforced: isIdentityEnforced(),
     };
   },
 
@@ -532,10 +556,11 @@ Meteor.methods({
    * the whole account (re-registration then goes through the normal
    * first-device admin approval flow).
    */
-  async "devices.revoke"({ deviceUUID, actorDeviceUUID, reAuth }) {
+  async "devices.revoke"({ deviceUUID, actorDeviceUUID, reAuth, lost }) {
     check(deviceUUID, String);
     check(actorDeviceUUID, String);
     check(reAuth, REAUTH_PATTERN);
+    check(lost, Match.Maybe(Boolean));
     requireLogin(this);
 
     await verifyStepUpAuth(this.userId, reAuth);
@@ -580,7 +605,7 @@ Meteor.methods({
       const result = await removeUserCompletely(this.userId);
       await logDeviceAudit({
         userId: this.userId,
-        action: "revoke",
+        action: lost ? "markLost" : "revoke",
         deviceUUID,
         actorDeviceUUID,
         details: "last device — account deregistered",
@@ -647,7 +672,7 @@ Meteor.methods({
 
     await logDeviceAudit({
       userId: this.userId,
-      action: "revoke",
+      action: lost ? "markLost" : "revoke",
       deviceUUID,
       actorDeviceUUID,
       details: deviceLabel(target),
@@ -745,6 +770,59 @@ Meteor.methods({
 
     return { success: true, approved: approve };
   },
+
+  /**
+   * Reconcile a rotated FCM registration token for the calling user's own
+   * device. Tokens rotate legitimately (reinstall, OS restore, Firebase
+   * refresh), so this only replaces the stored token — it never changes the
+   * device's registration/approval status.
+   */
+  async "devices.updateFCMToken"(options) {
+    check(options, {
+      deviceUUID: String,
+      fcmToken: String,
+      identityProof: Match.Maybe(
+        Match.OneOf(null, { signedAt: Number, signature: String }),
+      ),
+    });
+    requireLogin(this);
+
+    const { deviceUUID, fcmToken, identityProof } = options;
+
+    if (!fcmToken || fcmToken.length > 4096) {
+      throw new Meteor.Error("invalid-token", "Invalid FCM token.");
+    }
+
+    const userDoc = await DeviceDetails.findOneAsync({ userId: this.userId });
+    const device = userDoc?.devices?.find((d) => d.deviceUUID === deviceUUID);
+
+    // No-op rather than an error: the device may have been revoked while the
+    // app was offline, and the client fires this on every push registration.
+    if (!device || device.fcmToken === fcmToken) {
+      return { success: true, updated: false };
+    }
+
+    // Phase 5 (flag-gated): token replacement must be signed by the device's
+    // verified installation key.
+    requireDeviceProof(
+      device,
+      `updateFCMToken:${deviceUUID}:${fcmToken}`,
+      identityProof,
+    );
+
+    await DeviceDetails.updateAsync(
+      { userId: this.userId, "devices.deviceUUID": deviceUUID },
+      {
+        $set: {
+          "devices.$.fcmToken": fcmToken,
+          "devices.$.lastUpdated": new Date(),
+          lastUpdated: new Date(),
+        },
+      },
+    );
+
+    return { success: true, updated: true };
+  },
 });
 
 // Brute-force protection for authentication and device management methods.
@@ -752,7 +830,9 @@ const RATE_LIMITED_METHODS = new Set([
   "users.loginWithBiometric",
   "users.register",
   "devices.checkRegistrationByUUID",
+  "devices.checkDeviceApproval",
   "devices.updateInfo",
+  "devices.updateFCMToken",
   "devices.rename",
   "devices.setPrimary",
   "devices.revoke",

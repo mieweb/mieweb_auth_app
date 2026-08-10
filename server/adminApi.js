@@ -1,8 +1,12 @@
 import { Meteor } from "meteor/meteor";
 import { WebApp } from "meteor/webapp";
+import crypto from "crypto";
 import { ApiKeys } from "../utils/api/apiKeys";
 import { DeviceDetails } from "../utils/api/deviceDetails";
 import { EmailLog } from "../utils/api/emailLog";
+import { MigrationEvents } from "../utils/api/migrationEvents";
+import { NotificationHistory } from "../utils/api/notificationHistory";
+import { sendNotification } from "./firebase";
 import {
   requireAdminAuth,
   validateCredentials,
@@ -763,3 +767,353 @@ WebApp.connectHandlers.use("/api/admin/duo/delete", async (req, res) => {
     }
   });
 });
+
+// ─── Diagnostics ──────────────────────────────────────────────────
+// Read-only troubleshooting view of a user's database state, so admins can
+// diagnose push-delivery issues (e.g. stale FCM tokens) without direct
+// MongoDB access.
+
+// Summarise an FCM token without exposing the full send-capable value.
+// The preview (first 12 + last 6 chars) is enough to compare against the
+// token printed in a device's diagnostics logs; the SHA-256 fingerprint
+// allows exact comparison when two previews look alike.
+const fcmTokenInfo = (token) => {
+  if (!token) return { present: false };
+  return {
+    present: true,
+    length: token.length,
+    preview: `${token.slice(0, 12)}…${token.slice(-6)}`,
+    sha256: crypto
+      .createHash("sha256")
+      .update(token)
+      .digest("hex")
+      .slice(0, 16),
+  };
+};
+
+// Look up a user by username, email, or userId and return their account,
+// device, and recent-notification state.
+WebApp.connectHandlers.use("/api/admin/diagnostics/user", async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  if (req.method !== "GET")
+    return sendJson(res, 405, { error: "Method not allowed" });
+
+  await requireAdminAuth(req, res, async () => {
+    try {
+      const query = new URL(req.url, "http://localhost").searchParams
+        .get("q")
+        ?.trim();
+      if (!query)
+        return sendJson(res, 400, {
+          error: "Query parameter q (username, email, or userId) required",
+          errorCode: "missing-field",
+        });
+
+      // Case-insensitive exact match on username/email; exact match on _id.
+      const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const exact = new RegExp(`^${escaped}$`, "i");
+
+      const user = await Meteor.users.findOneAsync(
+        {
+          $or: [
+            { _id: query },
+            { username: exact },
+            { "emails.address": exact },
+          ],
+        },
+        {
+          fields: {
+            username: 1,
+            emails: 1,
+            profile: 1,
+            createdAt: 1,
+            "services.resume.loginTokens": 1,
+          },
+        },
+      );
+
+      const deviceDoc = await DeviceDetails.findOneAsync({
+        $or: [
+          { userId: user?._id || query },
+          { username: exact },
+          { email: exact },
+        ],
+      });
+
+      if (!user && !deviceDoc)
+        return sendJson(res, 404, {
+          error: "No user or device record matched that query",
+          errorCode: "user-not-found",
+        });
+
+      const userId = user?._id || deviceDoc?.userId;
+
+      const notifications = await NotificationHistory.find(
+        { userId },
+        { sort: { createdAt: -1 }, limit: 15 },
+      ).fetchAsync();
+
+      sendJson(res, 200, {
+        success: true,
+        account: user
+          ? {
+              userId: user._id,
+              username: user.username,
+              email: user.emails?.[0]?.address,
+              registrationStatus: user.profile?.registrationStatus || "pending",
+              createdAt: user.createdAt,
+              activeSessionCount:
+                user.services?.resume?.loginTokens?.length || 0,
+            }
+          : null,
+        deviceRecord: deviceDoc
+          ? {
+              userId: deviceDoc.userId,
+              username: deviceDoc.username,
+              email: deviceDoc.email,
+              lastUpdated: deviceDoc.lastUpdated,
+              devices: (deviceDoc.devices || []).map((d) => ({
+                deviceUUID: d.deviceUUID,
+                appId: d.appId,
+                customName: d.customName,
+                deviceModel: d.deviceModel,
+                devicePlatform: d.devicePlatform,
+                status: d.deviceRegistrationStatus,
+                isPrimary: !!d.isPrimary,
+                lastUsed: d.lastUsed,
+                lastUpdated: d.lastUpdated,
+                hasBiometricSecret: !!d.biometricSecret,
+                fcmToken: fcmTokenInfo(d.fcmToken),
+              })),
+            }
+          : null,
+        // Flag account/device inconsistencies that commonly break pushes.
+        warnings: [
+          user && !deviceDoc && "User exists but has no device record.",
+          deviceDoc &&
+            !user &&
+            "Device record exists but the user account was deleted.",
+          deviceDoc &&
+            (deviceDoc.devices || []).some((d) => !d.fcmToken) &&
+            "One or more devices have no FCM token stored — pushes cannot be delivered to them.",
+          deviceDoc &&
+            (deviceDoc.devices || []).length > 0 &&
+            !(deviceDoc.devices || []).some(
+              (d) => d.deviceRegistrationStatus === "approved" && d.isPrimary,
+            ) &&
+            "No approved primary device — approval pushes may not be routed.",
+        ].filter(Boolean),
+        notifications: notifications.map((n) => ({
+          notificationId: n.notificationId,
+          title: n.title,
+          status: n.status,
+          clientId: n.clientId,
+          createdAt: n.createdAt,
+        })),
+      });
+    } catch (err) {
+      const mapped = mapMeteorError(err);
+      sendJson(res, mapped.status, {
+        error: mapped.error,
+        errorCode: mapped.errorCode,
+      });
+    }
+  });
+});
+
+// Send a test push to one stored device token and report the live FCM
+// result. A "messaging/registration-token-not-registered" error proves the
+// stored token is stale (device reinstalled / token rotated but never
+// re-persisted).
+WebApp.connectHandlers.use(
+  "/api/admin/diagnostics/test-push",
+  async (req, res) => {
+    setCors(res);
+    if (req.method === "OPTIONS") {
+      res.writeHead(200);
+      res.end();
+      return;
+    }
+    if (req.method !== "POST")
+      return sendJson(res, 405, { error: "Method not allowed" });
+
+    await requireAdminAuth(req, res, async () => {
+      try {
+        const { userId, deviceUUID } = await parseJsonBody(req);
+        if (!userId || !deviceUUID)
+          return sendJson(res, 400, {
+            error: "userId and deviceUUID required",
+            errorCode: "missing-field",
+          });
+
+        const userDoc = await DeviceDetails.findOneAsync({ userId });
+        const device = userDoc?.devices?.find(
+          (d) => d.deviceUUID === deviceUUID,
+        );
+        if (!device)
+          return sendJson(res, 404, {
+            error: "Device not found",
+            errorCode: "device-not-found",
+          });
+        if (!device.fcmToken)
+          return sendJson(res, 200, {
+            success: false,
+            result: "no-token",
+            message: "No FCM token is stored for this device.",
+          });
+
+        try {
+          const messageId = await sendNotification(
+            device.fcmToken,
+            "Test Notification",
+            "This is a diagnostic test push sent by an administrator.",
+            {
+              notificationType: "test",
+              isDismissal: "false",
+              isSync: "false",
+            },
+          );
+          if (!messageId)
+            return sendJson(res, 200, {
+              success: false,
+              result: "firebase-disabled",
+              message:
+                "Firebase is not initialised on this server — push notifications are disabled.",
+            });
+          sendJson(res, 200, {
+            success: true,
+            result: "sent",
+            messageId,
+            message:
+              "FCM accepted the message. If the device did not receive it, check its OS notification permissions.",
+          });
+        } catch (fcmErr) {
+          const code = fcmErr.code || "unknown";
+          const STALE_CODES = [
+            "messaging/registration-token-not-registered",
+            "messaging/invalid-registration-token",
+            "messaging/invalid-argument",
+          ];
+          sendJson(res, 200, {
+            success: false,
+            result: "fcm-error",
+            fcmErrorCode: code,
+            message: STALE_CODES.includes(code)
+              ? "The stored FCM token is stale or invalid — the device must re-register to receive pushes."
+              : `FCM rejected the message: ${fcmErr.message}`,
+          });
+        }
+      } catch (err) {
+        const mapped = mapMeteorError(err);
+        sendJson(res, mapped.status, {
+          error: mapped.error,
+          errorCode: mapped.errorCode,
+        });
+      }
+    });
+  },
+);
+
+// Rollout coverage for the v1 -> v2 identity migration (migration-plan.md
+// Phase 3): device counts per identity version / proof, and recent failures.
+WebApp.connectHandlers.use(
+  "/api/admin/diagnostics/identity-migration",
+  async (req, res) => {
+    setCors(res);
+    if (req.method === "OPTIONS") {
+      res.writeHead(200);
+      res.end();
+      return;
+    }
+    if (req.method !== "GET")
+      return sendJson(res, 405, { error: "Method not allowed" });
+
+    await requireAdminAuth(req, res, async () => {
+      try {
+        const THIRTY_DAYS_AGO = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+        const [stats] = await DeviceDetails.rawCollection()
+          .aggregate([
+            { $unwind: "$devices" },
+            {
+              $group: {
+                _id: null,
+                total: { $sum: 1 },
+                v2: {
+                  $sum: {
+                    $cond: [{ $eq: ["$devices.identityVersion", 2] }, 1, 0],
+                  },
+                },
+                v2ActiveLast30d: {
+                  $sum: {
+                    $cond: [
+                      {
+                        $and: [
+                          { $eq: ["$devices.identityVersion", 2] },
+                          { $gte: ["$devices.lastUsed", THIRTY_DAYS_AGO] },
+                        ],
+                      },
+                      1,
+                      0,
+                    ],
+                  },
+                },
+                activeLast30d: {
+                  $sum: {
+                    $cond: [
+                      { $gte: ["$devices.lastUsed", THIRTY_DAYS_AGO] },
+                      1,
+                      0,
+                    ],
+                  },
+                },
+                byProof: { $push: "$devices.migrationProof" },
+              },
+            },
+          ])
+          .toArray();
+
+        const proofCounts = {};
+        (stats?.byProof || []).forEach((proof) => {
+          if (proof) proofCounts[proof] = (proofCounts[proof] || 0) + 1;
+        });
+
+        const recentFailures = await MigrationEvents.find(
+          { outcome: { $ne: "success" } },
+          { sort: { createdAt: -1 }, limit: 20 },
+        ).fetchAsync();
+
+        sendJson(res, 200, {
+          success: true,
+          devices: {
+            total: stats?.total || 0,
+            v2: stats?.v2 || 0,
+            v1: (stats?.total || 0) - (stats?.v2 || 0),
+            activeLast30d: stats?.activeLast30d || 0,
+            v2ActiveLast30d: stats?.v2ActiveLast30d || 0,
+            byProof: proofCounts,
+          },
+          recentFailures: recentFailures.map((event) => ({
+            action: event.action,
+            outcome: event.outcome,
+            message: event.message,
+            userId: event.userId,
+            deviceUUID: event.deviceUUID,
+            createdAt: event.createdAt,
+          })),
+        });
+      } catch (err) {
+        const mapped = mapMeteorError(err);
+        sendJson(res, mapped.status, {
+          error: mapped.error,
+          errorCode: mapped.errorCode,
+        });
+      }
+    });
+  },
+);

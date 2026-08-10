@@ -15,6 +15,8 @@ import {
   removeUserCompletely,
   notifyApprovedDevices,
 } from "./deviceManagement.js"; // Also registers self-service device management methods + rate limiting
+import "./identityMigration.js"; // v1 -> v2 installation-identity migration methods
+import { requireDeviceProof } from "./identityEnforcement.js";
 import { NotificationHistory } from "../utils/api/notificationHistory.js";
 import { ApprovalTokens } from "../utils/api/approvalTokens";
 import { PendingResponses } from "../utils/api/pendingResponses.js";
@@ -1368,11 +1370,14 @@ Meteor.methods({
     action,
     notificationIdForAction,
     respondingDeviceUUID = null,
+    identityProof = null,
   ) {
     check(userId, String);
     check(action, Match.OneOf("approve", "reject"));
     check(notificationIdForAction, String);
     if (respondingDeviceUUID) check(respondingDeviceUUID, String);
+    if (identityProof)
+      check(identityProof, { signedAt: Number, signature: String });
 
     // Require an authenticated Meteor session — anonymous callers must not be
     // able to approve or reject another user's pending notifications.
@@ -1433,6 +1438,14 @@ Meteor.methods({
           "Your device registration is still pending admin approval. You cannot respond to notifications until your device is approved.",
         );
       }
+
+      // Phase 5 (flag-gated): the responding device must hold a verified v2
+      // identity and sign the exact notification + action it responds to.
+      requireDeviceProof(
+        respondingDevice,
+        `${notificationIdForAction}:${action}`,
+        identityProof,
+      );
 
       // Record last activity on the responding device (shown in My Devices).
       await DeviceDetails.updateAsync(
@@ -2062,39 +2075,6 @@ Meteor.methods({
         error,
       );
     }
-  },
-
-  /**
-   * Map FCM token to user
-   * @param {String} userId - User ID
-   * @param {String} fcmToken - FCM token
-   * @returns {Object} Result
-   */
-  async "users.mapFCMTokenToUser"(userId, fcmToken) {
-    check(userId, String);
-    check(fcmToken, String);
-
-    if (!this.userId) {
-      throw new Meteor.Error("not-authorized", "User must be logged in");
-    }
-
-    const user = Meteor.users.findOne(userId);
-    if (!user) {
-      throw new Meteor.Error("user-not-found", "User not found");
-    }
-
-    // Find device log with this FCM token
-    const deviceLog = await DeviceDetails.findOneAsync({ userId, fcmToken });
-
-    // If device log exists, update it, otherwise create a new entry
-    if (deviceLog) {
-      await DeviceDetails.updateAsync(
-        { _id: deviceLog._id },
-        { $set: { fcmToken: fcmToken, lastUpdated: new Date() } },
-      );
-    }
-
-    return { success: true };
   },
 
   /**

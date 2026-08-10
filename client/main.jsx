@@ -9,6 +9,7 @@ import { initializeBiometrics } from "./mobile/biometrics";
 import { initializeDeepLinks } from "./mobile/deep-links";
 import { initializePushNotifications } from "./mobile/push-notifications";
 import { checkNotificationPermission } from "./mobile/notification-permissions";
+import { initializeIdentityMigration } from "./mobile/identity-migration";
 import { initializeDiagnostics } from "./mobile/diagnostics";
 
 // During a hot code push the WebView is fully reloaded while the new bundle
@@ -41,6 +42,7 @@ Meteor.startup(() => {
         initializeBiometrics();
         initializeDeepLinks();
         initializePushNotifications();
+        initializeIdentityMigration();
         initializeDiagnostics();
         // Record whether the OS-level notification permission is granted so the
         // UI can prompt the user to re-enable it if they denied/dismissed it.

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { openSupportLink } from "../../../../utils/openExternal";
+import { migrateWithBiometricSecret } from "../../identity-migration";
 import { Meteor } from "meteor/meteor";
 import { Session } from "meteor/session";
 import { Random } from "meteor/random";
@@ -158,6 +159,25 @@ export const LoginPage = ({ deviceDetails }) => {
           navigate("/pending-registration");
           return false;
         }
+
+        // Phase 5 (server-flagged): the current installation must itself be
+        // approved and identity-verified — an approved ACCOUNT restored from
+        // a backup is not enough.
+        if (deviceDetails) {
+          const deviceCheck = await Meteor.callAsync(
+            "devices.checkDeviceApproval",
+            { deviceUUID: deviceDetails },
+          );
+          if (
+            deviceCheck.enforced &&
+            (!deviceCheck.approved || deviceCheck.identityVersion !== 2)
+          ) {
+            setError(
+              "This installation hasn't been verified. Approve it from another device (My Devices → Verify) or contact your administrator.",
+            );
+            return false;
+          }
+        }
         return true;
       } catch (err) {
         setError(
@@ -168,7 +188,7 @@ export const LoginPage = ({ deviceDetails }) => {
         setCheckingStatus(false);
       }
     },
-    [navigate],
+    [navigate, deviceDetails],
   );
 
   // ── Biometric login (reusable) ──────────────────────────────────────────
@@ -212,6 +232,12 @@ export const LoginPage = ({ deviceDetails }) => {
                   );
                 });
               }
+
+              // The device-bound secret is in hand: silently upgrade this
+              // installation to a v2 identity BEFORE the approval check, so
+              // enforcement doesn't lock out a v1 device that can prove
+              // possession right now.
+              await migrateWithBiometricSecret(biometricSecret);
 
               const isApproved = await checkRegistrationStatus(
                 result._id,
