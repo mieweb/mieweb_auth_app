@@ -35,6 +35,10 @@ App.setPreference("SplashScreenBackgroundColor", "#27AAE1");
 App.setPreference("AllowInlineMediaPlayback", true);
 App.setPreference("CordovaWebViewEngine", "CDVWKWebViewEngine", "ios");
 
+// iOS 16.4+ blocks Safari Web Inspector unless the WKWebView opts in
+// (Safari > Develop > <device> shows nothing otherwise).
+App.setPreference("InspectableWebview", true, "ios");
+
 // Add necessary iOS permissions for Camera
 App.appendToConfig(`
   <edit-config target="NSCameraUsageDescription" file="*-Info.plist" mode="merge">
