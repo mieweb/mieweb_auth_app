@@ -374,6 +374,84 @@ if (Meteor.isServer) {
       });
     });
 
+    describe("devices.approveIdentityMigration", function () {
+      // uuid-pending is unapproved; add a second APPROVED device to act as
+      // the vouching device.
+      beforeEach(async function () {
+        await DeviceDetails.updateAsync(
+          { userId: USER_A },
+          {
+            $push: {
+              devices: {
+                deviceUUID: "uuid-other-approved",
+                appId: "app-other",
+                biometricSecret: "other-approved-secret",
+                fcmToken: "fcm-other",
+                deviceRegistrationStatus: "approved",
+                isPrimary: false,
+                lastUpdated: new Date(),
+              },
+            },
+          },
+        );
+      });
+
+      const approve = (overrides = {}) =>
+        callMethod(
+          "devices.approveIdentityMigration",
+          { userId: USER_A },
+          {
+            deviceUUID: "uuid-v1",
+            actorDeviceUUID: "uuid-other-approved",
+            reAuth: { biometricSecret: "other-approved-secret" },
+            ...overrides,
+          },
+        );
+
+      it("binds the identity when vouched from another approved device", async function () {
+        await beginMigration(makeKeyPair());
+
+        const result = await approve();
+        assert.strictEqual(result.migrationProof, "manual-approval");
+
+        const doc = await DeviceDetails.findOneAsync({ userId: USER_A });
+        const device = doc.devices.find((d) => d.deviceUUID === "uuid-v1");
+        assert.strictEqual(device.identityVersion, 2);
+        assert.strictEqual(device.migrationProof, "manual-approval");
+      });
+
+      it("rejects approval from the device under migration itself", async function () {
+        await beginMigration(makeKeyPair());
+        await assert.rejects(
+          approve({
+            actorDeviceUUID: "uuid-v1",
+            reAuth: { biometricSecret: BIO_SECRET },
+          }),
+          /not-authorized/,
+        );
+      });
+
+      it("rejects approval from an unapproved device", async function () {
+        await beginMigration(makeKeyPair());
+        await assert.rejects(
+          approve({ actorDeviceUUID: "uuid-pending" }),
+          /not-authorized/,
+        );
+      });
+
+      it("rejects a bad step-up proof", async function () {
+        await beginMigration(makeKeyPair());
+        await assert.rejects(
+          approve({ reAuth: { biometricSecret: "wrong" } }),
+          /reauth-failed/,
+        );
+      });
+
+      it("rejects when the device has no live challenge", async function () {
+        await assert.rejects(approve(), /challenge-invalid/);
+      });
+    });
+
     describe("migration event logging", function () {
       const { MigrationEvents } = require("../utils/api/migrationEvents");
 

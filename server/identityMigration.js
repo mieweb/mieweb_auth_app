@@ -1,12 +1,12 @@
 import { Meteor } from "meteor/meteor";
-import { check } from "meteor/check";
+import { check, Match } from "meteor/check";
 import { DDPRateLimiter } from "meteor/ddp-rate-limiter";
 import { Random } from "meteor/random";
 import crypto from "crypto";
 import { DeviceDetails } from "../utils/api/deviceDetails.js";
 import { MigrationChallenges } from "../utils/api/migrationChallenges.js";
 import { logMigrationEvent } from "../utils/api/migrationEvents.js";
-import { timingSafeEquals } from "./deviceManagement.js";
+import { timingSafeEquals, verifyStepUpAuth } from "./deviceManagement.js";
 import { sendNotification } from "./firebase.js";
 
 /**
@@ -329,6 +329,63 @@ Meteor.methods({
       return { success: true, migrationProof: "fcm-challenge" };
     },
   ),
+
+  /**
+   * Phase 4 fallback: manually approve an installation that could not prove
+   * possession silently (e.g. a phone restored from a cloud backup). Must be
+   * confirmed from a DIFFERENT already-approved device with step-up re-auth —
+   * the account PIN alone from the unproven device is not sufficient. The
+   * unproven device must have a live (unexpired) migration challenge, i.e.
+   * the app was opened on it recently.
+   */
+  "devices.approveIdentityMigration": logged(
+    "manual-approval",
+    async function (options) {
+      check(options, {
+        deviceUUID: String,
+        actorDeviceUUID: String,
+        reAuth: Match.OneOf({ biometricSecret: String }, { pin: String }),
+      });
+      requireLogin(this);
+
+      const { deviceUUID, actorDeviceUUID, reAuth } = options;
+
+      const challenge = await MigrationChallenges.findOneAsync({
+        userId: this.userId,
+        deviceUUID,
+        usedAt: null,
+        expiresAt: { $gt: new Date() },
+      });
+      if (!challenge) {
+        throw new Meteor.Error(
+          "challenge-invalid",
+          "No live migration request for that device. Open the app on it, then try again.",
+        );
+      }
+
+      const userDoc = await DeviceDetails.findOneAsync({ userId: this.userId });
+      const actor = userDoc?.devices?.find(
+        (d) => d.deviceUUID === actorDeviceUUID,
+      );
+
+      if (
+        !actor ||
+        actor.deviceRegistrationStatus !== "approved" ||
+        actor.deviceUUID === challenge.deviceUUID
+      ) {
+        throw new Meteor.Error(
+          "not-authorized",
+          "Approval must come from a different approved device.",
+        );
+      }
+
+      await verifyStepUpAuth(this.userId, reAuth);
+
+      await consumeChallenge(challenge._id);
+      await bindIdentity(this.userId, challenge, "manual-approval");
+      return { success: true, migrationProof: "manual-approval" };
+    },
+  ),
 });
 
 const MIGRATION_METHODS = new Set([
@@ -336,6 +393,7 @@ const MIGRATION_METHODS = new Set([
   "devices.proveMigrationByBiometric",
   "devices.requestMigrationPushChallenge",
   "devices.proveMigrationByPush",
+  "devices.approveIdentityMigration",
 ]);
 
 DDPRateLimiter.addRule(

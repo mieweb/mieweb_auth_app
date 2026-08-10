@@ -76,7 +76,7 @@ const requireLogin = (context) => {
  * Accepts either the device-bound biometric secret of one of the caller's
  * approved devices, or the account PIN.
  */
-const verifyStepUpAuth = async (userId, reAuth) => {
+export const verifyStepUpAuth = async (userId, reAuth) => {
   if (reAuth.biometricSecret) {
     const userDoc = await DeviceDetails.findOneAsync({ userId });
     const verified = (userDoc?.devices || []).some(
@@ -532,10 +532,11 @@ Meteor.methods({
    * the whole account (re-registration then goes through the normal
    * first-device admin approval flow).
    */
-  async "devices.revoke"({ deviceUUID, actorDeviceUUID, reAuth }) {
+  async "devices.revoke"({ deviceUUID, actorDeviceUUID, reAuth, lost }) {
     check(deviceUUID, String);
     check(actorDeviceUUID, String);
     check(reAuth, REAUTH_PATTERN);
+    check(lost, Match.Maybe(Boolean));
     requireLogin(this);
 
     await verifyStepUpAuth(this.userId, reAuth);
@@ -580,7 +581,7 @@ Meteor.methods({
       const result = await removeUserCompletely(this.userId);
       await logDeviceAudit({
         userId: this.userId,
-        action: "revoke",
+        action: lost ? "markLost" : "revoke",
         deviceUUID,
         actorDeviceUUID,
         details: "last device — account deregistered",
@@ -647,7 +648,7 @@ Meteor.methods({
 
     await logDeviceAudit({
       userId: this.userId,
-      action: "revoke",
+      action: lost ? "markLost" : "revoke",
       deviceUUID,
       actorDeviceUUID,
       details: deviceLabel(target),
