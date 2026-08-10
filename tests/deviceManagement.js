@@ -140,6 +140,85 @@ if (Meteor.isServer) {
       });
     });
 
+    describe("devices.updateFCMToken", function () {
+      it("rejects unauthenticated callers", async function () {
+        await assert.rejects(
+          callMethod(
+            "devices.updateFCMToken",
+            { userId: null },
+            { deviceUUID: "uuid-primary", fcmToken: "fcm-rotated" },
+          ),
+          /not-authorized/,
+        );
+      });
+
+      it("updates the token for the caller's own device", async function () {
+        const result = await callMethod(
+          "devices.updateFCMToken",
+          { userId: USER_A },
+          { deviceUUID: "uuid-primary", fcmToken: "fcm-rotated" },
+        );
+        assert.strictEqual(result.updated, true);
+
+        const doc = await DeviceDetails.findOneAsync({ userId: USER_A });
+        const device = doc.devices.find((d) => d.deviceUUID === "uuid-primary");
+        assert.strictEqual(device.fcmToken, "fcm-rotated");
+      });
+
+      it("never changes the device registration status", async function () {
+        await DeviceDetails.updateAsync(
+          { userId: USER_A, "devices.deviceUUID": "uuid-secondary" },
+          { $set: { "devices.$.deviceRegistrationStatus": "pending" } },
+        );
+
+        await callMethod(
+          "devices.updateFCMToken",
+          { userId: USER_A },
+          { deviceUUID: "uuid-secondary", fcmToken: "fcm-rotated" },
+        );
+
+        const doc = await DeviceDetails.findOneAsync({ userId: USER_A });
+        const device = doc.devices.find(
+          (d) => d.deviceUUID === "uuid-secondary",
+        );
+        assert.strictEqual(device.fcmToken, "fcm-rotated");
+        assert.strictEqual(device.deviceRegistrationStatus, "pending");
+      });
+
+      it("does not touch another user's device", async function () {
+        const result = await callMethod(
+          "devices.updateFCMToken",
+          { userId: USER_B },
+          { deviceUUID: "uuid-primary", fcmToken: "fcm-hijack" },
+        );
+        assert.strictEqual(result.updated, false);
+
+        const doc = await DeviceDetails.findOneAsync({ userId: USER_A });
+        const device = doc.devices.find((d) => d.deviceUUID === "uuid-primary");
+        assert.strictEqual(device.fcmToken, "fcm-primary");
+      });
+
+      it("is a no-op when the token is unchanged", async function () {
+        const result = await callMethod(
+          "devices.updateFCMToken",
+          { userId: USER_A },
+          { deviceUUID: "uuid-primary", fcmToken: "fcm-primary" },
+        );
+        assert.strictEqual(result.updated, false);
+      });
+
+      it("rejects an oversized token", async function () {
+        await assert.rejects(
+          callMethod(
+            "devices.updateFCMToken",
+            { userId: USER_A },
+            { deviceUUID: "uuid-primary", fcmToken: "x".repeat(4097) },
+          ),
+          /invalid-token/,
+        );
+      });
+    });
+
     describe("devices.updateInfo", function () {
       it("updates the calling device's model/platform and lastUsed", async function () {
         await callMethod(

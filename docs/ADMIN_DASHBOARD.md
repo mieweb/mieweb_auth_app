@@ -41,12 +41,13 @@ No database seeding required — admin access is determined by LDAP group member
 
 ## Dashboard Tabs
 
-| Tab         | Description                                                                                                                                             |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 🔑 API Keys | Create / delete client API keys. Key shown once with copy button; list shows first-5-char prefix + masked remainder.                                    |
-| 👤 Users    | List all users with registration status. Approve pending users or delete any user.                                                                      |
-| 📱 Devices  | Devices grouped by user. Approve pending devices or revoke any device.                                                                                  |
-| 📧 Emails   | Log of every outgoing email (registration approval, support, account deletion). Filter by type. Approve / reject users inline from registration emails. |
+| Tab            | Description                                                                                                                                                                                                                                                                                                                                                                                    |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🔑 API Keys    | Create / delete client API keys. Key shown once with copy button; list shows first-5-char prefix + masked remainder.                                                                                                                                                                                                                                                                           |
+| 👤 Users       | List all users with registration status. Approve pending users or delete any user.                                                                                                                                                                                                                                                                                                             |
+| 📱 Devices     | Devices grouped by user. Approve pending devices or revoke any device.                                                                                                                                                                                                                                                                                                                         |
+| 📧 Emails      | Log of every outgoing email (registration approval, support, account deletion). Filter by type. Approve / reject users inline from registration emails.                                                                                                                                                                                                                                        |
+| 🩺 Diagnostics | Look up a user (username / email / userId) to inspect their account, devices, stored FCM token state (masked preview + SHA-256 fingerprint), and recent notification history — without direct MongoDB access. Send a per-device test push to verify the stored token against live FCM (a `registration-token-not-registered` result means the token is stale and the device must re-register). |
 
 ## REST API Reference
 
@@ -89,6 +90,15 @@ All endpoints require `Authorization: Bearer <token>` except login.
 | Method | Path                     | Body | Description                    |
 | ------ | ------------------------ | ---- | ------------------------------ |
 | GET    | `/api/admin/emails/list` | —    | Last 200 emails (newest first) |
+
+### Diagnostics
+
+| Method | Path                               | Body / Query                   | Description                                                                                          |
+| ------ | ---------------------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| GET    | `/api/admin/diagnostics/user`      | `?q=<username\|email\|userId>` | Account, devices (masked FCM token info, biometric-secret presence), warnings, last 15 notifications |
+| POST   | `/api/admin/diagnostics/test-push` | `{ userId, deviceUUID }`       | Send a test push to the stored token; returns the live FCM result (e.g. stale-token error codes)     |
+
+Full FCM tokens are never returned — only a masked preview (first 12 + last 6 chars), length, and a truncated SHA-256 fingerprint, which is enough to compare against a device's diagnostics logs.
 
 ## Files
 

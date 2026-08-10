@@ -745,6 +745,45 @@ Meteor.methods({
 
     return { success: true, approved: approve };
   },
+
+  /**
+   * Reconcile a rotated FCM registration token for the calling user's own
+   * device. Tokens rotate legitimately (reinstall, OS restore, Firebase
+   * refresh), so this only replaces the stored token — it never changes the
+   * device's registration/approval status.
+   */
+  async "devices.updateFCMToken"(options) {
+    check(options, { deviceUUID: String, fcmToken: String });
+    requireLogin(this);
+
+    const { deviceUUID, fcmToken } = options;
+
+    if (!fcmToken || fcmToken.length > 4096) {
+      throw new Meteor.Error("invalid-token", "Invalid FCM token.");
+    }
+
+    const userDoc = await DeviceDetails.findOneAsync({ userId: this.userId });
+    const device = userDoc?.devices?.find((d) => d.deviceUUID === deviceUUID);
+
+    // No-op rather than an error: the device may have been revoked while the
+    // app was offline, and the client fires this on every push registration.
+    if (!device || device.fcmToken === fcmToken) {
+      return { success: true, updated: false };
+    }
+
+    await DeviceDetails.updateAsync(
+      { userId: this.userId, "devices.deviceUUID": deviceUUID },
+      {
+        $set: {
+          "devices.$.fcmToken": fcmToken,
+          "devices.$.lastUpdated": new Date(),
+          lastUpdated: new Date(),
+        },
+      },
+    );
+
+    return { success: true, updated: true };
+  },
 });
 
 // Brute-force protection for authentication and device management methods.
@@ -753,6 +792,7 @@ const RATE_LIMITED_METHODS = new Set([
   "users.register",
   "devices.checkRegistrationByUUID",
   "devices.updateInfo",
+  "devices.updateFCMToken",
   "devices.rename",
   "devices.setPrimary",
   "devices.revoke",
