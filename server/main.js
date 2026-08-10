@@ -15,6 +15,7 @@ import {
   removeUserCompletely,
   notifyApprovedDevices,
 } from "./deviceManagement.js"; // Also registers self-service device management methods + rate limiting
+import "./identityMigration.js"; // v1 -> v2 installation-identity migration methods
 import { NotificationHistory } from "../utils/api/notificationHistory.js";
 import { ApprovalTokens } from "../utils/api/approvalTokens";
 import { PendingResponses } from "../utils/api/pendingResponses.js";
