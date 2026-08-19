@@ -177,5 +177,8 @@ set-env-*.sh
 set-env.sh
 setup-dev-server.sh
 
+# Local MIE instance mobile builds
+mie-build/
+
 # Android App Bundles
 *.aab

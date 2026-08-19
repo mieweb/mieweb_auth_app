@@ -7,15 +7,15 @@ StartLimitBurst=3
 
 [Service]
 Type=simple
-User=aabrol
-Group=ldapusers
-WorkingDirectory=/home/aabrol/Builds/current
-ExecStart=/home/aabrol/scripts/start-mieauth.sh
+User=__USER__
+Group=__GROUP__
+WorkingDirectory=__HOME__/Builds/current
+ExecStart=__HOME__/scripts/start-mieauth.sh
 Restart=on-failure
 RestartSec=10
 
 # Environment is sourced via start-mieauth.sh wrapper
-# which calls: source /home/aabrol/scripts/set-env.sh
+# which calls: source __HOME__/scripts/set-env.sh
 # Edit ~/scripts/set-env.sh to change environment variables
 
 # Logging — stdout/stderr go to journald
@@ -27,7 +27,7 @@ SyslogIdentifier=mieauth
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
-ReadWritePaths=/home/aabrol/Builds /home/aabrol/github
+ReadWritePaths=__HOME__
 
 # Graceful shutdown
 KillMode=mixed
