@@ -56,16 +56,18 @@ sudo systemctl enable mieauth
 echo "✅ systemd service installed and enabled"
 
 # Step 3: Configure sudoers for CI/CD (passwordless restart)
-SUDOERS_LINE="${SVC_USER} ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart mieauth, /usr/bin/systemctl stop mieauth, /usr/bin/systemctl start mieauth, /usr/bin/systemctl status mieauth, /usr/bin/systemctl is-active mieauth, /usr/bin/journalctl -u mieauth *"
+# sudo matches arguments exactly, so every flag combination the deploy uses must
+# be listed — "is-active mieauth" does NOT cover "is-active --quiet mieauth".
+SUDOERS_LINE="${SVC_USER} ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart mieauth, /usr/bin/systemctl start mieauth, /usr/bin/systemctl stop mieauth, /usr/bin/systemctl status mieauth, /usr/bin/systemctl status mieauth --no-pager, /usr/bin/systemctl is-active mieauth, /usr/bin/systemctl is-active --quiet mieauth, /usr/bin/journalctl -u mieauth *"
 SUDOERS_FILE="/etc/sudoers.d/mieauth"
 
-if [ ! -f "$SUDOERS_FILE" ]; then
+if [ ! -f "$SUDOERS_FILE" ] || ! sudo grep -qF "is-active --quiet mieauth" "$SUDOERS_FILE"; then
   echo "$SUDOERS_LINE" | sudo tee "$SUDOERS_FILE" > /dev/null
   sudo chmod 440 "$SUDOERS_FILE"
   sudo visudo -cf "$SUDOERS_FILE"
   echo "✅ sudoers configured for passwordless systemctl"
 else
-  echo "ℹ️  Sudoers file already exists: ${SUDOERS_FILE}"
+  echo "ℹ️  Sudoers file already up to date: ${SUDOERS_FILE}"
 fi
 
 # Step 4: Create initial symlink if a build exists
