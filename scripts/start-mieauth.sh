@@ -1,5 +1,10 @@
 #!/bin/bash
-# Wrapper script for systemd to start MIEAuth with proper environment
-# This sources the original set-env.sh which handles multi-line JSON properly
-source /home/aabrol/scripts/set-env.sh
-exec /home/aabrol/.nvm/versions/node/v20.19.6/bin/node main.js
+# Wrapper script for systemd to start MIEAuth with proper environment.
+# set-env.sh is sourced rather than used as an EnvironmentFile because it
+# contains multi-line JSON that systemd cannot parse.
+source "$HOME/scripts/set-env.sh"
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+
+exec node main.js
