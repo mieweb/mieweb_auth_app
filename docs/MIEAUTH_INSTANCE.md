@@ -72,8 +72,6 @@ export LDAP_URL="ldaps://ldap.med-web.com:636"
 export LDAP_BASE_DN="dc=med-web,dc=com"
 export LDAP_USER_BASE_DN="ou=people,dc=med-web,dc=com"
 export LDAP_USER_RDN_ATTR="uid"
-export LDAP_BIND_DN="uid=proxyuser,dc=med-web,dc=com"
-export LDAP_BIND_PASSWORD="<LDAP_BIND_PASSWORD>"
 export LDAP_ADMIN_GROUP_DN="cn=mie,ou=secgroup,dc=med-web,dc=com"
 export LDAP_GROUP_MEMBER_ATTR="uniqueMember"
 export LDAP_REJECT_UNAUTHORIZED="true"
@@ -86,6 +84,10 @@ Notes:
 - This instance authenticates against the **med-web.com** directory on standard
   LDAPS port 636 with `uniqueMember` group membership — different directory,
   port, and membership attribute from the opensource app's mieweb.org cluster.
+- No `LDAP_BIND_DN` / `LDAP_BIND_PASSWORD` is set, so the admin-group lookup uses
+  an **anonymous search** ([server/adminAuth.js](../server/adminAuth.js#L514)).
+  If the directory ever refuses anonymous searches, logins fail as
+  `NOT_IN_GROUP` and a service-account bind would need to be added.
 - `LDAP_REJECT_UNAUTHORIZED=true` means the LDAPS certificate must validate. Do
   not re-enable `NODE_TLS_REJECT_UNAUTHORIZED=0`, which would silently defeat it.
 - **`FIREBASE_SERVICE_ACCOUNT_JSON` must be this instance's own Firebase
