@@ -81,8 +81,12 @@ else
   echo "⚠️  No existing build found."
 fi
 
-# Step 5: Stop nohup process if running
-if pgrep -f "node main.js" > /dev/null; then
+# Step 5: Stop a pre-systemd nohup process if one is running.
+# Skipped when the unit is already active, otherwise this kills the very
+# service we are installing — the systemd process also matches "node main.js".
+if sudo systemctl is-active --quiet mieauth; then
+  echo "ℹ️  mieauth is already managed by systemd — leaving it running"
+elif pgrep -f "node main.js" > /dev/null; then
   echo "Stopping existing nohup node process..."
   pkill -f "node main.js" || true
   sleep 3
