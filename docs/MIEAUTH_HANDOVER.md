@@ -139,7 +139,9 @@ LDAP_REJECT_UNAUTHORIZED true
 
 ### Identity
 
-Applied at build time by [`scripts/apply-mieweb-variant.sh`](../scripts/apply-mieweb-variant.sh):
+Applied at build time by
+[`scripts/apply-variant.sh mie`](../scripts/apply-variant.sh), which reads
+[`variants/mie.env`](../variants/mie.env):
 
 | Field             | Value                                                    |
 | ----------------- | -------------------------------------------------------- |
@@ -179,9 +181,9 @@ change the logo: replace `logo.png`, delete `resources/`, rebuild.
 ### Local build
 
 ```bash
-bash scripts/build-mobile-local.sh            # both platforms
-bash scripts/build-mobile-local.sh ios
-bash scripts/sign-android-release.sh           # signs the AAB/APK
+bash scripts/build-mobile-local.sh mie            # both platforms
+bash scripts/build-mobile-local.sh mie ios
+bash scripts/sign-android-release.sh              # signs the AAB/APK
 ```
 
 Output in `mie-build/`. Open `mie-build/ios/project/*.xcworkspace` in Xcode or
@@ -231,20 +233,25 @@ ones before the first `include_mobile: true` run.
 the **default branch** — that is why the first version had to be merged before it
 could be run.
 
-### Planned refactor (not started)
+### `release.yml` — the unified pipeline
 
-Agreed design, not yet implemented:
+`release.yml` replaces the three per-target workflows and is the path all future
+releases take. It resolves the tag (or a dispatch input) into a target through
+[`scripts/resolve-release-target.sh`](../scripts/resolve-release-target.sh) and
+reads every parameter from `variants/<target>.env`. See the Releasing section of
+the README for the tag table and the manual re-run recipes.
 
-- `variants/<name>.env` + `branding/<name>/` + a generalised
-  `scripts/apply-variant.sh <name>` replacing the MIE-specific
-  `apply-mieweb-variant.sh`.
-- `deploy-to-os.yml` merging the two opensource workflows,
-  parameterised by a `channel` input (dev/prod). Verified that the two differ
-  only in **values** (host, port, SSH secret names, bundle IDs, iOS Firebase
-  plist secret, tag prefix, and a dev-only APK step).
-- Keep `deploy-to-mieauth.yml` separate — different runner, secrets, and server.
-- Optionally migrate the opensource mobile jobs onto `mieweb/actions` too, as a
-  later PR.
+Two differences from the workflow above:
+
+- iOS signs via `match` with the **team-level** App Store Connect key and match
+  repo, so no per-app `MIE_APPLE_*` or `MIE_IOS_*` secrets are needed — only the
+  shared `APPLE_*` and `MATCH_*` ones, which already exist.
+- Android still needs `MIE_GOOGLE_PLAY_JSON_KEY_BASE64` and
+  `MIE_FIREBASE_SERVICES_JSON_BASE64` for the `mie` target, and a base64
+  `GOOGLE_PLAY_JSON_KEY_BASE64` for the opensource targets. None exist yet.
+
+The three `deploy-and-publish-miewebauth*.yml` workflows stay in place until
+`release.yml` has been proven end to end for every target, then they are deleted.
 
 Rejected: separate long-lived branches per app. The apps differ by ~4 strings and
 a logo; branching would force every fix to be merged twice and would conflict on

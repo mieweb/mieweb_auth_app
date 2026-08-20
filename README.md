@@ -481,32 +481,59 @@ build/signing scripts, and the diagnostic tools. The deployment ones assume a
 particular Linux user, home-directory layout, Node installation, and
 `set-env.sh` location. Review and adapt them before using them on another host.
 
-### GitHub Actions releases
+### Releasing
 
-Releases trigger three parallel delivery paths: server deployment, Android
-build/publish, and iOS build/upload.
+`.github/workflows/release.yml` is the single entry point for all three release
+targets. The tag names the target; `variants/<target>.env` supplies the app IDs,
+display name, URL scheme, server URL, Play track, branch, and deploy mode.
 
 <!-- prettier-ignore -->
-| Environment | Tag | Source branch | Behavior |
+| Tag | Target | App | Server |
 | --- | --- | --- | --- |
-| Development | `dev-v*` | `development` | Deploys the dev server, publishes Android to the internal track, and uploads iOS to TestFlight. Release text can select `[server]`, `[android]`, and/or `[ios]`; no labels runs all three. |
-| Production | `v*` excluding `dev-v*` | `main` | Deploys the production server, publishes Android to the internal Play track, and uploads iOS to TestFlight. |
+| `mie-os-dev-v*` | `mie-os-dev` | MIEWeb Auth Opensource Beta (`org.mieweb.os.dev`) | `mieauth-dev.os.mieweb.org` |
+| `mie-os-prod-v*` | `mie-os-prod` | MIEWeb Auth Opensource (`com.mieweb.mieauth` Android, `org.mieweb.opensource` iOS) | `mieauth-prod.os.mieweb.org` |
+| `mie-v*` | `mie` | MIEWeb Auth (`org.mieweb.auth`) | `mieauth.mieweb.org` |
 
-The workflows update `mobile-config.js` from the release tag and commit the
-version/build metadata back to the corresponding branch. Server deployment
-builds a Meteor server bundle over SSH, switches a `Builds/current` symlink,
-restarts `mieauth.service`, and retains the newest three builds.
+`mie-os-dev-v*` tags are cut on `development`; the other two on `main`. The
+retired `v*` and `dev-v*` tags now fail the run with an explicit error instead of
+being skipped silently.
 
-The workflows depend on organization-specific SSH, Firebase, Android signing,
-Google Play, Apple signing, and App Store Connect secrets. Their names and
-expected usage are visible in
-`.github/workflows/deploy-and-publish-miewebauth-dev-os.yml` and
-`.github/workflows/deploy-and-publish-miewebauth-prod-os.yml`; secret values are
-intentionally not
+Releasing from a tag deploys the server, builds both platforms, and publishes.
+Manual runs (Run workflow) narrow that down:
+
+<!-- prettier-ignore -->
+| Task | Inputs |
+| --- | --- |
+| Server-only hotfix | `deploy_server: true`, `include_mobile: false` |
+| Rebuild iOS from a tag | pick the tag in "Use workflow from", `deploy_server: false`, `include_mobile: true`, `platforms: ios` |
+| Dry run a signed build | `include_mobile: true`, `publish: false` — artifacts only, no store upload |
+
+The mobile build compiles whatever ref the run was started from. SSH server
+deploys always take the branch from the variant file, because the build happens
+on the remote host.
+
+Both halves are reproducible locally from the same sources of truth:
+
+```bash
+EVENT_NAME=release TAG=mie-v1.2.3 bash scripts/resolve-release-target.sh
+bash scripts/build-mobile-local.sh mie ios
+```
+
+Mobile builds run through the shared `mieweb/actions` pipeline, pinned to an
+exact tag. iOS signs via `match` (team-level certificate); Android signs from a
+per-app keystore. Secrets are mapped explicitly per target — the unprefixed names
+belong to the opensource app and the `MIE_*` names to MIEWeb Auth — so a build
+can never be signed with the wrong key. Secret values are intentionally not
 documented here.
 
-The two `test-ios-*.yml` workflows are manual iOS/Fastlane experiments, not the
-primary release path.
+### Retired release workflows
+
+The three `deploy-and-publish-miewebauth*.yml` workflows are the previous
+per-target pipelines. They remain the live path until `release.yml` has been
+proven end to end, then they are removed.
+
+The `test-ios-*.yml` workflows are manual iOS/Fastlane experiments, not a release
+path.
 
 ## Project structure
 
@@ -526,7 +553,8 @@ primary release path.
 | `tests/` | Meteor Mocha server and client tests. |
 | `docs/` | Focused API, admin, and multi-instance documentation. |
 | `scripts/` | All shell scripts: systemd unit, server provisioning, mobile build/signing, and diagnostics. |
-| `.github/workflows/` | Development, production, and manual iOS automation. |
+| `variants/` | Per-release-target identity: app IDs, display name, URL scheme, server URL, Play track, branch, deploy mode. |
+| `.github/workflows/` | Release pipeline plus the manual iOS automation. |
 | `mobile-config.js` | Cordova metadata, native preferences, plugins, Firebase files, icons, and launch screens. |
 | `rspack.config.js` | Meteor Rspack/SWC optimization. |
 | `generate_app_resources.py` | Mobile icon and launch-screen generator. |
