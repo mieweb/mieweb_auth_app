@@ -50,6 +50,11 @@ if [ -n "${BRANDING_LOGO:-}" ]; then
   esac
 
   if [ -z "$(ls -A "$BRANDING_DIR" 2>/dev/null)" ]; then
+    if ! python3 -c "import PIL" 2>/dev/null; then
+      echo "ERROR: generate_app_resources.py needs Pillow, which is not installed."
+      echo "       Install it with: pip3 install --break-system-packages Pillow"
+      exit 1
+    fi
     echo "Generating resources from ${BRANDING_LOGO}"
     mkdir -p "$BRANDING_DIR"
     python3 generate_app_resources.py "$BRANDING_LOGO" "$BRANDING_DIR"

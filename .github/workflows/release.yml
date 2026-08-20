@@ -269,6 +269,10 @@ jobs:
       - name: Setup Meteor/Cordova environment
         uses: mieweb/actions/prepare-meteor-cordova-env@v2.3.0
 
+      # generate_app_resources.py builds the icon set; the runner image has no Pillow.
+      - name: Install icon generator dependencies
+        run: pip3 install --break-system-packages --quiet Pillow
+
       - name: Apply release variant
         env:
           APP_VERSION: ${{ needs.select-target.outputs.app_version }}
@@ -322,6 +326,10 @@ jobs:
         uses: mieweb/actions/prepare-android-env@v2.3.0
         with:
           android_api_level: ${{ env.ANDROID_API_LEVEL }}
+
+      # generate_app_resources.py builds the icon set; the runner image has no Pillow.
+      - name: Install icon generator dependencies
+        run: pip3 install --break-system-packages --quiet Pillow
 
       - name: Apply release variant
         env:
