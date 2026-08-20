@@ -1,8 +1,8 @@
-name: Deploy Production - Server, Android (Play Store) & iOS (TestFlight)
+name: Deploy & Publish MIEWeb Auth - Prod (mieauth-prod.os.mieweb.org)
 
 # ─────────────────────────────────────────────────────────
 # Triggers when a release with tag 'v*' is created
-# (excludes dev-v* tags which use deploy-development.yml)
+# (excludes dev-v* tags, which use deploy-and-publish-miewebauth-dev-os.yml)
 # ─────────────────────────────────────────────────────────
 on:
   release:
