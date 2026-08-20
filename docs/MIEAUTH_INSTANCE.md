@@ -5,20 +5,20 @@ Setup notes for the **MIE-internal** MIEAuth instance on host `mie-fwdc-auth1`.
 This is a **separate application** from the opensource app. It has its own
 database and its own user base — nothing is migrated from
 `mieauth-prod.os.mieweb.org`, which continues to run untouched via
-[deploy-production.yml](.github/workflows/deploy-production.yml).
+[deploy-and-publish-miewebauth-prod-os.yml](../.github/workflows/deploy-and-publish-miewebauth-prod-os.yml).
 
-|             | Opensource app                 | MIE instance                          |
-| ----------- | ------------------------------ | ------------------------------------- |
-| URL         | `mieauth-prod.os.mieweb.org`   | `mieauth.mieweb.org`                  |
-| Host        | Proxmox container (SSH deploy) | `mie-fwdc-auth1` (self-hosted runner) |
-| Workflow    | `deploy-production.yml`        | `deploy-mieauth.yml`                  |
-| Release tag | `v*`                           | `mie-v*`                              |
-| Database    | `mieweb_auth`, standalone      | `mieauth`, replica set `mieauth-rs`   |
-| Users       | Existing                       | Fresh — no import                     |
+|             | Opensource app                              | MIE instance                          |
+| ----------- | ------------------------------------------- | ------------------------------------- |
+| URL         | `mieauth-prod.os.mieweb.org`                | `mieauth.mieweb.org`                  |
+| Host        | Proxmox container (SSH deploy)              | `mie-fwdc-auth1` (self-hosted runner) |
+| Workflow    | `deploy-and-publish-miewebauth-prod-os.yml` | `deploy-and-publish-miewebauth.yml`   |
+| Release tag | `v*`                                        | `mie-v*`                              |
+| Database    | `mieweb_auth`, standalone                   | `mieauth`, replica set `mieauth-rs`   |
+| Users       | Existing                                    | Fresh — no import                     |
 
 ## Host facts
 
-Audited 2026-08-17 via [scripts/server-inventory.sh](scripts/server-inventory.sh):
+Audited 2026-08-17 via [scripts/audit-server.sh](../scripts/audit-server.sh):
 
 | Item                | State                                                                   |
 | ------------------- | ----------------------------------------------------------------------- |
@@ -33,9 +33,8 @@ Audited 2026-08-17 via [scripts/server-inventory.sh](scripts/server-inventory.sh
 
 ## 1. Provisioning
 
-```bash
-TARGET_USER=actions bash scripts/provision-server.sh
-```
+````bash
+TARGET_USER=actions bash scripts/provision-server.sh```
 
 The runner executes as `actions` while `aabrol` holds sudo, so the script does
 system-level work (apt) as the invoking user and installs the per-user toolchain
@@ -75,7 +74,7 @@ export LDAP_USER_RDN_ATTR="uid"
 export LDAP_ADMIN_GROUP_DN="cn=mie,ou=secgroup,dc=med-web,dc=com"
 export LDAP_GROUP_MEMBER_ATTR="uniqueMember"
 export LDAP_REJECT_UNAUTHORIZED="true"
-```
+````
 
 Notes:
 
@@ -86,8 +85,10 @@ Notes:
   port, and membership attribute from the opensource app's mieweb.org cluster.
 - No `LDAP_BIND_DN` / `LDAP_BIND_PASSWORD` is set, so the admin-group lookup uses
   an **anonymous search** ([server/adminAuth.js](../server/adminAuth.js#L514)).
-  If the directory ever refuses anonymous searches, logins fail as
-  `NOT_IN_GROUP` and a service-account bind would need to be added.
+  **This directory rejects that** — anonymous reads of
+  `cn=mie,ou=secgroup,dc=med-web,dc=com` return `50 Insufficient access`, so the
+  service-bind credentials are required, not optional. Verify with
+  [scripts/diagnose-ldap-login.sh](../scripts/diagnose-ldap-login.sh).
 - `LDAP_REJECT_UNAUTHORIZED=true` means the LDAPS certificate must validate. Do
   not re-enable `NODE_TLS_REJECT_UNAUTHORIZED=0`, which would silently defeat it.
 - **`FIREBASE_SERVICE_ACCOUNT_JSON` must be this instance's own Firebase
@@ -97,7 +98,7 @@ Notes:
 ## 4. Service
 
 ```bash
-SVC_USER=actions bash scripts/setup-systemd.sh
+SVC_USER=actions bash scripts/install-service.sh
 ```
 
 `scripts/mieauth.service` is a template — the installer substitutes the service
@@ -118,7 +119,7 @@ flowchart LR
     E --> F[HTTP health check]
 ```
 
-[deploy-mieauth.yml](.github/workflows/deploy-mieauth.yml) is server-only and
+[deploy-and-publish-miewebauth.yml](../.github/workflows/deploy-and-publish-miewebauth.yml) is server-only and
 runs on either a `mie-v*` release or a manual **Run workflow** dispatch. It is
 gated so the opensource `v*` releases never touch this host.
 
@@ -182,5 +183,5 @@ sudo journalctl -u mieauth -f
 sudo systemctl restart mieauth
 ```
 
-Re-run [scripts/server-inventory.sh](scripts/server-inventory.sh) at any time —
+Re-run [scripts/audit-server.sh](../scripts/audit-server.sh) at any time —
 it is read-only and reports toolchain, database, ports, tunnel, and service state.

@@ -1,13 +1,13 @@
 #!/bin/bash
 # ──────────────────────────────────────────────────────────
-# setup-systemd.sh
+# install-service.sh
 # One-time setup script to install the MIEAuth systemd service.
 # Run on the production host as a sudo-capable user.
 #
 # The service must run as the same user as the GitHub Actions runner, since the
 # runner owns ~/Builds. Override when they differ:
 #
-#   SVC_USER=actions bash setup-systemd.sh
+#   SVC_USER=actions bash install-service.sh
 # ──────────────────────────────────────────────────────────
 set -e
 

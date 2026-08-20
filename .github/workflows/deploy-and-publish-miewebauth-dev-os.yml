@@ -1,4 +1,4 @@
-name: Deploy Development - Server, Android & iOS (Dev)
+name: Deploy & Publish MIEWeb Auth - Dev (mieauth-dev.os.mieweb.org)
 
 # ─────────────────────────────────────────────────────────
 # Triggers when a release with tag 'dev-v*' is created

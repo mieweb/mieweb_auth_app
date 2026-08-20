@@ -1,11 +1,11 @@
 #!/bin/bash
 # ──────────────────────────────────────────────────────────
-# server-inventory.sh
+# audit-server.sh
 # READ-ONLY audit of a host being prepared to run MIEAuth.
 # Changes nothing — safe to run on prod. Run as the service/runner user.
 #
-#   bash server-inventory.sh            # print to stdout
-#   bash server-inventory.sh > out.txt  # capture for review
+#   bash audit-server.sh            # print to stdout
+#   bash audit-server.sh > out.txt  # capture for review
 # ──────────────────────────────────────────────────────────
 
 section() {
@@ -172,7 +172,9 @@ echo "-- runner services --"
 systemctl list-units --type=service --no-pager 2>/dev/null | grep -i 'actions.runner' || echo "  none registered"
 
 section "11. LDAP / SSSD"
-if [ -r /etc/sssd/sssd.conf ]; then
+# sssd.conf is mode 0600 root-only, so test existence with sudo — a plain -r
+# check reports "not present" for a file that is merely unreadable.
+if sudo -n test -f /etc/sssd/sssd.conf 2>/dev/null; then
   sudo -n grep -E '^(ldap_uri|ldap_user_search_base|ldap_group_search_base|ldap_default_bind_dn)' /etc/sssd/sssd.conf 2>/dev/null | sed 's/^/  /' \
     || echo "  present but unreadable without sudo"
 else
@@ -204,4 +206,4 @@ echo "-- DNS for mieauth.mieweb.org --"
 getent hosts mieauth.mieweb.org 2>/dev/null | sed 's/^/  /' || echo "  does not resolve"
 
 section "Done"
-echo "Review the [MISSING] entries above before running scripts/setup-systemd.sh."
+echo "Review the [MISSING] entries above before running scripts/install-service.sh."
