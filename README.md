@@ -475,10 +475,11 @@ The detailed design is in
 
 ### systemd
 
-The `scripts/` directory contains the deployment-specific service unit,
-installation helper, and startup wrapper. They assume a particular Linux user,
-home-directory layout, Node installation, and `set-env.sh` location. Review and
-adapt them before using them on another host.
+The `scripts/` directory holds every shell script in the repository — the
+systemd unit, provisioning and install helpers, the startup wrapper, the mobile
+build/signing scripts, and the diagnostic tools. The deployment ones assume a
+particular Linux user, home-directory layout, Node installation, and
+`set-env.sh` location. Review and adapt them before using them on another host.
 
 ### GitHub Actions releases
 
@@ -498,8 +499,10 @@ restarts `mieauth.service`, and retains the newest three builds.
 
 The workflows depend on organization-specific SSH, Firebase, Android signing,
 Google Play, Apple signing, and App Store Connect secrets. Their names and
-expected usage are visible in `.github/workflows/deploy-development.yml` and
-`.github/workflows/deploy-production.yml`; secret values are intentionally not
+expected usage are visible in
+`.github/workflows/deploy-and-publish-miewebauth-dev-os.yml` and
+`.github/workflows/deploy-and-publish-miewebauth-prod-os.yml`; secret values are
+intentionally not
 documented here.
 
 The two `test-ios-*.yml` workflows are manual iOS/Fastlane experiments, not the
@@ -522,7 +525,7 @@ primary release path.
 | `utils/api/` | MongoDB collections and related Meteor methods/publications. |
 | `tests/` | Meteor Mocha server and client tests. |
 | `docs/` | Focused API, admin, and multi-instance documentation. |
-| `scripts/` | systemd unit and deployment startup helpers. |
+| `scripts/` | All shell scripts: systemd unit, server provisioning, mobile build/signing, and diagnostics. |
 | `.github/workflows/` | Development, production, and manual iOS automation. |
 | `mobile-config.js` | Cordova metadata, native preferences, plugins, Firebase files, icons, and launch screens. |
 | `rspack.config.js` | Meteor Rspack/SWC optimization. |
