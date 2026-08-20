@@ -33,12 +33,21 @@ echo "=== ${APP_NAME} pre-build patch (${TARGET}) ==="
 # generated here rather than committed. Targets without a logo keep the
 # artwork already committed in public/resources.
 if [ -n "${BRANDING_LOGO:-}" ]; then
-  BRANDING_DIR="$(dirname "$BRANDING_LOGO")/resources"
+  BRANDING_DIR="${BRANDING_DIR:-}"
 
   if [ ! -f "$BRANDING_LOGO" ]; then
     echo "ERROR: ${BRANDING_LOGO} not found"
     exit 1
   fi
+
+  # The cache is copied *onto* public/resources, so it must not be that path.
+  case "${BRANDING_DIR%/}" in
+    '' | public/resources)
+      echo "ERROR: ${TARGET} sets BRANDING_LOGO but BRANDING_DIR is '${BRANDING_DIR}'"
+      echo "       It must name a separate directory to generate icons into."
+      exit 1
+      ;;
+  esac
 
   if [ -z "$(ls -A "$BRANDING_DIR" 2>/dev/null)" ]; then
     echo "Generating resources from ${BRANDING_LOGO}"
@@ -51,13 +60,19 @@ if [ -n "${BRANDING_LOGO:-}" ]; then
   echo "Applying branding from ${BRANDING_DIR}"
   mkdir -p public/resources
   cp -f "$BRANDING_DIR"/* public/resources/
-
-  # public/logo.png is the in-app logo for the shared web UI, so it has to be
-  # swapped too. The repo copy stays the opensource one; callers restore it.
-  cp -f "$BRANDING_LOGO" public/logo.png
-  echo "Applied ${BRANDING_LOGO} → public/logo.png"
 else
-  echo "No branding logo for ${TARGET} — keeping the committed artwork"
+  echo "No branding logo for ${TARGET} — keeping the committed app icons"
+fi
+
+# The in-app logo for the shared web UI is a separate decision from the app
+# icons: the beta app rebrands its icons but keeps the opensource web logo.
+if [ -n "${BRANDING_WEB_LOGO:-}" ]; then
+  if [ ! -f "$BRANDING_WEB_LOGO" ]; then
+    echo "ERROR: ${BRANDING_WEB_LOGO} not found"
+    exit 1
+  fi
+  cp -f "$BRANDING_WEB_LOGO" public/logo.png
+  echo "Applied ${BRANDING_WEB_LOGO} → public/logo.png"
 fi
 
 node - "$IOS_APP_ID" "$APP_NAME" "$URL_SCHEME" "$SERVER_URL" "${APP_VERSION:-}" <<'PATCH'
