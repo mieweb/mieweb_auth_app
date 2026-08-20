@@ -190,7 +190,7 @@ cat <<STEPS
          --nsFrom='mieweb_auth.*' --nsTo='mieauth.*' --drop
 
   3. Install the service (from a repo checkout, as a sudo-capable user):
-       SVC_USER=${TARGET_USER} bash scripts/setup-systemd.sh
+       SVC_USER=${TARGET_USER} bash scripts/install-service.sh
 
   4. Trigger the production workflow to populate ${TARGET_HOME}/Builds/current.
 STEPS
