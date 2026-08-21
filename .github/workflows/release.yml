@@ -276,7 +276,7 @@ jobs:
       - name: Apply release variant
         env:
           APP_VERSION: ${{ needs.select-target.outputs.app_version }}
-        run: bash scripts/apply-variant.sh "${{ needs.select-target.outputs.target }}"
+        run: bash scripts/apply-variant.sh "${{ needs.select-target.outputs.target }}" ios
 
       - name: Write Firebase config
         env:
@@ -334,7 +334,7 @@ jobs:
       - name: Apply release variant
         env:
           APP_VERSION: ${{ needs.select-target.outputs.app_version }}
-        run: bash scripts/apply-variant.sh "${{ needs.select-target.outputs.target }}"
+        run: bash scripts/apply-variant.sh "${{ needs.select-target.outputs.target }}" android
 
       - name: Write Firebase config
         env:
