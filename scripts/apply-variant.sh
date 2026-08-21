@@ -1,22 +1,24 @@
 #!/bin/bash
 # ──────────────────────────────────────────────────────────
-# apply-variant.sh <target>
+# apply-variant.sh <target> [platform]
 # Rebrands the checked-out opensource app as one release target, using the
 # identity in variants/<target>.env.
 #
 # Used in two places:
-#   - CI: passed as `pre_build_script` to mieweb/actions
+#   - CI: run before the Meteor/Cordova build in each mobile job
 #   - Local: called by scripts/build-mobile-local.sh
 #
 # Edits mobile-config.js, public/resources and public/logo.png IN PLACE. All
 # belong to the opensource app, so callers are responsible for restoring them
 # (the local script does; CI runs on a throwaway checkout).
 #
-#   APP_VERSION=1.2.3 bash scripts/apply-variant.sh mie
+#   APP_VERSION=1.2.3 bash scripts/apply-variant.sh mie android
 #
-# mobile-config.js carries a single app id, so it is set to IOS_APP_ID. Where a
-# target's Android id differs, the Android build overrides it downstream
-# (mieweb/actions `android_app_identifier`).
+# mobile-config.js carries a SINGLE app id that Cordova uses for whichever
+# platform it is building, so the id must be chosen per platform. mie-os-prod
+# is the only target where the two differ (com.mieweb.mieauth on Play,
+# org.mieweb.opensource on the App Store); building it without a platform
+# argument produces an AAB that Play rejects as "wrong package name".
 # ──────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -24,10 +26,27 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib/variant.sh"
 
 load_variant "${1:-}"
+PLATFORM="${2:-both}"
+
+case "$PLATFORM" in
+  android) APP_ID="$ANDROID_APP_ID" ;;
+  ios)     APP_ID="$IOS_APP_ID" ;;
+  both)
+    APP_ID="$IOS_APP_ID"
+    if [ "$ANDROID_APP_ID" != "$IOS_APP_ID" ]; then
+      echo "ERROR: ${TARGET} uses different ids per platform:"
+      echo "         Android: ${ANDROID_APP_ID}"
+      echo "         iOS:     ${IOS_APP_ID}"
+      echo "       mobile-config.js holds only one, so pass 'android' or 'ios'."
+      exit 1
+    fi
+    ;;
+  *) echo "ERROR: platform must be android, ios, or both"; exit 1 ;;
+esac
 
 cd "$(variant_repo_root)"
 
-echo "=== ${APP_NAME} pre-build patch (${TARGET}) ==="
+echo "=== ${APP_NAME} pre-build patch (${TARGET}, ${PLATFORM}) ==="
 
 # Icons and splash screens are derived from the source logo, so they are
 # generated here rather than committed. Targets without a logo keep the
@@ -80,7 +99,7 @@ if [ -n "${BRANDING_WEB_LOGO:-}" ]; then
   echo "Applied ${BRANDING_WEB_LOGO} → public/logo.png"
 fi
 
-node - "$IOS_APP_ID" "$APP_NAME" "$URL_SCHEME" "$SERVER_URL" "${APP_VERSION:-}" <<'PATCH'
+node - "$APP_ID" "$APP_NAME" "$URL_SCHEME" "$SERVER_URL" "${APP_VERSION:-}" <<'PATCH'
 const fs = require("fs");
 const [appId, appName, urlScheme, serverUrl, appVersion] = process.argv.slice(2);
 const file = "mobile-config.js";
@@ -112,8 +131,4 @@ console.log(
 );
 PATCH
 
-if [ "$ANDROID_APP_ID" != "$IOS_APP_ID" ]; then
-  echo "Note: Android id for ${TARGET} is ${ANDROID_APP_ID}, applied by the Android build"
-fi
-
-echo "✅ Patched for ${APP_NAME} (${IOS_APP_ID}) → ${SERVER_URL}"
+echo "✅ Patched for ${APP_NAME} (${APP_ID}) → ${SERVER_URL}"
