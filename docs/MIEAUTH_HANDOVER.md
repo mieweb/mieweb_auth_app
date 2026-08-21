@@ -13,20 +13,20 @@ A **second, independent deployment** of the MIEAuth codebase for MIE-internal
 use. It is _not_ a migration of the opensource app — separate server, separate
 database, separate user base, separate app identity.
 
-|             | Opensource app                                              | MIEWeb Auth (this)                    |
-| ----------- | ----------------------------------------------------------- | ------------------------------------- |
-| URL         | `mieauth-prod.os.mieweb.org`                                | `mieauth.mieweb.org`                  |
-| Dev URL     | `mieauth-dev.os.mieweb.org`                                 | —                                     |
-| Host        | Proxmox container (SSH deploy)                              | `mie-fwdc-auth1` (self-hosted runner) |
-| Workflow    | `deploy-and-publish-miewebauth-prod-os.yml` / `-dev-os.yml` | `deploy-and-publish-miewebauth.yml`   |
-| Release tag | `v*` / `dev-v*`                                             | `mie-v*`                              |
-| Android ID  | `com.mieweb.mieauth`                                        | `org.mieweb.auth`                     |
-| iOS ID      | `org.mieweb.opensource`                                     | `org.mieweb.auth`                     |
-| App name    | MIEAuth                                                     | MIEWeb Auth                           |
-| URL scheme  | `mieauth://`                                                | `miewebauth://`                       |
-| Database    | `mieweb_auth` (standalone)                                  | `mieauth` (replica set, auth)         |
-| LDAP        | `cluster.mieweb.org`                                        | `ldap.med-web.com`                    |
-| Firebase    | `mieweb-auth-dev`                                           | `mieweb-auth`                         |
+|             | Opensource app                                       | MIEWeb Auth (this)                    |
+| ----------- | ---------------------------------------------------- | ------------------------------------- |
+| URL         | `mieauth-prod.os.mieweb.org`                         | `mieauth.mieweb.org`                  |
+| Dev URL     | `mieauth-dev.os.mieweb.org`                          | —                                     |
+| Host        | Proxmox container (SSH deploy)                       | `mie-fwdc-auth1` (self-hosted runner) |
+| Workflow    | `release.yml` (targets `mie-os-prod` / `mie-os-dev`) | `release.yml` (target `mie`)          |
+| Release tag | `mie-os-prod-v*` / `mie-os-dev-v*`                   | `mie-v*`                              |
+| Android ID  | `com.mieweb.mieauth`                                 | `org.mieweb.auth`                     |
+| iOS ID      | `org.mieweb.opensource`                              | `org.mieweb.auth`                     |
+| App name    | MIEAuth                                              | MIEWeb Auth                           |
+| URL scheme  | `mieauth://`                                         | `miewebauth://`                       |
+| Database    | `mieweb_auth` (standalone)                           | `mieauth` (replica set, auth)         |
+| LDAP        | `cluster.mieweb.org`                                 | `ldap.med-web.com`                    |
+| Firebase    | `mieweb-auth-dev`                                    | `mieweb-auth`                         |
 
 **The opensource app and its pipelines were deliberately left untouched.**
 
@@ -193,65 +193,52 @@ Output in `mie-build/`. Open `mie-build/ios/project/*.xcworkspace` in Xcode or
 
 ## 6. CI
 
-### `deploy-and-publish-miewebauth.yml`
-
-- **Triggers:** `mie-v*` release tags, or manual dispatch.
-- **Dispatch inputs:** `ref`, `include_mobile`, `platforms`, `publish` — so the
-  server can be deployed without touching the app stores.
-- **Server job:** `runs-on: self-hosted`, builds locally on `mie-fwdc-auth1`, no
-  SSH keys. Sets `TOOL_NODE_FLAGS=--max-old-space-size=3072` (4 GB box).
-- **Mobile job:** calls `mieweb/actions/.github/workflows/build-mobile-from-meteor.yml@v2.3.0`
-  with `pre_build_script: bash scripts/apply-mieweb-variant.sh`. Pinned to an
-  exact tag, not the moving `@v2`, so a change upstream cannot alter a release
-  build. Note the reusable workflow's own nested iOS/Android jobs still resolve
-  `@v2` internally, so pinning here is not a complete freeze.
-
-**Secrets are mapped explicitly, NOT `secrets: inherit`.** The reusable workflow
-expects conventional names (`ANDROID_KEYSTORE_BASE64`, `APPLE_TEAM_ID`, …) which
-at repo level belong to the **opensource** app. Inheriting would sign MIEWeb Auth
-with the wrong keystore and certificate.
-
-| Reusable workflow expects                        | Mapped from                                                  | Exists in repo? |
-| ------------------------------------------------ | ------------------------------------------------------------ | --------------- |
-| `ANDROID_KEYSTORE_BASE64`                        | `MIE_ANDROID_KEYSTORE_BASE64`                                | ✅              |
-| `ANDROID_KEYSTORE_PASSWORD`                      | `MIE_ANDROID_KEYSTORE_PASSWORD`                              | ✅              |
-| `ANDROID_KEY_ALIAS`                              | `MIE_ANDROID_KEYSTORE_ALIAS`                                 | ✅              |
-| `ANDROID_KEY_PASSWORD`                           | `MIE_ANDROID_KEY_PASSWORD`                                   | ✅              |
-| `GOOGLE_PLAY_JSON_KEY_BASE64`                    | `MIE_GOOGLE_PLAY_JSON_KEY_BASE64` (**base64**, not raw JSON) | ❌              |
-| `GOOGLE_SERVICES_BASE64`                         | `MIE_FIREBASE_SERVICES_JSON_BASE64`                          | ❌              |
-| `APPLE_TEAM_ID`                                  | `MIE_APPLE_TEAM_ID`                                          | ❌              |
-| `APPLE_API_KEY_ID` / `_ISSUER_ID` / `_P8_BASE64` | `MIE_APPLE_API_*`                                            | ❌              |
-| `IOS_DIST_CERT_P12_BASE64` / `_PASSWORD`         | `MIE_IOS_DIST_CERT_*`                                        | ❌              |
-| `IOS_PROVISIONING_PROFILE_BASE64`                | `MIE_IOS_PROVISIONING_PROFILE_BASE64`                        | ❌              |
-
-Audited 2026-08-20: only the four Android signing secrets exist. An unset secret
-mapped in a caller resolves to an empty string rather than failing, so the mobile
-job will start and then fail deep inside signing or upload. Create the missing
-ones before the first `include_mobile: true` run.
-
-`workflow_dispatch` only appears in the Actions UI once the workflow file is on
-the **default branch** — that is why the first version had to be merged before it
-could be run.
-
 ### `release.yml` — the unified pipeline
 
-`release.yml` replaces the three per-target workflows and is the path all future
-releases take. It resolves the tag (or a dispatch input) into a target through
+One workflow serves every target. It resolves the release tag (or a
+`workflow_dispatch` input) into a target through
 [`scripts/resolve-release-target.sh`](../scripts/resolve-release-target.sh) and
 reads every parameter from `variants/<target>.env`. See the Releasing section of
 the README for the tag table and the manual re-run recipes.
 
-Two differences from the workflow above:
+- **Triggers:** `mie-os-dev-v*`, `mie-os-prod-v*`, `mie-v*` release tags, or
+  manual dispatch. The retired `v*` / `dev-v*` tags fail loudly rather than
+  being silently skipped.
+- **Dispatch inputs:** `target`, `deploy_server`, `include_mobile`, `platforms`,
+  `publish` — so the server can be deployed without touching the app stores, or
+  a store build can be dry-run with `publish: false`.
+- **Server job:** one job keyed on the variant's `DEPLOY_MODE`. `ssh` for the
+  opensource containers; `self-hosted` for `mie`, which builds locally on
+  `mie-fwdc-auth1` with `TOOL_NODE_FLAGS=--max-old-space-size=3072` (4 GB box).
+- **Mobile job:** composes the individual `mieweb/actions` steps
+  (`prepare-*-env` → `apply-variant.sh` → `write-firebase-config.sh` →
+  `run-meteor-build` → sign/publish), pinned to an exact tag rather than the
+  moving `@v2`. It composes rather than calling the reusable
+  `build-mobile-from-meteor.yml` because that workflow has no channel for
+  `GoogleService-Info.plist`, and Meteor evaluates `mobile-config.js` on every
+  Cordova build — so an Android build fails on a missing iOS plist too.
 
-- iOS signs via `match` with the **team-level** App Store Connect key and match
-  repo, so no per-app `MIE_APPLE_*` or `MIE_IOS_*` secrets are needed — only the
-  shared `APPLE_*` and `MATCH_*` ones, which already exist.
-- Android still needs `MIE_GOOGLE_PLAY_JSON_KEY_BASE64` and
-  `MIE_FIREBASE_SERVICES_JSON_BASE64` for the `mie` target, and a base64
-  `GOOGLE_PLAY_JSON_KEY_BASE64` for the opensource targets. None exist yet.
+**Secrets are mapped explicitly, NOT `secrets: inherit`.** The conventional
+names (`ANDROID_KEYSTORE_BASE64`, `APPLE_TEAM_ID`, …) belong at repo level to the
+**opensource** app. Inheriting would sign MIEWeb Auth with the wrong keystore and
+certificate. `release.yml` selects per target with a ternary: `MIE_*` for `mie`,
+unprefixed otherwise. An unset secret resolves to an empty string rather than
+failing, so a mapping mistake surfaces deep inside signing or upload — the two
+targets producing _different_ signing certificates is what proves the mapping is
+right.
 
-The three `deploy-and-publish-miewebauth*.yml` workflows stay in place until
-`release.yml` has been proven end to end for every target, then they are deleted.
+iOS signs via `match` with the **team-level** App Store Connect key and match
+repo, so no per-app `MIE_APPLE_*` or `MIE_IOS_*` cert secrets exist or are
+needed — only the shared `APPLE_*` and `MATCH_*` ones.
+
+Play publishing uses `github-com-mieweb-auth-app@mieweb-auth-prod`, which holds
+grants on all three listings. Both `GOOGLE_PLAY_JSON_KEY_BASE64` and
+`MIE_GOOGLE_PLAY_JSON_KEY_BASE64` carry that same credential; they are kept
+separate only so the listings can be rotated independently later.
+
+`workflow_dispatch` only appears in the Actions UI once the workflow file is on
+the **default branch** — that is why the first version had to be merged before it
+could be run.
 
 Rejected: separate long-lived branches per app. The apps differ by ~4 strings and
 a logo; branching would force every fix to be merged twice and would conflict on
@@ -307,7 +294,7 @@ a logo; branching would force every fix to be merged twice and would conflict on
 | `scripts/provision-server.sh`       | Idempotent provisioner. `TARGET_USER=actions bash …` — installs the toolchain for the runner's user, which is not the sudo user.                    |
 | `scripts/install-service.sh`        | Installs the systemd service. `SVC_USER=actions bash …`. `mieauth.service` is a template (`__USER__`/`__GROUP__`/`__HOME__`).                       |
 | `scripts/start-mieauth.sh`          | The service's `ExecStart` — sources `set-env.sh` and runs the bundle. Deployed to `~/scripts/` on the server; the name is baked into the unit file. |
-| `scripts/apply-mieweb-variant.sh`   | Rebrands the checkout as MIEWeb Auth. Used by **both** CI and the local build.                                                                      |
+| `scripts/apply-variant.sh`          | Rebrands the checkout for a target (`mie`, `mie-os-dev`, `mie-os-prod`). Used by **both** CI and the local build.                                   |
 | `scripts/build-mobile-local.sh`     | Local mobile build with automatic restore of opensource files.                                                                                      |
 | `scripts/sign-android-release.sh`   | Signs the AAB (jarsigner) and/or APK (zipalign + apksigner).                                                                                        |
 | `scripts/diagnose-ldap-login.sh`    | Six-step LDAP isolation. Run on the server.                                                                                                         |

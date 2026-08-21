@@ -4,17 +4,17 @@ Setup notes for the **MIE-internal** MIEAuth instance on host `mie-fwdc-auth1`.
 
 This is a **separate application** from the opensource app. It has its own
 database and its own user base — nothing is migrated from
-`mieauth-prod.os.mieweb.org`, which continues to run untouched via
-[deploy-and-publish-miewebauth-prod-os.yml](../.github/workflows/deploy-and-publish-miewebauth-prod-os.yml).
+`mieauth-prod.os.mieweb.org`, which continues to run untouched via the
+`mie-os-prod` target of [release.yml](../.github/workflows/release.yml).
 
-|             | Opensource app                              | MIE instance                          |
-| ----------- | ------------------------------------------- | ------------------------------------- |
-| URL         | `mieauth-prod.os.mieweb.org`                | `mieauth.mieweb.org`                  |
-| Host        | Proxmox container (SSH deploy)              | `mie-fwdc-auth1` (self-hosted runner) |
-| Workflow    | `deploy-and-publish-miewebauth-prod-os.yml` | `deploy-and-publish-miewebauth.yml`   |
-| Release tag | `v*`                                        | `mie-v*`                              |
-| Database    | `mieweb_auth`, standalone                   | `mieauth`, replica set `mieauth-rs`   |
-| Users       | Existing                                    | Fresh — no import                     |
+|             | Opensource app                      | MIE instance                          |
+| ----------- | ----------------------------------- | ------------------------------------- |
+| URL         | `mieauth-prod.os.mieweb.org`        | `mieauth.mieweb.org`                  |
+| Host        | Proxmox container (SSH deploy)      | `mie-fwdc-auth1` (self-hosted runner) |
+| Workflow    | `release.yml`, target `mie-os-prod` | `release.yml`, target `mie`           |
+| Release tag | `mie-os-prod-v*`                    | `mie-v*`                              |
+| Database    | `mieweb_auth`, standalone           | `mieauth`, replica set `mieauth-rs`   |
+| Users       | Existing                            | Fresh — no import                     |
 
 ## Host facts
 
@@ -119,9 +119,10 @@ flowchart LR
     E --> F[HTTP health check]
 ```
 
-[deploy-and-publish-miewebauth.yml](../.github/workflows/deploy-and-publish-miewebauth.yml) is server-only and
-runs on either a `mie-v*` release or a manual **Run workflow** dispatch. It is
-gated so the opensource `v*` releases never touch this host.
+[release.yml](../.github/workflows/release.yml) deploys this host when the
+resolved target is `mie`, on either a `mie-v*` release or a manual **Run
+workflow** dispatch. The opensource targets deploy over SSH to their own
+containers and never touch this host.
 
 ## 6. Mobile apps
 

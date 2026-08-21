@@ -176,6 +176,9 @@ app-release-final.apk
 debug-multi-instance.js
 setup-dev-server.sh
 
+# Local working notes — reference private filenames, never committed
+offline-plan.md
+
 # Local environment files — secrets, never committed.
 # The deployed copy lives at ~/scripts/set-env.sh on the server.
 set-env.sh
