@@ -53,7 +53,7 @@ restore() {
 }
 trap restore EXIT
 
-bash scripts/apply-variant.sh "$TARGET"
+bash scripts/apply-variant.sh "$TARGET" "$PLATFORM"
 
 # Cordova cannot rename an existing platform ("product name change ... is not
 # supported dynamically"), and config.xml gets rewritten before that check, so
