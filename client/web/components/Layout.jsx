@@ -69,8 +69,8 @@ export const Layout = ({ children }) => {
       <SiteHeader
         logo={{
           src: "/logo.png",
-          alt: "MIE Auth Logo",
-          name: "MIE Auth",
+          alt: "MIEAuth Logo",
+          name: "MIEAuth",
           href: "/",
         }}
         links={links}
@@ -107,14 +107,14 @@ export const Layout = ({ children }) => {
       <SiteFooter
         logo={{
           src: "/logo.png",
-          alt: "MIE Auth Logo",
-          name: "MIE Auth",
+          alt: "MIEAuth Logo",
+          name: "MIEAuth",
           href: "/",
         }}
-        description="Secure, seamless, and privacy-focused authentication for your applications."
+        description="Secure, seamless, and privacy-focused authentication, from Medical Informatics Engineering."
         linkGroups={footerLinkGroups}
         socialLinks={socialLinks}
-        companyName="MIE Auth"
+        companyName="Medical Informatics Engineering, LLC. All Rights Reserved."
         variant="dark"
         privacyHref="/privacy-policy"
       />
