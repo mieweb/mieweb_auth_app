@@ -528,12 +528,9 @@ documented here.
 
 ### Retired release workflows
 
-The three `deploy-and-publish-miewebauth*.yml` workflows are the previous
-per-target pipelines. They remain the live path until `release.yml` has been
-proven end to end, then they are removed.
-
-The `test-ios-*.yml` workflows are manual iOS/Fastlane experiments, not a release
-path.
+The three `deploy-and-publish-miewebauth*.yml` workflows and the manual
+`test-ios-fastlane.yml` experiment were removed once `release.yml` was proven
+end to end for every target. `release.yml` is now the only release path.
 
 ## Project structure
 
