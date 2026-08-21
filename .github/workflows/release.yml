@@ -1,0 +1,390 @@
+name: Release
+
+# ─────────────────────────────────────────────────────────
+# One entry point for every release target. The tag (or the dispatch input)
+# selects a target; variants/<target>.env supplies every parameter.
+#
+#   mie-os-dev-v*   → MIEWeb Auth Opensource Beta → mieauth-dev.os.mieweb.org
+#   mie-os-prod-v*  → MIEWeb Auth Opensource      → mieauth-prod.os.mieweb.org
+#   mie-v*          → MIEWeb Auth                 → mieauth.mieweb.org
+#
+# The retired v* / dev-v* tags fail loudly instead of being skipped.
+#
+# Manual runs pick the ref from the "Use workflow from" dropdown; that ref is
+# what the mobile build compiles. SSH server deploys always take the branch
+# from the variant file, because the deploy happens on the remote host.
+# ─────────────────────────────────────────────────────────
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Release target"
+        type: choice
+        options: [mie-os-dev, mie-os-prod, mie]
+        required: true
+      deploy_server:
+        description: "Deploy the server"
+        type: boolean
+        default: true
+      include_mobile:
+        description: "Build the mobile apps"
+        type: boolean
+        default: false
+      platforms:
+        description: "Mobile platforms"
+        type: choice
+        options: [both, ios, android]
+        default: both
+      publish:
+        description: "Upload to TestFlight / Play Store (off = build only)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  # ─────────────────────────────────────────────
+  # Resolve the tag or dispatch input into every parameter.
+  # ─────────────────────────────────────────────
+  select-target:
+    runs-on: ubuntu-latest
+    outputs:
+      target: ${{ steps.resolve.outputs.target }}
+      app_version: ${{ steps.resolve.outputs.app_version }}
+      android_app_id: ${{ steps.resolve.outputs.android_app_id }}
+      ios_app_id: ${{ steps.resolve.outputs.ios_app_id }}
+      server_url: ${{ steps.resolve.outputs.server_url }}
+      play_track: ${{ steps.resolve.outputs.play_track }}
+      branch: ${{ steps.resolve.outputs.branch }}
+      deploy_mode: ${{ steps.resolve.outputs.deploy_mode }}
+      ssh_host: ${{ steps.resolve.outputs.ssh_host }}
+      ssh_port: ${{ steps.resolve.outputs.ssh_port }}
+      ssh_user: ${{ steps.resolve.outputs.ssh_user }}
+      match_readonly: ${{ steps.resolve.outputs.match_readonly }}
+      deploy_server: ${{ github.event_name == 'release' || inputs.deploy_server }}
+      include_mobile: ${{ github.event_name == 'release' || inputs.include_mobile }}
+      platforms: ${{ github.event_name == 'release' && 'both' || inputs.platforms }}
+      publish: ${{ github.event_name == 'release' || inputs.publish }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve release target
+        id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          TAG: ${{ github.event.release.tag_name }}
+          DISPATCH_TARGET: ${{ inputs.target }}
+        run: bash scripts/resolve-release-target.sh
+
+  # ─────────────────────────────────────────────
+  # Server. `ssh` targets deploy to a remote container; the `self-hosted`
+  # target builds on the runner that also hosts the app.
+  # ─────────────────────────────────────────────
+  deploy-server:
+    needs: select-target
+    if: needs.select-target.outputs.deploy_server == 'true'
+    runs-on: ${{ needs.select-target.outputs.deploy_mode == 'self-hosted' && 'self-hosted' || 'ubuntu-latest' }}
+    env:
+      SERVER_URL: ${{ needs.select-target.outputs.server_url }}
+    steps:
+      - name: Checkout code
+        if: needs.select-target.outputs.deploy_mode == 'self-hosted'
+        uses: actions/checkout@v4
+
+      - name: Deploy over SSH
+        if: needs.select-target.outputs.deploy_mode == 'ssh'
+        env:
+          # The dev container has its own key pair; every other SSH target
+          # shares the production one.
+          SSH_KEY: ${{ needs.select-target.outputs.target == 'mie-os-dev' && secrets.DEV_DEPLOY_SSH_KEY || secrets.DEPLOY_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ needs.select-target.outputs.target == 'mie-os-dev' && secrets.DEV_DEPLOY_SSH_KNOWN_HOSTS || secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+          SSH_HOST: ${{ needs.select-target.outputs.ssh_host }}
+          SSH_PORT: ${{ needs.select-target.outputs.ssh_port }}
+          SSH_USER: ${{ needs.select-target.outputs.ssh_user }}
+          BRANCH: ${{ needs.select-target.outputs.branch }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+          # Values reach the remote shell as positional arguments, never
+          # interpolated into the script body.
+          ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "${SSH_USER}@${SSH_HOST}" \
+            bash -s -- "$BRANCH" "$SERVER_URL" <<'REMOTE'
+            set -e
+            BRANCH="$1"
+            SERVER_URL="$2"
+
+            echo "=== Pulling latest code (${BRANCH}) ==="
+            cd ~/github/mieweb_auth_app
+            git fetch origin "$BRANCH"
+            git checkout "$BRANCH"
+            git reset --hard "origin/${BRANCH}"
+
+            echo "=== Generating build info ==="
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+            node generate-build-info.js
+
+            echo "=== Resetting Meteor local cache ==="
+            export PATH="$HOME/.meteor:$PATH"
+            meteor reset --allow-superuser
+
+            echo "=== Installing project dependencies ==="
+            meteor npm install --allow-superuser
+
+            echo "=== Building Meteor server ==="
+            BUILD_DIR="$HOME/Builds/Webserver-build-$(date +%m-%d-%Y-%H%M%S)"
+            meteor build "${BUILD_DIR}" \
+              --directory \
+              --server-only \
+              --server="$SERVER_URL" \
+              --allow-superuser
+
+            echo "=== Installing bundle server dependencies ==="
+            cd "${BUILD_DIR}/bundle/programs/server"
+            npm install
+
+            echo "=== Installing bundle-level dependencies ==="
+            cd "${BUILD_DIR}/bundle"
+            npm install @babel/runtime
+
+            echo "=== Updating symlink ==="
+            ln -sfn "${BUILD_DIR}/bundle" "$HOME/Builds/current"
+
+            echo "=== Restarting service ==="
+            sudo systemctl restart mieauth
+
+            echo "=== Health check ==="
+            sleep 10
+            if sudo systemctl is-active --quiet mieauth; then
+              echo "Server deployed and running successfully"
+              sudo systemctl status mieauth --no-pager
+            else
+              echo "Server failed to start"
+              sudo journalctl -u mieauth --no-pager -n 50
+              exit 1
+            fi
+
+            echo "=== Cleaning up old builds (keeping latest 3) ==="
+            cd "$HOME/Builds"
+            ls -dt Webserver-build-* 2>/dev/null | tail -n +4 | while read -r old_build; do
+              echo "Removing old build: ${old_build}"
+              rm -rf "${old_build}"
+            done
+          REMOTE
+
+      - name: Build and restart on the self-hosted runner
+        if: needs.select-target.outputs.deploy_mode == 'self-hosted'
+        run: |
+          set -euo pipefail
+
+          echo "=== Generating build info ==="
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+          node generate-build-info.js
+
+          echo "=== Installing project dependencies ==="
+          export PATH="$HOME/.meteor:$PATH"
+          meteor npm install
+
+          echo "=== Building Meteor server ==="
+          # 4 GB container — cap the build heap so the tool is not OOM-killed.
+          export TOOL_NODE_FLAGS="--max-old-space-size=3072"
+          BUILD_DIR="$HOME/Builds/Webserver-build-$(date +%m-%d-%Y-%H%M%S)"
+          meteor build "${BUILD_DIR}" \
+            --directory \
+            --server-only \
+            --server="${SERVER_URL}"
+
+          echo "=== Installing bundle server dependencies ==="
+          cd "${BUILD_DIR}/bundle/programs/server"
+          npm install
+
+          echo "=== Installing bundle-level dependencies ==="
+          cd "${BUILD_DIR}/bundle"
+          npm install @babel/runtime
+
+          echo "=== Updating symlink ==="
+          ln -sfn "${BUILD_DIR}/bundle" "$HOME/Builds/current"
+
+          echo "=== Restarting service ==="
+          sudo systemctl restart mieauth
+
+          echo "=== Health check ==="
+          sleep 10
+          if sudo systemctl is-active --quiet mieauth; then
+            echo "Server deployed and running successfully"
+            sudo systemctl status mieauth --no-pager
+          else
+            echo "Server failed to start"
+            sudo journalctl -u mieauth --no-pager -n 50
+            exit 1
+          fi
+
+          echo "=== Cleaning up old builds (keeping latest 3) ==="
+          cd "$HOME/Builds"
+          ls -dt Webserver-build-* 2>/dev/null | tail -n +4 | while read -r old_build; do
+            echo "Removing old build: ${old_build}"
+            rm -rf "${old_build}"
+          done
+
+      - name: Verify server health (HTTP)
+        run: |
+          for i in 1 2 3 4 5; do
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "${SERVER_URL}" || echo "000")
+            if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+              echo "Server responding with HTTP ${HTTP_STATUS}"
+              exit 0
+            fi
+            echo "Attempt ${i}: HTTP ${HTTP_STATUS}, retrying in 10s..."
+            sleep 10
+          done
+          echo "Server not responding after 5 attempts"
+          exit 1
+
+  # ─────────────────────────────────────────────
+  # Mobile — the mieweb/actions steps are composed individually rather than
+  # called through build-mobile-from-meteor.yml, for three reasons:
+  #   - this app uses FCM on BOTH platforms, and the reusable workflow has no
+  #     channel for GoogleService-Info.plist and hardcodes the Android path;
+  #   - every action can be pinned to an exact tag (the reusable workflow's
+  #     nested jobs resolve @v2 internally, so pinning the caller is not a
+  #     complete freeze);
+  #   - match_readonly is not exposed by the reusable workflow, and
+  #     org.mieweb.auth has no profile yet.
+  # Revisit once mieweb/actions supports the iOS plist.
+  # ─────────────────────────────────────────────
+  mobile-ios:
+    needs: select-target
+    if: needs.select-target.outputs.include_mobile == 'true' && needs.select-target.outputs.platforms != 'android'
+    runs-on: macos-latest
+    steps:
+      - name: Setup Meteor/Cordova environment
+        uses: mieweb/actions/prepare-meteor-cordova-env@v2.3.0
+
+      # generate_app_resources.py builds the icon set; the runner image has no Pillow.
+      - name: Install icon generator dependencies
+        run: pip3 install --break-system-packages --quiet Pillow
+
+      - name: Apply release variant
+        env:
+          APP_VERSION: ${{ needs.select-target.outputs.app_version }}
+        run: bash scripts/apply-variant.sh "${{ needs.select-target.outputs.target }}"
+
+      - name: Write Firebase config
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ needs.select-target.outputs.target == 'mie' && secrets.MIE_FIREBASE_SERVICES_JSON_BASE64 || secrets.FIREBASE_SERVICES_PROD }}
+          MIE_PLIST: ${{ secrets.MIE_FIREBASE_IOS_PLIST_BASE64 }}
+          OS_DEV_PLIST: ${{ secrets.FIREBASE_IOS_DEV_PLIST_BASE64 }}
+          OS_PROD_PLIST: ${{ secrets.FIREBASE_IOS_PLIST_BASE64 }}
+          TARGET: ${{ needs.select-target.outputs.target }}
+        run: |
+          case "$TARGET" in
+            mie)          export GOOGLE_SERVICES_PLIST_BASE64="$MIE_PLIST" ;;
+            mie-os-dev)   export GOOGLE_SERVICES_PLIST_BASE64="$OS_DEV_PLIST" ;;
+            mie-os-prod)  export GOOGLE_SERVICES_PLIST_BASE64="$OS_PROD_PLIST" ;;
+          esac
+          bash scripts/write-firebase-config.sh "$TARGET"
+
+      - name: Build iOS with Meteor/Cordova
+        uses: mieweb/actions/run-meteor-build@v2.3.0
+        with:
+          platform: ios
+          server: ${{ needs.select-target.outputs.server_url }}
+
+      - name: Sign, archive and upload iOS
+        uses: mieweb/actions/sign-archive-upload-ios@v2.3.0
+        with:
+          signing_mode: match
+          app_identifier: ${{ needs.select-target.outputs.ios_app_id }}
+          apple_team_id: ${{ secrets.APPLE_TEAM_ID }}
+          match_git_basic_authorization: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+          match_password: ${{ secrets.MATCH_PASSWORD }}
+          match_readonly: ${{ needs.select-target.outputs.match_readonly }}
+          apple_api_key_id: ${{ secrets.APPLE_API_KEY_ID }}
+          apple_api_issuer_id: ${{ secrets.APPLE_API_ISSUER_ID }}
+          apple_api_key_p8_base64: ${{ secrets.APPLE_API_KEY_P8_BASE64 }}
+          run_pod_install: "true"
+          upload_to_testflight: ${{ needs.select-target.outputs.publish }}
+
+  mobile-android:
+    needs: select-target
+    if: needs.select-target.outputs.include_mobile == 'true' && needs.select-target.outputs.platforms != 'ios'
+    runs-on: ubuntu-latest
+    env:
+      # Must match App.setPreference("android-targetSdkVersion") in mobile-config.js.
+      ANDROID_API_LEVEL: "36"
+    steps:
+      - name: Setup Android environment
+        uses: mieweb/actions/prepare-android-env@v2.3.0
+        with:
+          android_api_level: ${{ env.ANDROID_API_LEVEL }}
+
+      # generate_app_resources.py builds the icon set; the runner image has no Pillow.
+      - name: Install icon generator dependencies
+        run: pip3 install --break-system-packages --quiet Pillow
+
+      - name: Apply release variant
+        env:
+          APP_VERSION: ${{ needs.select-target.outputs.app_version }}
+        run: bash scripts/apply-variant.sh "${{ needs.select-target.outputs.target }}"
+
+      - name: Write Firebase config
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ needs.select-target.outputs.target == 'mie' && secrets.MIE_FIREBASE_SERVICES_JSON_BASE64 || secrets.FIREBASE_SERVICES_PROD }}
+          MIE_PLIST: ${{ secrets.MIE_FIREBASE_IOS_PLIST_BASE64 }}
+          OS_DEV_PLIST: ${{ secrets.FIREBASE_IOS_DEV_PLIST_BASE64 }}
+          OS_PROD_PLIST: ${{ secrets.FIREBASE_IOS_PLIST_BASE64 }}
+          TARGET: ${{ needs.select-target.outputs.target }}
+        run: |
+          case "$TARGET" in
+            mie)          export GOOGLE_SERVICES_PLIST_BASE64="$MIE_PLIST" ;;
+            mie-os-dev)   export GOOGLE_SERVICES_PLIST_BASE64="$OS_DEV_PLIST" ;;
+            mie-os-prod)  export GOOGLE_SERVICES_PLIST_BASE64="$OS_PROD_PLIST" ;;
+          esac
+          bash scripts/write-firebase-config.sh "$TARGET"
+
+      - name: Build Android with Meteor/Cordova
+        uses: mieweb/actions/run-meteor-build@v2.3.0
+        with:
+          platform: android
+          server: ${{ needs.select-target.outputs.server_url }}
+          output_dir: ./android-build
+
+      - name: Build and sign the AAB
+        id: sign
+        uses: mieweb/actions/build-sign-android@v2.3.0
+        with:
+          signing_method: direct-keystore
+          app_identifier: ${{ needs.select-target.outputs.android_app_id }}
+          android_build_dir: android-build
+          build_type: bundle
+          google_services_base64: ${{ needs.select-target.outputs.target == 'mie' && secrets.MIE_FIREBASE_SERVICES_JSON_BASE64 || secrets.FIREBASE_SERVICES_PROD }}
+          keystore_base64: ${{ needs.select-target.outputs.target == 'mie' && secrets.MIE_ANDROID_KEYSTORE_BASE64 || secrets.ANDROID_KEYSTORE_BASE64 }}
+          keystore_password: ${{ needs.select-target.outputs.target == 'mie' && secrets.MIE_ANDROID_KEYSTORE_PASSWORD || secrets.ANDROID_KEYSTORE_PASSWORD }}
+          key_alias: ${{ needs.select-target.outputs.target == 'mie' && secrets.MIE_ANDROID_KEYSTORE_ALIAS || secrets.ANDROID_KEYSTORE_ALIAS }}
+          key_password: ${{ needs.select-target.outputs.target == 'mie' && secrets.MIE_ANDROID_KEY_PASSWORD || secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Upload signed artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-bundle-${{ needs.select-target.outputs.target }}
+          path: ${{ steps.sign.outputs.signed_artifact_path }}
+          if-no-files-found: error
+
+      - name: Publish to Google Play
+        if: needs.select-target.outputs.publish == 'true'
+        uses: mieweb/actions/publish-android-to-play@v2.3.0
+        with:
+          signed_artifact_path: ${{ steps.sign.outputs.signed_artifact_path }}
+          play_json_key_base64: ${{ needs.select-target.outputs.target == 'mie' && secrets.MIE_GOOGLE_PLAY_JSON_KEY_BASE64 || secrets.GOOGLE_PLAY_JSON_KEY_BASE64 }}
+          package_name: ${{ needs.select-target.outputs.android_app_id }}
+          track: ${{ needs.select-target.outputs.play_track }}
+
