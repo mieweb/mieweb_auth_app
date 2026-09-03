@@ -837,6 +837,7 @@ const RATE_LIMITED_METHODS = new Set([
   "devices.setPrimary",
   "devices.revoke",
   "devices.approvePending",
+  "demo.linkDevice",
 ]);
 
 DDPRateLimiter.addRule(
