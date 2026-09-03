@@ -47,49 +47,109 @@ const demoPin = () => process.env.DEMO_ACCOUNT_PIN || "000000";
 // mid-review.
 const MAX_DEMO_DEVICES = 3;
 
-// Keep the seeded account's credentials and approval state in sync on every
-// boot so the reviewer's published password always works.
+// Meteor masks "user not found" and "incorrect password" behind one ambiguous
+// message, so the only way to know whether the seeded credentials actually
+// work is to check them here and say so explicitly.
+const CASE_INSENSITIVE = { collation: { locale: "en", strength: 2 } };
+
+const syncDemoAccount = async (email, { verbose }) => {
+  const matches = await Meteor.users
+    .find({ "emails.address": email }, CASE_INSENSITIVE)
+    .fetchAsync();
+
+  if (matches.length > 1) {
+    console.error(
+      `[demoMode] ${matches.length} accounts share ${email} (${matches
+        .map((u) => u._id)
+        .join(
+          ", ",
+        )}). Password login stays broken until all but one are removed.`,
+    );
+  }
+
+  let user = matches[0];
+  let repaired = false;
+
+  if (!user) {
+    // A pre-existing account holding the plain username would make
+    // createUser fail with a duplicate error that Meteor reports as the same
+    // ambiguous credentials message.
+    const preferred = email.split("@")[0];
+    const taken = await Meteor.users.findOneAsync(
+      { username: preferred },
+      CASE_INSENSITIVE,
+    );
+    const username = taken ? `${preferred}-${Random.id(4)}` : preferred;
+
+    const userId = await Accounts.createUserAsync({
+      email,
+      username,
+      password: demoPin(),
+      profile: {
+        firstName: "App",
+        lastName: "Review",
+        registrationStatus: "approved",
+      },
+    });
+    user = await Meteor.users.findOneAsync({ _id: userId });
+    repaired = true;
+    console.warn(
+      `[demoMode] Created demo account ${email} (${userId}) with username "${username}".`,
+    );
+  }
+
+  if (user.profile?.registrationStatus !== "approved") {
+    await Meteor.users.updateAsync(
+      { _id: user._id },
+      { $set: { "profile.registrationStatus": "approved" } },
+    );
+    repaired = true;
+    console.warn(`[demoMode] Re-approved demo account ${email} (${user._id}).`);
+  }
+
+  // Only rewrite the password when it no longer matches, and never with the
+  // default logout:true — that would drop the reviewer's session on restart.
+  const check = await Accounts._checkPasswordAsync(user, demoPin());
+  if (check.error) {
+    await Accounts.setPasswordAsync(user._id, demoPin(), { logout: false });
+    repaired = true;
+    console.warn(
+      `[demoMode] Reset the PIN for ${email} (${user._id}); the stored password did not match DEMO_ACCOUNT_PIN.`,
+    );
+  }
+
+  if (verbose || repaired) {
+    console.warn(
+      `[demoMode] ${email} (${user._id}) is approved and the configured PIN verifies. Sign-in should work.`,
+    );
+  }
+};
+
+const syncAllDemoAccounts = async ({ verbose }) => {
+  for (const email of demoEmails()) {
+    try {
+      await syncDemoAccount(email, { verbose });
+    } catch (error) {
+      console.error(`[demoMode] Failed to sync demo account ${email}:`, error);
+    }
+  }
+};
+
 Meteor.startup(async () => {
   if (!isDemoModeEnabled()) return;
 
-  const emails = demoEmails();
-
   console.warn(
-    `[demoMode] ENABLED for ${emails.join(", ")}. Unset DEMO_MODE once App Store review is complete.`,
+    `[demoMode] ENABLED for ${demoEmails().join(", ")}. Unset DEMO_MODE once App Store review is complete.`,
   );
 
-  for (const email of emails) {
-    try {
-      const existing = await Meteor.users.findOneAsync({
-        "emails.address": email,
-      });
+  await syncAllDemoAccounts({ verbose: true });
 
-      if (existing) {
-        await Meteor.users.updateAsync(
-          { _id: existing._id },
-          { $set: { "profile.registrationStatus": "approved" } },
-        );
-        await Accounts.setPasswordAsync(existing._id, demoPin());
-        console.warn(
-          `[demoMode] Reset demo account ${email} (${existing._id}) to approved with the configured PIN.`,
-        );
-      } else {
-        const userId = await Accounts.createUserAsync({
-          email,
-          username: email.split("@")[0],
-          password: demoPin(),
-          profile: {
-            firstName: "App",
-            lastName: "Review",
-            registrationStatus: "approved",
-          },
-        });
-        console.warn(`[demoMode] Seeded demo account ${email} (${userId}).`);
-      }
-    } catch (error) {
-      console.error(`[demoMode] Failed to seed demo account ${email}:`, error);
-    }
-  }
+  // Anything that mutates the account mid-review (an admin action, a stray
+  // registration) would otherwise break sign-in until the next deploy.
+  Meteor.setInterval(
+    () => syncAllDemoAccounts({ verbose: false }),
+    5 * 60 * 1000,
+  );
 });
 
 Meteor.methods({
