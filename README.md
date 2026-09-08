@@ -505,8 +505,14 @@ Manual runs (Run workflow) narrow that down:
 | Task | Inputs |
 | --- | --- |
 | Server-only hotfix | `deploy_server: true`, `include_mobile: false` |
-| Rebuild iOS from a tag | pick the tag in "Use workflow from", `deploy_server: false`, `include_mobile: true`, `platforms: ios` |
+| Rebuild iOS from a tag | pick the tag in "Use workflow from", `deploy_server: false`, `include_mobile: true`, `platforms: ios`, `app_version: 1.7.2` |
 | Dry run a signed build | `include_mobile: true`, `publish: false` — artifacts only, no store upload |
+
+A tag run takes the version from the tag; a manual run takes it from the
+`app_version` input, which is required whenever `include_mobile` is on. It must
+be higher than the last version published for that target — TestFlight and Play
+both reject a build number they have already seen. A manual mobile run without
+it fails in the first job rather than after the archive is built.
 
 The mobile build compiles whatever ref the run was started from. SSH server
 deploys always take the branch from the variant file, because the build happens
