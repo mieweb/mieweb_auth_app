@@ -6,7 +6,7 @@ import { DDPRateLimiter } from "meteor/ddp-rate-limiter";
 import crypto from "crypto";
 import { DeviceDetails } from "../utils/api/deviceDetails.js";
 import { ApprovalTokens } from "../utils/api/approvalTokens";
-import "../utils/api/notificationHistory.js"; // Method registration (primary-transfer approvals)
+import { NotificationHistory } from "../utils/api/notificationHistory.js";
 import "../utils/api/pendingResponses.js"; // Method registration (primary-transfer approvals)
 import { APPROVAL_ACTIONS } from "../utils/constants.js";
 import { sendNotification } from "./firebase.js";
@@ -70,7 +70,7 @@ const requireLogin = (context) => {
   if (!context.userId) {
     throw new Meteor.Error(
       "not-authorized",
-      "You must be signed in to manage devices.",
+      "Your session has expired. Please sign in again.",
     );
   }
 };
@@ -167,12 +167,15 @@ export const notifyApprovedDevices = (devices, title, body, data) => {
 
 /**
  * Remove a user account and everything attached to it (devices, approval
- * tokens). Shared by users.removeCompletely and last-device self-revocation.
+ * tokens, notification history). Shared by users.removeCompletely and
+ * last-device self-revocation.
  */
 export const removeUserCompletely = async (userId) => {
   const userRemoved = await Meteor.users.removeAsync({ _id: userId });
   const deviceRemoved = await DeviceDetails.removeAsync({ userId });
   const tokensRemoved = await ApprovalTokens.removeAsync({ userId });
+  // Auth-request history is personal data; it must not outlive the account.
+  await NotificationHistory.removeAsync({ userId });
 
   return {
     success: true,
@@ -835,7 +838,8 @@ Meteor.methods({
 
     await verifyStepUpAuth(this.userId, options.reAuth);
 
-    const userDoc = await DeviceDetails.findOneAsync({ userId: this.userId });
+    const userId = this.userId;
+    const userDoc = await DeviceDetails.findOneAsync({ userId });
     const devices = userDoc?.devices || [];
 
     // Sent before removal, while the stored FCM tokens still exist, so the
@@ -847,15 +851,25 @@ Meteor.methods({
       { notificationType: "device_revoked" },
     );
 
-    const result = await removeUserCompletely(this.userId);
-
     await logDeviceAudit({
-      userId: this.userId,
+      userId,
       action: "deleteAccount",
       details: `self-service deletion — ${devices.length} device(s) removed`,
     });
 
-    return { ...result, accountRemoved: true };
+    // Dropping the caller's own user doc makes accounts-base close this DDP
+    // connection, and Meteor waits for that write to reach every observer
+    // before flushing the method result — so an inline delete kills the
+    // connection first and the client retries the call, surfacing a bogus
+    // "not authorized" for an account that was in fact deleted. Deferring
+    // lets the confirmation land before the session goes away.
+    Meteor.defer(() =>
+      removeUserCompletely(userId).catch((error) =>
+        console.error(`Account deletion failed for ${userId}:`, error),
+      ),
+    );
+
+    return { success: true, accountRemoved: true };
   },
 });
 

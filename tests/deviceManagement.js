@@ -4,6 +4,7 @@ if (Meteor.isServer) {
   describe("Device management (My Devices)", function () {
     const { DeviceDetails } = require("../utils/api/deviceDetails");
     const { DeviceAuditLog } = require("../server/deviceManagement");
+    const { NotificationHistory } = require("../utils/api/notificationHistory");
 
     const USER_A = "device-mgmt-user-a";
     const USER_B = "device-mgmt-user-b";
@@ -11,6 +12,15 @@ if (Meteor.isServer) {
 
     const callMethod = (name, context, ...args) =>
       Meteor.server.method_handlers[name].call(context, ...args);
+
+    const waitUntil = async (predicate, timeoutMs = 2000) => {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        if (await predicate()) return true;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      return false;
+    };
 
     const makeDevice = (overrides = {}) => ({
       deviceUUID: "uuid-primary",
@@ -628,6 +638,12 @@ if (Meteor.isServer) {
           createdAt: new Date(),
           lastUpdated: new Date(),
         });
+        await NotificationHistory.insertAsync({
+          userId,
+          title: "Login request",
+          body: "Approve?",
+          createdAt: new Date(),
+        });
 
         const result = await callMethod(
           "users.deleteOwnAccount",
@@ -636,12 +652,22 @@ if (Meteor.isServer) {
         );
 
         assert.strictEqual(result.accountRemoved, true);
-        assert.strictEqual(
-          await Meteor.users.find({ _id: userId }).countAsync(),
-          0,
+
+        // The removal itself is deferred so the caller's DDP connection
+        // outlives the method result.
+        assert.ok(
+          await waitUntil(
+            async () =>
+              (await Meteor.users.find({ _id: userId }).countAsync()) === 0,
+          ),
+          "expected the user document to be removed",
         );
         assert.strictEqual(
           await DeviceDetails.find({ userId }).countAsync(),
+          0,
+        );
+        assert.strictEqual(
+          await NotificationHistory.find({ userId }).countAsync(),
           0,
         );
 

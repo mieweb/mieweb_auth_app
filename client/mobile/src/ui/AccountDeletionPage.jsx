@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Meteor } from "meteor/meteor";
+import { useTracker } from "meteor/react-meteor-data";
 import { AlertTriangle, ArrowLeft, CheckCircle, Trash2 } from "lucide-react";
 import {
   Alert,
@@ -19,7 +20,7 @@ const CONFIRM_PHRASE = "DELETE";
 const CONSEQUENCES = [
   "Every device registered to your account is removed and signed out.",
   "You stop receiving authentication requests immediately.",
-  "Your profile, device records and pending approvals are permanently erased.",
+  "Your profile, device records, authentication history and pending approvals are permanently erased.",
   "To use MIE Auth again you must register from scratch and be re-approved by an administrator.",
 ];
 
@@ -30,6 +31,10 @@ const AccountDeletionPage = () => {
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState("");
   const [deleted, setDeleted] = useState(false);
+
+  // ProtectedRoute also accepts a Session-only (biometric) state, but deletion
+  // needs a real DDP login or the server sees no userId.
+  const isSignedIn = useTracker(() => !!Meteor.userId(), []);
 
   const phraseMatches = phrase.trim().toUpperCase() === CONFIRM_PHRASE;
 
@@ -58,7 +63,7 @@ const AccountDeletionPage = () => {
             </h2>
             <p className="text-sm text-muted-foreground">
               Your MIE Auth account, all of its registered devices and your
-              pending approvals have been permanently removed.
+              authentication history have been permanently removed.
             </p>
             <Button fullWidth onClick={() => wipeLocalCredentialsAndLogout()}>
               Done
@@ -94,6 +99,15 @@ const AccountDeletionPage = () => {
           </AlertDescription>
         </Alert>
 
+        {!isSignedIn && (
+          <Alert variant="danger">
+            <AlertDescription>
+              Your session has expired, so your account cannot be deleted right
+              now. Sign in again to continue.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <Card>
           <CardContent className="p-5 space-y-3">
             <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
@@ -117,13 +131,13 @@ const AccountDeletionPage = () => {
               placeholder={CONFIRM_PHRASE}
               value={phrase}
               onChange={(e) => setPhrase(e.target.value)}
-              disabled={busy}
+              disabled={busy || !isSignedIn}
             />
             <Button
               variant="danger"
               fullWidth
               leftIcon={<Trash2 className="h-4 w-4" />}
-              disabled={!phraseMatches || busy}
+              disabled={!phraseMatches || busy || !isSignedIn}
               onClick={() => {
                 setActionError("");
                 setConfirming(true);
