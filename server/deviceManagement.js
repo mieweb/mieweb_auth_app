@@ -823,6 +823,40 @@ Meteor.methods({
 
     return { success: true, updated: true };
   },
+
+  /**
+   * Permanently delete the calling user's own account, including every
+   * registered device (App Store guideline 5.1.1(v) requires this to be
+   * self-service). Requires step-up re-authentication.
+   */
+  async "users.deleteOwnAccount"(options) {
+    check(options, { reAuth: REAUTH_PATTERN });
+    requireLogin(this);
+
+    await verifyStepUpAuth(this.userId, options.reAuth);
+
+    const userDoc = await DeviceDetails.findOneAsync({ userId: this.userId });
+    const devices = userDoc?.devices || [];
+
+    // Sent before removal, while the stored FCM tokens still exist, so the
+    // owner's other installs learn to wipe their local state.
+    notifyApprovedDevices(
+      devices,
+      "Account Deleted",
+      "Your MIE Auth account was deleted. This device has been signed out.",
+      { notificationType: "device_revoked" },
+    );
+
+    const result = await removeUserCompletely(this.userId);
+
+    await logDeviceAudit({
+      userId: this.userId,
+      action: "deleteAccount",
+      details: `self-service deletion — ${devices.length} device(s) removed`,
+    });
+
+    return { ...result, accountRemoved: true };
+  },
 });
 
 // Brute-force protection for authentication and device management methods.
@@ -837,6 +871,7 @@ const RATE_LIMITED_METHODS = new Set([
   "devices.setPrimary",
   "devices.revoke",
   "devices.approvePending",
+  "users.deleteOwnAccount",
   "demo.linkDevice",
 ]);
 

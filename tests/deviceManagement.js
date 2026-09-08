@@ -579,6 +579,79 @@ if (Meteor.isServer) {
       });
     });
 
+    describe("users.deleteOwnAccount", function () {
+      it("rejects unauthenticated callers", async function () {
+        await assert.rejects(
+          callMethod(
+            "users.deleteOwnAccount",
+            { userId: null },
+            { reAuth: { biometricSecret: BIO_SECRET } },
+          ),
+          /not-authorized/,
+        );
+      });
+
+      it("rejects an invalid re-authentication proof", async function () {
+        await assert.rejects(
+          callMethod(
+            "users.deleteOwnAccount",
+            { userId: USER_A },
+            { reAuth: { biometricSecret: "wrong-secret" } },
+          ),
+          /reauth-failed/,
+        );
+
+        assert.strictEqual(
+          await DeviceDetails.find({ userId: USER_A }).countAsync(),
+          1,
+        );
+      });
+
+      it("removes the account and every registered device", async function () {
+        const userId = await Meteor.users.insertAsync({
+          username: "deleteme",
+          emails: [{ address: "deleteme@example.com", verified: false }],
+        });
+        await DeviceDetails.insertAsync({
+          userId,
+          username: "deleteme",
+          email: "deleteme@example.com",
+          devices: [
+            makeDevice({ biometricSecret: "delete-bio" }),
+            makeDevice({
+              deviceUUID: "uuid-extra",
+              appId: "app-extra",
+              biometricSecret: "extra-bio",
+              isPrimary: false,
+            }),
+          ],
+          createdAt: new Date(),
+          lastUpdated: new Date(),
+        });
+
+        const result = await callMethod(
+          "users.deleteOwnAccount",
+          { userId },
+          { reAuth: { biometricSecret: "delete-bio" } },
+        );
+
+        assert.strictEqual(result.accountRemoved, true);
+        assert.strictEqual(
+          await Meteor.users.find({ _id: userId }).countAsync(),
+          0,
+        );
+        assert.strictEqual(
+          await DeviceDetails.find({ userId }).countAsync(),
+          0,
+        );
+
+        const audit = await DeviceAuditLog.findOneAsync({ userId });
+        assert.strictEqual(audit.action, "deleteAccount");
+
+        await DeviceAuditLog.removeAsync({ userId });
+      });
+    });
+
     describe("publications", function () {
       it("deviceDetails.byUser returns nothing for another user's data", function () {
         const handler = Meteor.server.publish_handlers["deviceDetails.byUser"];
