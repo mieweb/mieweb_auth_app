@@ -32,6 +32,10 @@ on:
         description: "Build the mobile apps"
         type: boolean
         default: false
+      app_version:
+        description: "App version for the mobile build, e.g. 1.7.2 (required with include_mobile; must be higher than the last published build)"
+        type: string
+        required: false
       platforms:
         description: "Mobile platforms"
         type: choice
@@ -77,6 +81,8 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           TAG: ${{ github.event.release.tag_name }}
           DISPATCH_TARGET: ${{ inputs.target }}
+          DISPATCH_VERSION: ${{ inputs.app_version }}
+          INCLUDE_MOBILE: ${{ github.event_name == 'release' || inputs.include_mobile }}
         run: bash scripts/resolve-release-target.sh
 
   # ─────────────────────────────────────────────
