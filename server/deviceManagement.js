@@ -166,23 +166,32 @@ export const notifyApprovedDevices = (devices, title, body, data) => {
 };
 
 /**
- * Remove a user account and everything attached to it (devices, approval
- * tokens, notification history). Shared by users.removeCompletely and
- * last-device self-revocation.
+ * Remove everything attached to a user except the account document itself.
+ * Split out because none of these writes touch the caller's login token, so
+ * a self-deleting client can await them without losing its DDP connection.
  */
-export const removeUserCompletely = async (userId) => {
-  const userRemoved = await Meteor.users.removeAsync({ _id: userId });
+const removeUserData = async (userId) => {
   const deviceRemoved = await DeviceDetails.removeAsync({ userId });
   const tokensRemoved = await ApprovalTokens.removeAsync({ userId });
   // Auth-request history is personal data; it must not outlive the account.
   await NotificationHistory.removeAsync({ userId });
 
   return {
-    success: true,
-    userRemoved: userRemoved > 0,
     deviceRemoved: deviceRemoved > 0,
     tokensRemoved: tokensRemoved > 0,
   };
+};
+
+/**
+ * Remove a user account and everything attached to it (devices, approval
+ * tokens, notification history). Shared by users.removeCompletely and
+ * last-device self-revocation.
+ */
+export const removeUserCompletely = async (userId) => {
+  const data = await removeUserData(userId);
+  const userRemoved = await Meteor.users.removeAsync({ _id: userId });
+
+  return { success: true, userRemoved: userRemoved > 0, ...data };
 };
 
 /**
@@ -857,19 +866,28 @@ Meteor.methods({
       details: `self-service deletion — ${devices.length} device(s) removed`,
     });
 
-    // Dropping the caller's own user doc makes accounts-base close this DDP
-    // connection, and Meteor waits for that write to reach every observer
-    // before flushing the method result — so an inline delete kills the
-    // connection first and the client retries the call, surfacing a bogus
-    // "not authorized" for an account that was in fact deleted. Deferring
-    // lets the confirmation land before the session goes away.
+    // Devices, tokens and history are safe to await: the caller keeps its
+    // session, so a failure here still surfaces as a method error.
+    const removed = await removeUserData(userId);
+
+    // The account document is not. Dropping it invalidates the caller's login
+    // token, and accounts-base closes the DDP connection as soon as that write
+    // reaches its observer — Meteor drains the write fence before flushing a
+    // method result, so an inline delete loses the response and the client
+    // retries, surfacing a bogus "not authorized". Defer it so the
+    // confirmation lands first.
     Meteor.defer(() =>
-      removeUserCompletely(userId).catch((error) =>
-        console.error(`Account deletion failed for ${userId}:`, error),
-      ),
+      Meteor.users
+        .removeAsync({ _id: userId })
+        .catch((error) =>
+          console.error(
+            `Account document removal failed for ${userId}:`,
+            error,
+          ),
+        ),
     );
 
-    return { success: true, accountRemoved: true };
+    return { success: true, accountRemoved: true, ...removed };
   },
 });
 

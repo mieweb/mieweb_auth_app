@@ -653,15 +653,8 @@ if (Meteor.isServer) {
 
         assert.strictEqual(result.accountRemoved, true);
 
-        // The removal itself is deferred so the caller's DDP connection
-        // outlives the method result.
-        assert.ok(
-          await waitUntil(
-            async () =>
-              (await Meteor.users.find({ _id: userId }).countAsync()) === 0,
-          ),
-          "expected the user document to be removed",
-        );
+        // Devices and history are removed inline, so they are already gone
+        // once the method resolves.
         assert.strictEqual(
           await DeviceDetails.find({ userId }).countAsync(),
           0,
@@ -669,6 +662,16 @@ if (Meteor.isServer) {
         assert.strictEqual(
           await NotificationHistory.find({ userId }).countAsync(),
           0,
+        );
+
+        // Only the account document is deferred, so the caller's DDP
+        // connection outlives the method result.
+        assert.ok(
+          await waitUntil(
+            async () =>
+              (await Meteor.users.find({ _id: userId }).countAsync()) === 0,
+          ),
+          "expected the user document to be removed",
         );
 
         const audit = await DeviceAuditLog.findOneAsync({ userId });
