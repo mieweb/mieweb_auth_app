@@ -12,6 +12,7 @@ import {
   ChevronDown,
   Smartphone,
   FileText,
+  Trash2,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { openSupportLink } from "../../../../../utils/openExternal";
@@ -192,6 +193,15 @@ export const DashboardHeader = ({
                     {label}
                   </DropdownItem>
                 ))}
+
+              <DropdownSeparator />
+              <DropdownItem
+                icon={<Trash2 className="h-4 w-4" />}
+                onClick={() => navigate("/settings/delete-account")}
+                className="text-destructive"
+              >
+                Delete account
+              </DropdownItem>
             </Dropdown>
 
             <AppHeaderDivider className="h-7" />
