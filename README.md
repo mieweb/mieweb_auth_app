@@ -312,7 +312,9 @@ referenced by `mobile-config.js`.
 The invite request and response contract is documented in
 [docs/API_INVITES.md](docs/API_INVITES.md). API-key behavior and a complete
 notification example are in
-[docs/API_KEY_AUTHENTICATION.md](docs/API_KEY_AUTHENTICATION.md).
+[docs/API_KEY_AUTHENTICATION.md](docs/API_KEY_AUTHENTICATION.md). Healthcheck
+status codes and response bodies are in
+[docs/API_HEALTHCHECK.md](docs/API_HEALTHCHECK.md).
 
 Minimal notification payload:
 
@@ -454,6 +456,9 @@ curl http://localhost:3000/healthcheck
 The endpoint returns `200` only when MongoDB responds to `ping` and reports the
 connected node as writable. It returns `503` for a disconnected or read-only
 database. `HEAD` is supported for probes.
+
+Full status-code and JSON response reference:
+[docs/API_HEALTHCHECK.md](docs/API_HEALTHCHECK.md).
 
 ### Multi-instance setup
 
