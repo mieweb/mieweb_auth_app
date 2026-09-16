@@ -286,19 +286,21 @@ jobs:
       - name: Install icon generator dependencies
         run: pip3 install --break-system-packages --quiet Pillow
 
-      - name: Apply release variant
-        env:
-          APP_VERSION: ${{ needs.select-target.outputs.app_version }}
-        run: bash scripts/apply-variant.sh "${{ needs.select-target.outputs.target }}" ios
-
-      # The committed buildInfo.json is a stale placeholder — regenerate so the
-      # bundled app carries the real version and per-variant store URLs.
+      # Before apply-variant.sh edits tracked files (a dirty tree would stamp
+      # `-dirty` into the version), with full history for git describe. The
+      # committed placeholder is stale — this bakes the real version and
+      # per-variant store URLs into the bundle.
       - name: Generate build info
         env:
           TARGET: ${{ needs.select-target.outputs.target }}
         run: |
-          git fetch --tags --force
+          git fetch --unshallow --tags --force 2>/dev/null || git fetch --tags --force
           node generate-build-info.js "$TARGET"
+
+      - name: Apply release variant
+        env:
+          APP_VERSION: ${{ needs.select-target.outputs.app_version }}
+        run: bash scripts/apply-variant.sh "${{ needs.select-target.outputs.target }}" ios
 
       - name: Write Firebase config
         env:
@@ -353,19 +355,21 @@ jobs:
       - name: Install icon generator dependencies
         run: pip3 install --break-system-packages --quiet Pillow
 
-      - name: Apply release variant
-        env:
-          APP_VERSION: ${{ needs.select-target.outputs.app_version }}
-        run: bash scripts/apply-variant.sh "${{ needs.select-target.outputs.target }}" android
-
-      # The committed buildInfo.json is a stale placeholder — regenerate so the
-      # bundled app carries the real version and per-variant store URLs.
+      # Before apply-variant.sh edits tracked files (a dirty tree would stamp
+      # `-dirty` into the version), with full history for git describe. The
+      # committed placeholder is stale — this bakes the real version and
+      # per-variant store URLs into the bundle.
       - name: Generate build info
         env:
           TARGET: ${{ needs.select-target.outputs.target }}
         run: |
-          git fetch --tags --force
+          git fetch --unshallow --tags --force 2>/dev/null || git fetch --tags --force
           node generate-build-info.js "$TARGET"
+
+      - name: Apply release variant
+        env:
+          APP_VERSION: ${{ needs.select-target.outputs.app_version }}
+        run: bash scripts/apply-variant.sh "${{ needs.select-target.outputs.target }}" android
 
       - name: Write Firebase config
         env:
