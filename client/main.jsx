@@ -7,7 +7,10 @@ import { App } from "./mobile/src/ui/App";
 import { captureDeviceInfo } from "./mobile/capture-device-info";
 import { initializeBiometrics } from "./mobile/biometrics";
 import { initializeDeepLinks } from "./mobile/deep-links";
-import { initializePushNotifications } from "./mobile/push-notifications";
+import {
+  initializePushNotifications,
+  clearNotificationBadge,
+} from "./mobile/push-notifications";
 import { checkNotificationPermission } from "./mobile/notification-permissions";
 import { initializeIdentityMigration } from "./mobile/identity-migration";
 import { initializeDiagnostics } from "./mobile/diagnostics";
@@ -57,6 +60,9 @@ Meteor.startup(() => {
       "resume",
       () => {
         checkNotificationPermission();
+        // The user is looking at the app, so the icon badge has served its
+        // purpose — covers the case where a server sync push was missed.
+        clearNotificationBadge();
       },
       false,
     );
