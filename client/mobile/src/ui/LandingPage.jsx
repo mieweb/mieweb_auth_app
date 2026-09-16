@@ -381,7 +381,25 @@ function DeviceAppBar({ email }) {
       {hasApp && (
         <span className="flex items-center gap-1">
           <Info className="h-3 w-3" />
-          {buildInfo.version || `v${buildInfo.appVersion}`}
+          {buildInfo.tag ? (
+            <span
+              className="underline decoration-dotted cursor-pointer hover:text-white transition-colors"
+              onClick={() => {
+                const releaseUrl = `https://github.com/mieweb/mieweb_auth_app/releases/tag/${encodeURIComponent(buildInfo.tag)}`;
+                if (
+                  window.confirm(
+                    "You will be redirected to GitHub to view this release.\n\nContinue?",
+                  )
+                ) {
+                  openExternal(releaseUrl);
+                }
+              }}
+            >
+              {buildInfo.version}
+            </span>
+          ) : (
+            buildInfo.version || `v${buildInfo.appVersion}`
+          )}
           {buildInfo.buildNumber && (
             <span
               className="text-primary-300 underline decoration-dotted cursor-pointer hover:text-white transition-colors"
