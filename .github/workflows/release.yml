@@ -100,6 +100,9 @@ jobs:
       - name: Checkout code
         if: needs.select-target.outputs.deploy_mode == 'self-hosted'
         uses: actions/checkout@v4
+        with:
+          # Tag history for generate-build-info.js's git describe.
+          fetch-depth: 0
 
       - name: Deploy over SSH
         if: needs.select-target.outputs.deploy_mode == 'ssh'
@@ -132,6 +135,8 @@ jobs:
             echo "=== Pulling latest code (${BRANCH}) ==="
             cd ~/github/mieweb_auth_app
             git fetch origin "$BRANCH"
+            # git describe needs the release tags; a branch fetch can miss them.
+            git fetch origin --tags --force
             git checkout "$BRANCH"
             git reset --hard "origin/${BRANCH}"
 
@@ -281,6 +286,17 @@ jobs:
       - name: Install icon generator dependencies
         run: pip3 install --break-system-packages --quiet Pillow
 
+      # Before apply-variant.sh edits tracked files (a dirty tree would stamp
+      # `-dirty` into the version), with full history for git describe. The
+      # committed placeholder is stale — this bakes the real version and
+      # per-variant store URLs into the bundle.
+      - name: Generate build info
+        env:
+          TARGET: ${{ needs.select-target.outputs.target }}
+        run: |
+          git fetch --unshallow --tags --force 2>/dev/null || git fetch --tags --force
+          node generate-build-info.js "$TARGET"
+
       - name: Apply release variant
         env:
           APP_VERSION: ${{ needs.select-target.outputs.app_version }}
@@ -338,6 +354,17 @@ jobs:
       # generate_app_resources.py builds the icon set; the runner image has no Pillow.
       - name: Install icon generator dependencies
         run: pip3 install --break-system-packages --quiet Pillow
+
+      # Before apply-variant.sh edits tracked files (a dirty tree would stamp
+      # `-dirty` into the version), with full history for git describe. The
+      # committed placeholder is stale — this bakes the real version and
+      # per-variant store URLs into the bundle.
+      - name: Generate build info
+        env:
+          TARGET: ${{ needs.select-target.outputs.target }}
+        run: |
+          git fetch --unshallow --tags --force 2>/dev/null || git fetch --tags --force
+          node generate-build-info.js "$TARGET"
 
       - name: Apply release variant
         env:

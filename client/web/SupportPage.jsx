@@ -169,25 +169,35 @@ export const SupportPage = () => {
                   <dl className="space-y-3">
                     <div className="flex justify-between items-center text-sm">
                       <dt className="text-muted-foreground">Version</dt>
-                      <dd>
+                      <dd className="flex items-center gap-2">
                         <Badge
                           variant="secondary"
-                          className="bg-muted text-muted-foreground border-border font-mono"
+                          className={`font-mono ${
+                            buildInfo.dirty || buildInfo.commitsSinceTag > 0
+                              ? "bg-amber-500/15 text-amber-600 border-amber-500/30"
+                              : "bg-muted text-muted-foreground border-border"
+                          }`}
                         >
-                          {buildInfo.appVersion}
+                          {buildInfo.tag ? (
+                            <a
+                              href={`${GITHUB_REPO_URL}/releases/tag/${encodeURIComponent(buildInfo.tag)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="hover:underline"
+                            >
+                              {buildInfo.version}
+                            </a>
+                          ) : (
+                            buildInfo.version || buildInfo.appVersion
+                          )}
                         </Badge>
-                      </dd>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <dt className="text-muted-foreground">Build Number</dt>
-                      <dd>
                         <a
                           href={`${GITHUB_REPO_URL}/commit/${buildInfo.buildNumber}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="font-mono text-primary hover:text-primary/80 transition-colors text-xs"
                         >
-                          {buildInfo.buildNumber}
+                          ({buildInfo.buildNumber})
                         </a>
                       </dd>
                     </div>
