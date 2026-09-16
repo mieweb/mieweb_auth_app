@@ -183,7 +183,7 @@ export const SupportPage = () => {
                               href={`${GITHUB_REPO_URL}/releases/tag/${encodeURIComponent(buildInfo.tag)}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="hover:underline"
+                              className="text-primary hover:text-primary/80 underline decoration-dotted transition-colors"
                             >
                               {buildInfo.version}
                             </a>
