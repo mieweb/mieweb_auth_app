@@ -1,11 +1,8 @@
 import React, { useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Layout } from "./components/Layout";
-import {
-  AppStoreButtons,
-  APP_STORE_URL,
-  GOOGLE_PLAY_URL,
-} from "./components/AppStoreButtons";
+import { AppStoreButtons } from "./components/AppStoreButtons";
+import { useStoreUrls } from "../hooks/useStoreUrls";
 import { Button } from "@mieweb/ui";
 import { motion } from "framer-motion";
 import {
@@ -85,6 +82,7 @@ const features = [
 export const MobileAppRequired = ({ mode = "login" }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { appStoreUrl, playStoreUrl } = useStoreUrls();
   const isLogin = mode === "login";
   const inviteToken = useMemo(
     () => new URLSearchParams(location.search).get("token")?.trim() || "",
@@ -316,7 +314,7 @@ export const MobileAppRequired = ({ mode = "login" }) => {
                     Scan to download
                   </span>
                 </div>
-                <QRCode androidUrl={GOOGLE_PLAY_URL} iosUrl={APP_STORE_URL} />
+                <QRCode androidUrl={playStoreUrl} iosUrl={appStoreUrl} />
               </motion.div>
             </div>
           </div>

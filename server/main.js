@@ -34,6 +34,7 @@ import {
   normalizeInviteUsername,
 } from "../utils/api/invites.js";
 import "./adminApi"; // Admin REST API endpoints
+import "./demoMode.js"; // TEMPORARY: App Store review demo account (kill switch: unset DEMO_MODE)
 import "../utils/api/duoIntegrations.js"; // Duo integration credential methods
 import "./duo/index.js"; // Duo Auth API v2 compatibility layer (/auth/v2/*)
 import "./duo/adminApiV1.js"; // Duo Admin API v1 compatibility layer (/admin/v1/*)

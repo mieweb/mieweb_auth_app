@@ -4,6 +4,7 @@ if (Meteor.isServer) {
   describe("Device management (My Devices)", function () {
     const { DeviceDetails } = require("../utils/api/deviceDetails");
     const { DeviceAuditLog } = require("../server/deviceManagement");
+    const { NotificationHistory } = require("../utils/api/notificationHistory");
 
     const USER_A = "device-mgmt-user-a";
     const USER_B = "device-mgmt-user-b";
@@ -11,6 +12,15 @@ if (Meteor.isServer) {
 
     const callMethod = (name, context, ...args) =>
       Meteor.server.method_handlers[name].call(context, ...args);
+
+    const waitUntil = async (predicate, timeoutMs = 2000) => {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        if (await predicate()) return true;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      return false;
+    };
 
     const makeDevice = (overrides = {}) => ({
       deviceUUID: "uuid-primary",
@@ -576,6 +586,98 @@ if (Meteor.isServer) {
         const doc = await DeviceDetails.findOneAsync({ userId: USER_A });
         assert.strictEqual(doc.devices.length, 1);
         assert.strictEqual(doc.devices[0].deviceUUID, "uuid-primary");
+      });
+    });
+
+    describe("users.deleteOwnAccount", function () {
+      it("rejects unauthenticated callers", async function () {
+        await assert.rejects(
+          callMethod(
+            "users.deleteOwnAccount",
+            { userId: null },
+            { reAuth: { biometricSecret: BIO_SECRET } },
+          ),
+          /not-authorized/,
+        );
+      });
+
+      it("rejects an invalid re-authentication proof", async function () {
+        await assert.rejects(
+          callMethod(
+            "users.deleteOwnAccount",
+            { userId: USER_A },
+            { reAuth: { biometricSecret: "wrong-secret" } },
+          ),
+          /reauth-failed/,
+        );
+
+        assert.strictEqual(
+          await DeviceDetails.find({ userId: USER_A }).countAsync(),
+          1,
+        );
+      });
+
+      it("removes the account and every registered device", async function () {
+        const userId = await Meteor.users.insertAsync({
+          username: "deleteme",
+          emails: [{ address: "deleteme@example.com", verified: false }],
+        });
+        await DeviceDetails.insertAsync({
+          userId,
+          username: "deleteme",
+          email: "deleteme@example.com",
+          devices: [
+            makeDevice({ biometricSecret: "delete-bio" }),
+            makeDevice({
+              deviceUUID: "uuid-extra",
+              appId: "app-extra",
+              biometricSecret: "extra-bio",
+              isPrimary: false,
+            }),
+          ],
+          createdAt: new Date(),
+          lastUpdated: new Date(),
+        });
+        await NotificationHistory.insertAsync({
+          userId,
+          title: "Login request",
+          body: "Approve?",
+          createdAt: new Date(),
+        });
+
+        const result = await callMethod(
+          "users.deleteOwnAccount",
+          { userId },
+          { reAuth: { biometricSecret: "delete-bio" } },
+        );
+
+        assert.strictEqual(result.accountRemoved, true);
+
+        // Devices and history are removed inline, so they are already gone
+        // once the method resolves.
+        assert.strictEqual(
+          await DeviceDetails.find({ userId }).countAsync(),
+          0,
+        );
+        assert.strictEqual(
+          await NotificationHistory.find({ userId }).countAsync(),
+          0,
+        );
+
+        // Only the account document is deferred, so the caller's DDP
+        // connection outlives the method result.
+        assert.ok(
+          await waitUntil(
+            async () =>
+              (await Meteor.users.find({ _id: userId }).countAsync()) === 0,
+          ),
+          "expected the user document to be removed",
+        );
+
+        const audit = await DeviceAuditLog.findOneAsync({ userId });
+        assert.strictEqual(audit.action, "deleteAccount");
+
+        await DeviceAuditLog.removeAsync({ userId });
       });
     });
 

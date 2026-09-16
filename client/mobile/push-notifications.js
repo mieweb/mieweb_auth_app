@@ -3,6 +3,7 @@ import { Session } from "meteor/session";
 import { Tracker } from "meteor/tracker";
 import { IOS_APPROVAL_CATEGORIES } from "../../utils/constants.js";
 import { completePushMigration, signOperation } from "./identity-migration.js";
+import { wipeLocalCredentialsAndLogout } from "./local-session.js";
 
 // Session validation with retry logic
 const validateSessionWithRetry = (callback, retries = 3, interval = 1000) => {
@@ -278,19 +279,7 @@ const setupNotificationHandler = (push) => {
       // server has already deleted this device's record and invalidated its
       // sessions, so this is a cleanup courtesy for the user.
       if (additionalData.notificationType === "device_revoked") {
-        [
-          "biometricsEnabled",
-          "biometricUserId",
-          "lastLoggedInEmail",
-          "pendingNotification",
-        ].forEach((key) => {
-          try {
-            localStorage.removeItem(key);
-          } catch {}
-        });
-        Meteor.logout(() => {
-          window.location.replace("/");
-        });
+        wipeLocalCredentialsAndLogout();
         return;
       }
 

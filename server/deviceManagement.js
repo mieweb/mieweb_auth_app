@@ -6,7 +6,7 @@ import { DDPRateLimiter } from "meteor/ddp-rate-limiter";
 import crypto from "crypto";
 import { DeviceDetails } from "../utils/api/deviceDetails.js";
 import { ApprovalTokens } from "../utils/api/approvalTokens";
-import "../utils/api/notificationHistory.js"; // Method registration (primary-transfer approvals)
+import { NotificationHistory } from "../utils/api/notificationHistory.js";
 import "../utils/api/pendingResponses.js"; // Method registration (primary-transfer approvals)
 import { APPROVAL_ACTIONS } from "../utils/constants.js";
 import { sendNotification } from "./firebase.js";
@@ -70,7 +70,7 @@ const requireLogin = (context) => {
   if (!context.userId) {
     throw new Meteor.Error(
       "not-authorized",
-      "You must be signed in to manage devices.",
+      "Your session has expired. Please sign in again.",
     );
   }
 };
@@ -166,20 +166,32 @@ export const notifyApprovedDevices = (devices, title, body, data) => {
 };
 
 /**
- * Remove a user account and everything attached to it (devices, approval
- * tokens). Shared by users.removeCompletely and last-device self-revocation.
+ * Remove everything attached to a user except the account document itself.
+ * Split out because none of these writes touch the caller's login token, so
+ * a self-deleting client can await them without losing its DDP connection.
  */
-export const removeUserCompletely = async (userId) => {
-  const userRemoved = await Meteor.users.removeAsync({ _id: userId });
+const removeUserData = async (userId) => {
   const deviceRemoved = await DeviceDetails.removeAsync({ userId });
   const tokensRemoved = await ApprovalTokens.removeAsync({ userId });
+  // Auth-request history is personal data; it must not outlive the account.
+  await NotificationHistory.removeAsync({ userId });
 
   return {
-    success: true,
-    userRemoved: userRemoved > 0,
     deviceRemoved: deviceRemoved > 0,
     tokensRemoved: tokensRemoved > 0,
   };
+};
+
+/**
+ * Remove a user account and everything attached to it (devices, approval
+ * tokens, notification history). Shared by users.removeCompletely and
+ * last-device self-revocation.
+ */
+export const removeUserCompletely = async (userId) => {
+  const data = await removeUserData(userId);
+  const userRemoved = await Meteor.users.removeAsync({ _id: userId });
+
+  return { success: true, userRemoved: userRemoved > 0, ...data };
 };
 
 /**
@@ -823,6 +835,60 @@ Meteor.methods({
 
     return { success: true, updated: true };
   },
+
+  /**
+   * Permanently delete the calling user's own account, including every
+   * registered device (App Store guideline 5.1.1(v) requires this to be
+   * self-service). Requires step-up re-authentication.
+   */
+  async "users.deleteOwnAccount"(options) {
+    check(options, { reAuth: REAUTH_PATTERN });
+    requireLogin(this);
+
+    await verifyStepUpAuth(this.userId, options.reAuth);
+
+    const userId = this.userId;
+    const userDoc = await DeviceDetails.findOneAsync({ userId });
+    const devices = userDoc?.devices || [];
+
+    // Sent before removal, while the stored FCM tokens still exist, so the
+    // owner's other installs learn to wipe their local state.
+    notifyApprovedDevices(
+      devices,
+      "Account Deleted",
+      "Your MIE Auth account was deleted. This device has been signed out.",
+      { notificationType: "device_revoked" },
+    );
+
+    await logDeviceAudit({
+      userId,
+      action: "deleteAccount",
+      details: `self-service deletion — ${devices.length} device(s) removed`,
+    });
+
+    // Devices, tokens and history are safe to await: the caller keeps its
+    // session, so a failure here still surfaces as a method error.
+    const removed = await removeUserData(userId);
+
+    // The account document is not. Dropping it invalidates the caller's login
+    // token, and accounts-base closes the DDP connection as soon as that write
+    // reaches its observer — Meteor drains the write fence before flushing a
+    // method result, so an inline delete loses the response and the client
+    // retries, surfacing a bogus "not authorized". Defer it so the
+    // confirmation lands first.
+    Meteor.defer(() =>
+      Meteor.users
+        .removeAsync({ _id: userId })
+        .catch((error) =>
+          console.error(
+            `Account document removal failed for ${userId}:`,
+            error,
+          ),
+        ),
+    );
+
+    return { success: true, accountRemoved: true, ...removed };
+  },
 });
 
 // Brute-force protection for authentication and device management methods.
@@ -837,6 +903,8 @@ const RATE_LIMITED_METHODS = new Set([
   "devices.setPrimary",
   "devices.revoke",
   "devices.approvePending",
+  "users.deleteOwnAccount",
+  "demo.linkDevice",
 ]);
 
 DDPRateLimiter.addRule(

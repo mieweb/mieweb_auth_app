@@ -30,6 +30,7 @@ const BiometricRegistrationModal = lazy(() =>
 );
 const NotificationSettings = lazy(() => import("../NotificationSettings"));
 const DeviceManagementPage = lazy(() => import("../DeviceManagementPage"));
+const AccountDeletionPage = lazy(() => import("../AccountDeletionPage"));
 
 // --- Lazy-loaded web pages ---
 const WebLandingPage = lazy(() =>
@@ -193,6 +194,18 @@ export const AppRoutes = ({ isRegistered, deviceUuid }) => {
                 isMobile ? (
                   <ProtectedRoute>
                     <DeviceManagementPage />
+                  </ProtectedRoute>
+                ) : (
+                  <MobileAppRequired />
+                )
+              }
+            />
+            <Route
+              path="/settings/delete-account"
+              element={
+                isMobile ? (
+                  <ProtectedRoute>
+                    <AccountDeletionPage />
                   </ProtectedRoute>
                 ) : (
                   <MobileAppRequired />

@@ -280,9 +280,16 @@ them immediately in a secret manager.
 
 ### Build metadata and app resources
 
-`generate-build-info.js` reads the version from `mobile-config.js`, reads the
-current Git commit and date, and writes `public/buildInfo.json`. The support UI
-uses this generated file.
+`generate-build-info.js` derives the version from `git describe` — the nearest
+release tag, commits since it, and a `-dirty` marker (for example
+`v1.7.0-14-dirty`) — reads the current Git commit and date, and writes
+`public/buildInfo.json` (generated at build time, not committed). The support
+UI and the mobile footer use this file. Passing a release target
+(`node generate-build-info.js mie`, or `TARGET=mie`) scopes the describe to
+that variant's `<target>-v*` tags and also stamps in its
+`APP_STORE_URL`/`PLAY_STORE_URL` so each instance links to its own store
+listings; without a target the client falls back to the MIEWeb Auth ones. If
+no tag is reachable, the version falls back to the one in `mobile-config.js`.
 
 Generate all configured iOS and Android icons and launch screens with Pillow:
 
@@ -312,7 +319,9 @@ referenced by `mobile-config.js`.
 The invite request and response contract is documented in
 [docs/API_INVITES.md](docs/API_INVITES.md). API-key behavior and a complete
 notification example are in
-[docs/API_KEY_AUTHENTICATION.md](docs/API_KEY_AUTHENTICATION.md).
+[docs/API_KEY_AUTHENTICATION.md](docs/API_KEY_AUTHENTICATION.md). Healthcheck
+status codes and response bodies are in
+[docs/API_HEALTHCHECK.md](docs/API_HEALTHCHECK.md).
 
 Minimal notification payload:
 
@@ -455,6 +464,9 @@ The endpoint returns `200` only when MongoDB responds to `ping` and reports the
 connected node as writable. It returns `503` for a disconnected or read-only
 database. `HEAD` is supported for probes.
 
+Full status-code and JSON response reference:
+[docs/API_HEALTHCHECK.md](docs/API_HEALTHCHECK.md).
+
 ### Multi-instance setup
 
 Pending approvals are shared through MongoDB. Indexes are created at Meteor
@@ -505,8 +517,14 @@ Manual runs (Run workflow) narrow that down:
 | Task | Inputs |
 | --- | --- |
 | Server-only hotfix | `deploy_server: true`, `include_mobile: false` |
-| Rebuild iOS from a tag | pick the tag in "Use workflow from", `deploy_server: false`, `include_mobile: true`, `platforms: ios` |
+| Rebuild iOS from a tag | pick the tag in "Use workflow from", `deploy_server: false`, `include_mobile: true`, `platforms: ios`, `app_version: 1.7.2` |
 | Dry run a signed build | `include_mobile: true`, `publish: false` — artifacts only, no store upload |
+
+A tag run takes the version from the tag; a manual run takes it from the
+`app_version` input, which is required whenever `include_mobile` is on. It must
+be higher than the last version published for that target — TestFlight and Play
+both reject a build number they have already seen. A manual mobile run without
+it fails in the first job rather than after the archive is built.
 
 The mobile build compiles whatever ref the run was started from. SSH server
 deploys always take the branch from the variant file, because the build happens

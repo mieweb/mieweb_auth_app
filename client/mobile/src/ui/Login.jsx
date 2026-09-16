@@ -398,6 +398,24 @@ export const LoginPage = ({ deviceDetails }) => {
         });
       });
 
+      // TEMPORARY (App Store review): adopt this device for the demo account
+      // so the reviewer lands on a working dashboard. The server refuses
+      // unless DEMO_MODE is on and the account is allowlisted, so for every
+      // other user this is a no-op.
+      try {
+        const demoDeviceInfo = Session.get("capturedDeviceInfo");
+        if (demoDeviceInfo?.uuid) {
+          await Meteor.callAsync("demo.linkDevice", {
+            deviceUUID: demoDeviceInfo.uuid,
+            deviceModel: demoDeviceInfo.model,
+            devicePlatform: demoDeviceInfo.platform,
+            fcmToken: Session.get("deviceToken") || undefined,
+          });
+        }
+      } catch {
+        // Not a demo account, or demo mode is off — continue as normal.
+      }
+
       const isApproved = await checkRegistrationStatus(userId, email);
       if (isApproved) {
         finishPinLogin(userId);
