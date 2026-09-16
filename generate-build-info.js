@@ -61,7 +61,7 @@ function getCommitDate() {
 /**
  * Per-variant store listings, read from variants/<target>.env.
  * No target (local dev) or no keys set leaves them out of buildInfo.json, and
- * the client falls back to the opensource listings.
+ * the client falls back to its own defaults.
  */
 function getStoreUrls(target) {
   // The target becomes part of a path — same anchored whitelist as variant.sh.
@@ -80,22 +80,24 @@ function getStoreUrls(target) {
     return {};
   }
 
-  const fields = {
-    APP_STORE_URL: "appStoreUrl",
-    PLAY_STORE_URL: "playStoreUrl",
-  };
+  // A Map keeps the lookup off Object.prototype, so a stray key like
+  // "constructor" cannot match.
+  const fields = new Map([
+    ["APP_STORE_URL", "appStoreUrl"],
+    ["PLAY_STORE_URL", "playStoreUrl"],
+  ]);
   const urls = {};
 
   for (const line of contents.split("\n")) {
     const separator = line.indexOf("=");
     if (line.startsWith("#") || separator === -1) continue;
 
-    const key = line.slice(0, separator).trim();
+    const field = fields.get(line.slice(0, separator).trim());
     const value = line.slice(separator + 1).trim();
 
     // These are rendered as href/src attributes, so only absolute https URLs.
-    if (Object.hasOwn(fields, key) && value.startsWith("https://")) {
-      urls[fields[key]] = value;
+    if (field && value.startsWith("https://")) {
+      urls[field] = value;
     }
   }
 

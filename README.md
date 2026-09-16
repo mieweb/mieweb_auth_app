@@ -285,7 +285,7 @@ current Git commit and date, and writes `public/buildInfo.json`. The support UI
 uses this generated file. Passing a release target
 (`node generate-build-info.js mie`, or `TARGET=mie`) also stamps in that
 variant's `APP_STORE_URL`/`PLAY_STORE_URL` so each instance links to its own
-store listings; without a target the client falls back to the opensource ones.
+store listings; without a target the client falls back to the MIEWeb Auth ones.
 
 Generate all configured iOS and Android icons and launch screens with Pillow:
 

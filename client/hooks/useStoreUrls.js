@@ -1,12 +1,10 @@
 import { useEffect, useState } from "react";
 
-// Opensource listings. Used for local dev and as the fallback whenever a
-// deploy did not stamp per-variant URLs into buildInfo.json.
+// MIEWeb Auth (org.mieweb.auth) listings. Used for local dev and as the
+// fallback whenever a deploy did not stamp per-variant URLs into buildInfo.json.
 const DEFAULT_STORE_URLS = {
-  appStoreUrl:
-    "https://apps.apple.com/us/app/mie-auth-open-source/id6756409072",
-  playStoreUrl:
-    "https://play.google.com/store/apps/details?id=com.mieweb.mieauth",
+  appStoreUrl: "https://apps.apple.com/us/app/mieweb-auth/id6802469232",
+  playStoreUrl: "https://play.google.com/store/apps/details?id=org.mieweb.auth",
 };
 
 // buildInfo.json is same-origin, but its values end up in href/src attributes,
@@ -35,7 +33,7 @@ const loadStoreUrls = () => {
 
 /**
  * Store listings for the instance this client was served from.
- * Renders with the opensource defaults until buildInfo.json resolves.
+ * Renders with the defaults until buildInfo.json resolves.
  */
 export const useStoreUrls = () => {
   const [urls, setUrls] = useState(DEFAULT_STORE_URLS);
