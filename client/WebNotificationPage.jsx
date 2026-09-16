@@ -270,10 +270,10 @@ export const WebNotificationPage = () => {
                       Your feedback is crucial! Please report bugs or
                       suggestions to{" "}
                       <a
-                        href="mailto:devopsalerts@mieweb.com"
+                        href="mailto:helpdesk@mieweb.com"
                         className="text-primary hover:underline"
                       >
-                        devopsalerts@mieweb.com
+                        helpdesk@mieweb.com
                       </a>
                     </p>
                     <p className="text-sm text-muted-foreground italic">
