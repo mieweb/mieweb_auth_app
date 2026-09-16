@@ -95,6 +95,7 @@ jobs:
     runs-on: ${{ needs.select-target.outputs.deploy_mode == 'self-hosted' && 'self-hosted' || 'ubuntu-latest' }}
     env:
       SERVER_URL: ${{ needs.select-target.outputs.server_url }}
+      TARGET: ${{ needs.select-target.outputs.target }}
     steps:
       - name: Checkout code
         if: needs.select-target.outputs.deploy_mode == 'self-hosted'
@@ -122,10 +123,11 @@ jobs:
           # Values reach the remote shell as positional arguments, never
           # interpolated into the script body.
           ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "${SSH_USER}@${SSH_HOST}" \
-            bash -s -- "$BRANCH" "$SERVER_URL" <<'REMOTE'
+            bash -s -- "$BRANCH" "$SERVER_URL" "$TARGET" <<'REMOTE'
             set -e
             BRANCH="$1"
             SERVER_URL="$2"
+            TARGET="$3"
 
             echo "=== Pulling latest code (${BRANCH}) ==="
             cd ~/github/mieweb_auth_app
@@ -136,7 +138,7 @@ jobs:
             echo "=== Generating build info ==="
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-            node generate-build-info.js
+            node generate-build-info.js "$TARGET"
 
             echo "=== Resetting Meteor local cache ==="
             export PATH="$HOME/.meteor:$PATH"
@@ -194,7 +196,7 @@ jobs:
           echo "=== Generating build info ==="
           export NVM_DIR="$HOME/.nvm"
           [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-          node generate-build-info.js
+          node generate-build-info.js "$TARGET"
 
           echo "=== Installing project dependencies ==="
           export PATH="$HOME/.meteor:$PATH"
