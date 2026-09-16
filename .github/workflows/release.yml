@@ -100,6 +100,9 @@ jobs:
       - name: Checkout code
         if: needs.select-target.outputs.deploy_mode == 'self-hosted'
         uses: actions/checkout@v4
+        with:
+          # Tag history for generate-build-info.js's git describe.
+          fetch-depth: 0
 
       - name: Deploy over SSH
         if: needs.select-target.outputs.deploy_mode == 'ssh'
@@ -132,6 +135,8 @@ jobs:
             echo "=== Pulling latest code (${BRANCH}) ==="
             cd ~/github/mieweb_auth_app
             git fetch origin "$BRANCH"
+            # git describe needs the release tags; a branch fetch can miss them.
+            git fetch origin --tags --force
             git checkout "$BRANCH"
             git reset --hard "origin/${BRANCH}"
 
@@ -286,6 +291,15 @@ jobs:
           APP_VERSION: ${{ needs.select-target.outputs.app_version }}
         run: bash scripts/apply-variant.sh "${{ needs.select-target.outputs.target }}" ios
 
+      # The committed buildInfo.json is a stale placeholder — regenerate so the
+      # bundled app carries the real version and per-variant store URLs.
+      - name: Generate build info
+        env:
+          TARGET: ${{ needs.select-target.outputs.target }}
+        run: |
+          git fetch --tags --force
+          node generate-build-info.js "$TARGET"
+
       - name: Write Firebase config
         env:
           GOOGLE_SERVICES_JSON_BASE64: ${{ needs.select-target.outputs.target == 'mie' && secrets.MIE_FIREBASE_SERVICES_JSON_BASE64 || secrets.FIREBASE_SERVICES_PROD }}
@@ -343,6 +357,15 @@ jobs:
         env:
           APP_VERSION: ${{ needs.select-target.outputs.app_version }}
         run: bash scripts/apply-variant.sh "${{ needs.select-target.outputs.target }}" android
+
+      # The committed buildInfo.json is a stale placeholder — regenerate so the
+      # bundled app carries the real version and per-variant store URLs.
+      - name: Generate build info
+        env:
+          TARGET: ${{ needs.select-target.outputs.target }}
+        run: |
+          git fetch --tags --force
+          node generate-build-info.js "$TARGET"
 
       - name: Write Firebase config
         env:

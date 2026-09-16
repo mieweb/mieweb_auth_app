@@ -380,7 +380,8 @@ function DeviceAppBar({ email }) {
       )}
       {hasApp && (
         <span className="flex items-center gap-1">
-          <Info className="h-3 w-3" />v{buildInfo.appVersion}
+          <Info className="h-3 w-3" />
+          {buildInfo.version || `v${buildInfo.appVersion}`}
           {buildInfo.buildNumber && (
             <span
               className="text-primary-300 underline decoration-dotted cursor-pointer hover:text-white transition-colors"

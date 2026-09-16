@@ -5,9 +5,23 @@
  * This script should be run during the build process to create buildInfo.json
  */
 
-const { execSync } = require("child_process");
+const { execSync, execFileSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+
+// The target becomes part of a path and a git argument — same anchored
+// whitelist as variant.sh.
+const TARGET_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+function getTarget() {
+  const target = process.argv[2] || process.env.TARGET;
+  if (!target) return null;
+  if (!TARGET_RE.test(target)) {
+    console.warn(`Ignoring invalid target '${target}'`);
+    return null;
+  }
+  return target;
+}
 
 function getAppVersion() {
   try {
@@ -64,11 +78,7 @@ function getCommitDate() {
  * the client falls back to its own defaults.
  */
 function getStoreUrls(target) {
-  // The target becomes part of a path — same anchored whitelist as variant.sh.
-  if (!target || !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(target)) {
-    if (target) console.warn(`Ignoring invalid target '${target}'`);
-    return {};
-  }
+  if (!target) return {};
 
   const variantPath = path.join(__dirname, "variants", `${target}.env`);
 
@@ -104,13 +114,62 @@ function getStoreUrls(target) {
   return urls;
 }
 
+/**
+ * Version from the nearest release tag: {tag}-{commits since tag}[-dirty].
+ * --long fixes the output shape to tag-N-gsha[-dirty], so parsing stays
+ * unambiguous even though tag names contain dashes.
+ */
+function getGitDescribe(target, appVersion) {
+  const fallback = {
+    version: `v${appVersion}`,
+    tag: null,
+    commitsSinceTag: null,
+    dirty: false,
+  };
+
+  let described;
+  try {
+    const args = ["describe", "--tags", "--long", "--dirty"];
+    if (target) args.push("--match", `${target}-v*`);
+    described = execFileSync("git", args, {
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "ignore"],
+    }).trim();
+  } catch (error) {
+    console.warn("git describe failed, using app version:", error.message);
+    return fallback;
+  }
+
+  const parsed = described.match(/^(.+)-(\d+)-g[0-9a-f]+(-dirty)?$/);
+  if (!parsed) {
+    console.warn(`Unexpected git describe output '${described}'`);
+    return fallback;
+  }
+
+  const [, tag, commits, dirtyFlag] = parsed;
+  const commitsSinceTag = Number(commits);
+  const dirty = Boolean(dirtyFlag);
+
+  // mie-os-dev-v1.7.0 → v1.7.0
+  const displayTag = (tag.match(/v\d.*$/) || [tag])[0];
+  const version =
+    displayTag +
+    (commitsSinceTag > 0 ? `-${commitsSinceTag}` : "") +
+    (dirty ? "-dirty" : "");
+
+  return { version, tag, commitsSinceTag, dirty };
+}
+
 function generateBuildInfo() {
+  const target = getTarget();
+  const appVersion = getAppVersion();
   const buildInfo = {
-    appVersion: getAppVersion(),
+    appVersion,
+    ...getGitDescribe(target, appVersion),
     buildNumber: getCommitHash(),
     buildDate: new Date().toISOString(),
     commitDate: getCommitDate(),
-    ...getStoreUrls(process.argv[2] || process.env.TARGET),
+    ...getStoreUrls(target),
   };
 
   const outputPath = path.join(__dirname, "public", "buildInfo.json");

@@ -280,12 +280,16 @@ them immediately in a secret manager.
 
 ### Build metadata and app resources
 
-`generate-build-info.js` reads the version from `mobile-config.js`, reads the
-current Git commit and date, and writes `public/buildInfo.json`. The support UI
-uses this generated file. Passing a release target
-(`node generate-build-info.js mie`, or `TARGET=mie`) also stamps in that
-variant's `APP_STORE_URL`/`PLAY_STORE_URL` so each instance links to its own
-store listings; without a target the client falls back to the MIEWeb Auth ones.
+`generate-build-info.js` derives the version from `git describe` — the nearest
+release tag, commits since it, and a `-dirty` marker (for example
+`v1.7.0-14-dirty`) — reads the current Git commit and date, and writes
+`public/buildInfo.json` (generated at build time, not committed). The support
+UI and the mobile footer use this file. Passing a release target
+(`node generate-build-info.js mie`, or `TARGET=mie`) scopes the describe to
+that variant's `<target>-v*` tags and also stamps in its
+`APP_STORE_URL`/`PLAY_STORE_URL` so each instance links to its own store
+listings; without a target the client falls back to the MIEWeb Auth ones. If
+no tag is reachable, the version falls back to the one in `mobile-config.js`.
 
 Generate all configured iOS and Android icons and launch screens with Pillow:
 
