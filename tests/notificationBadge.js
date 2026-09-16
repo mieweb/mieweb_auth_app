@@ -9,10 +9,12 @@ if (Meteor.isServer) {
     const { NotificationHistory } = require("../utils/api/notificationHistory");
 
     const USER_ID = "badge-test-user";
+    const OTHER_USER_ID = "badge-test-other-user";
+    const TEST_USER_IDS = [USER_ID, OTHER_USER_ID];
 
-    const insertNotification = (status) =>
+    const insertNotification = (status, userId = USER_ID) =>
       NotificationHistory.insertAsync({
-        userId: USER_ID,
+        userId,
         notificationId: `badge-${status}-${Math.random()}`,
         title: "t",
         body: "b",
@@ -21,11 +23,11 @@ if (Meteor.isServer) {
       });
 
     beforeEach(async function () {
-      await NotificationHistory.removeAsync({ userId: USER_ID });
+      await NotificationHistory.removeAsync({ userId: { $in: TEST_USER_IDS } });
     });
 
     after(async function () {
-      await NotificationHistory.removeAsync({ userId: USER_ID });
+      await NotificationHistory.removeAsync({ userId: { $in: TEST_USER_IDS } });
     });
 
     describe("getPendingBadgeCount", function () {
@@ -34,8 +36,10 @@ if (Meteor.isServer) {
         await insertNotification("pending");
         await insertNotification("approved");
         await insertNotification("timeout");
+        await insertNotification("pending", OTHER_USER_ID);
 
         assert.strictEqual(await getPendingBadgeCount(USER_ID), 2);
+        assert.strictEqual(await getPendingBadgeCount(OTHER_USER_ID), 1);
       });
 
       it("returns 0 once every request has been handled", async function () {
