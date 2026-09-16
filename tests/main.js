@@ -3,6 +3,7 @@ import "./duo.js";
 import "./healthcheck.js";
 import "./deviceManagement.js";
 import "./identityMigration.js";
+import "./notificationBadge.js";
 
 describe("meteor-app", function () {
   it("package.json has correct name", async function () {

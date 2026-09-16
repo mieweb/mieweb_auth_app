@@ -277,6 +277,9 @@ const sendSyncNotificationToDevices = async (
 
     const notificationData = {
       appId: fcmTokens[0],
+      // Required for the push to carry the recomputed iOS badge count, which
+      // is how the badge clears on the user's other devices.
+      userId,
       messageFrom: "mie",
       notificationType: "sync",
       content_available: "1",
@@ -2210,6 +2213,7 @@ Meteor.methods({
     }
 
     const notificationData = {
+      userId,
       messageFrom: "mie",
       notificationType: "test",
       isDismissal: "false",

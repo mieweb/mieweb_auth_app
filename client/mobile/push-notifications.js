@@ -120,6 +120,9 @@ const configurePushNotifications = () => {
       sound: true,
       priority: "high",
       foreground: true,
+      // Reset the app-icon badge on launch — the landing page shows any
+      // pending requests right away, so a lingering badge is always stale.
+      clearBadge: true,
       // NOTE: `forceShow` must stay OFF. With forceShow the plugin only shows
       // the OS banner for foreground pushes and does NOT dispatch them to the
       // JS `notification` handler until tapped (see PushPlugin.m
@@ -343,6 +346,24 @@ const setupErrorHandler = (push) => {
   });
 };
 
+// Set once the plugin is initialised (Cordova only); stays null elsewhere so
+// clearNotificationBadge is a no-op on web and in the browser during dev.
+let pushInstance = null;
+
+/**
+ * Reset the iOS app-icon badge. Called when the app is opened or resumed, so a
+ * badge can never outlive the requests it counted — even if the server's sync
+ * push was missed while the device was offline.
+ */
+export const clearNotificationBadge = () => {
+  if (!pushInstance?.setApplicationIconBadgeNumber) return;
+  pushInstance.setApplicationIconBadgeNumber(
+    () => {},
+    () => {},
+    0,
+  );
+};
+
 export const initializePushNotifications = () => {
   try {
     // Android channel setup
@@ -350,6 +371,7 @@ export const initializePushNotifications = () => {
 
     // Initialize push service
     const push = configurePushNotifications();
+    pushInstance = push;
     console.log(
       `[PushPlugin] init complete — registered iOS categories: ${Object.keys(
         IOS_APPROVAL_CATEGORIES,

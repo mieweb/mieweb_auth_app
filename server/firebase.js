@@ -1,6 +1,7 @@
 import admin from "firebase-admin";
 import { Meteor } from "meteor/meteor";
 import { DeviceDetails } from "../utils/api/deviceDetails.js";
+import { NotificationHistory } from "../utils/api/notificationHistory.js";
 import { Email } from "meteor/email";
 import { INTERNAL_SERVER_SECRET } from "./internalSecret.js";
 import { APPROVAL_ACTIONS, APPROVAL_CATEGORY_ID } from "../utils/constants.js";
@@ -29,6 +30,140 @@ try {
 }
 
 /**
+ * Count the approval requests the user still has to act on.
+ *
+ * iOS treats `aps.badge` as an absolute value, so every push must carry the
+ * real number instead of a hardcoded 1. Returns null when the count cannot be
+ * determined (no user id, or a read failure); callers then omit the badge key,
+ * which tells iOS to leave the current badge untouched — never a wrong number.
+ *
+ * @param {string} userId - Server-derived user id
+ * @returns {Promise<number|null>} Pending count, or null if unknown
+ */
+export const getPendingBadgeCount = async (userId) => {
+  if (typeof userId !== "string" || !userId) return null;
+
+  try {
+    return await NotificationHistory.find({
+      userId,
+      status: "pending",
+    }).countAsync();
+  } catch (error) {
+    console.error("Failed to count pending notifications:", error.message);
+    return null;
+  }
+};
+
+/**
+ * Build the FCM message for a push. Kept pure so the payload can be asserted
+ * in tests without touching Firebase.
+ *
+ * @param {string} fcmToken - The target device token
+ * @param {string} title - The notification title
+ * @param {string} body - The notification body
+ * @param {Object} data - Additional data for the notification
+ * @param {number|null} badgeCount - Absolute iOS badge value, or null to omit
+ *   the badge key entirely (leaves the device's current badge unchanged)
+ * @returns {Object} FCM message
+ */
+export const buildPushMessage = (
+  fcmToken,
+  title,
+  body,
+  data = {},
+  badgeCount = null,
+) => {
+  // Convert all data values to strings
+  const stringifiedData = {};
+  Object.entries(data).forEach(([key, value]) => {
+    if (typeof value === "object" && value !== null) {
+      stringifiedData[key] = JSON.stringify(value);
+    } else {
+      stringifiedData[key] = String(value);
+    }
+  });
+
+  // Create base message object - all data field values must be strings
+  const message = {
+    token: fcmToken,
+    data: {
+      messageFrom: "mie",
+      notificationType: stringifiedData.notificationType || "approval",
+      content_available: "1",
+      notId: "10",
+      surveyID: "ewtawgreg-gragrag-rgarhthgbad",
+      // Include all other stringified data
+      ...stringifiedData,
+    },
+    android: {
+      priority: "high",
+    },
+    apns: {
+      payload: {
+        aps: {
+          alert: {
+            title,
+            body,
+          },
+          sound: "default",
+          "content-available": 1,
+          "mutable-content": 1,
+          // `badge` must stay a number (unlike the data payload); omitted when
+          // unknown so iOS keeps whatever the icon already shows.
+          ...(badgeCount === null ? {} : { badge: badgeCount }),
+        },
+      },
+    },
+  };
+
+  // Attach the iOS approval category — which renders the Approve/Reject
+  // action buttons, including when the push is mirrored to a paired Apple
+  // Watch — only for notifications that actually carry approval `actions`.
+  // Informational pushes (e.g. the test notification) omit `actions`, so they
+  // stay plain and non-actionable instead of surfacing Approve/Reject on
+  // iOS/watchOS.
+  if (stringifiedData.actions) {
+    message.apns.payload.aps.category = APPROVAL_CATEGORY_ID;
+  }
+
+  // Only include title and body in data payload if they are not empty
+  // Empty title/body indicates a silent background notification (for Android)
+  if (title && body) {
+    message.data.title = String(title);
+    message.data.body = String(body);
+  }
+
+  // For sync notifications, make them completely silent (no visible notification)
+  // These are used to synchronize notification state across devices in the background
+  if (data.isSync === "true") {
+    // iOS: Remove alert and sound to make it silent, but KEEP the badge —
+    // this is the push that drops the badge on the user's other devices once
+    // the request was handled somewhere else. Deleting it would leave a stale
+    // badge, since an absent badge key means "no change".
+    if (message.apns && message.apns.payload && message.apns.payload.aps) {
+      delete message.apns.payload.aps.alert;
+      delete message.apns.payload.aps.sound;
+      message.apns.payload.aps["content-available"] = 1;
+      message.apns.headers = message.apns.headers || {};
+      message.apns.headers["apns-priority"] = "10";
+    }
+    // Android: Silent notifications are handled by empty title/body (excluded above)
+  }
+  // For dismissal notifications, keep the alert visible to inform the user
+  // These notifications tell the user that a notification was dismissed on another device
+  else if (data.isDismissal === "true") {
+    if (message.apns && message.apns.payload && message.apns.payload.aps) {
+      message.apns.payload.aps.sound = "default";
+      message.apns.payload.aps["content-available"] = 1;
+      message.apns.headers = message.apns.headers || {};
+      message.apns.headers["apns-priority"] = "10";
+    }
+  }
+
+  return message;
+};
+
+/**
  * Sends a push notification to a specific device
  *
  * @param {string} fcmToken - The target device token
@@ -46,88 +181,8 @@ export const sendNotification = async (fcmToken, title, body, data = {}) => {
   }
 
   try {
-    // Convert all data values to strings
-    const stringifiedData = {};
-    Object.entries(data).forEach(([key, value]) => {
-      if (typeof value === "object" && value !== null) {
-        stringifiedData[key] = JSON.stringify(value);
-      } else {
-        stringifiedData[key] = String(value);
-      }
-    });
-
-    // Create base message object - all data field values must be strings
-    const message = {
-      token: fcmToken,
-      data: {
-        messageFrom: "mie",
-        notificationType: stringifiedData.notificationType || "approval",
-        content_available: "1",
-        notId: "10",
-        surveyID: "ewtawgreg-gragrag-rgarhthgbad",
-        // Include all other stringified data
-        ...stringifiedData,
-      },
-      android: {
-        priority: "high",
-      },
-      apns: {
-        payload: {
-          aps: {
-            alert: {
-              title,
-              body,
-            },
-            badge: 1,
-            sound: "default",
-            "content-available": 1,
-            "mutable-content": 1,
-          },
-        },
-      },
-    };
-
-    // Attach the iOS approval category — which renders the Approve/Reject
-    // action buttons, including when the push is mirrored to a paired Apple
-    // Watch — only for notifications that actually carry approval `actions`.
-    // Informational pushes (e.g. the test notification) omit `actions`, so they
-    // stay plain and non-actionable instead of surfacing Approve/Reject on
-    // iOS/watchOS.
-    if (stringifiedData.actions) {
-      message.apns.payload.aps.category = APPROVAL_CATEGORY_ID;
-    }
-
-    // Only include title and body in data payload if they are not empty
-    // Empty title/body indicates a silent background notification (for Android)
-    if (title && body) {
-      message.data.title = String(title);
-      message.data.body = String(body);
-    }
-
-    // For sync notifications, make them completely silent (no visible notification)
-    // These are used to synchronize notification state across devices in the background
-    if (data.isSync === "true") {
-      // iOS: Remove alert, sound, and badge to make it silent
-      if (message.apns && message.apns.payload && message.apns.payload.aps) {
-        delete message.apns.payload.aps.alert;
-        delete message.apns.payload.aps.sound;
-        delete message.apns.payload.aps.badge;
-        message.apns.payload.aps["content-available"] = 1;
-        message.apns.headers = message.apns.headers || {};
-        message.apns.headers["apns-priority"] = "10";
-      }
-      // Android: Silent notifications are handled by empty title/body (excluded above)
-    }
-    // For dismissal notifications, keep the alert visible to inform the user
-    // These notifications tell the user that a notification was dismissed on another device
-    else if (data.isDismissal === "true") {
-      if (message.apns && message.apns.payload && message.apns.payload.aps) {
-        message.apns.payload.aps.sound = "default";
-        message.apns.payload.aps["content-available"] = 1;
-        message.apns.headers = message.apns.headers || {};
-        message.apns.headers["apns-priority"] = "10";
-      }
-    }
+    const badgeCount = await getPendingBadgeCount(data.userId);
+    const message = buildPushMessage(fcmToken, title, body, data, badgeCount);
 
     const response = await admin.messaging().send(message);
     return response;
