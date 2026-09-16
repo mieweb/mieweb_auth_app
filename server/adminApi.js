@@ -974,6 +974,7 @@ WebApp.connectHandlers.use(
             "This is a diagnostic test push sent by an administrator.",
             {
               notificationType: "test",
+              userId,
               isDismissal: "false",
               isSync: "false",
             },
