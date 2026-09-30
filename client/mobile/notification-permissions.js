@@ -41,6 +41,11 @@ export const checkNotificationPermission = () =>
     }
   });
 
+// A system dialog (e.g. the permission prompt) or backgrounding makes the
+// status stale until the app is active again and re-checks.
+export const markNotificationPermissionUnknown = () =>
+  Session.set(PUSH_PERMISSION_SESSION_KEY, null);
+
 /**
  * Opens the OS "app settings" screen so the user can (re)enable notifications.
  *

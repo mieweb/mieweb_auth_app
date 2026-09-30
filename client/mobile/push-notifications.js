@@ -364,26 +364,39 @@ export const clearNotificationBadge = () => {
   );
 };
 
+// The native plugin only reports to the latest init() instance, so every
+// (re)init must attach the full set of handlers.
+const registerPush = () => {
+  const push = configurePushNotifications();
+  pushInstance = push;
+  setupRegistrationHandler(push);
+  setupActionHandlers(push);
+  setupNotificationHandler(push);
+  setupErrorHandler(push);
+};
+
+// Re-shows the OS prompt when still allowed and fetches the FCM token once granted.
+export const requestPushRegistration = () => {
+  try {
+    registerPush();
+  } catch (error) {
+    Session.set("pushInitError", error.toString());
+  }
+};
+
 export const initializePushNotifications = () => {
   try {
     // Android channel setup
     createNotificationChannel();
 
-    // Initialize push service
-    const push = configurePushNotifications();
-    pushInstance = push;
+    registerPush();
     console.log(
       `[PushPlugin] init complete — registered iOS categories: ${Object.keys(
         IOS_APPROVAL_CATEGORIES,
       ).join(", ")}`,
     );
 
-    // Register handlers
-    setupRegistrationHandler(push);
     setupTokenReconciliation();
-    setupActionHandlers(push);
-    setupNotificationHandler(push);
-    setupErrorHandler(push);
 
     // Ensure default channel exists every 30 seconds
     setInterval(() => {

@@ -2,6 +2,7 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import { Meteor } from "meteor/meteor";
 import { Reload } from "meteor/reload";
+import { Session } from "meteor/session";
 import "./main.css";
 import { App } from "./mobile/src/ui/App";
 import { captureDeviceInfo } from "./mobile/capture-device-info";
@@ -10,8 +11,12 @@ import { initializeDeepLinks } from "./mobile/deep-links";
 import {
   initializePushNotifications,
   clearNotificationBadge,
+  requestPushRegistration,
 } from "./mobile/push-notifications";
-import { checkNotificationPermission } from "./mobile/notification-permissions";
+import {
+  checkNotificationPermission,
+  markNotificationPermissionUnknown,
+} from "./mobile/notification-permissions";
 import { initializeIdentityMigration } from "./mobile/identity-migration";
 import { initializeDiagnostics } from "./mobile/diagnostics";
 
@@ -38,6 +43,14 @@ Meteor.startup(() => {
   const root = createRoot(container);
 
   if (Meteor.isCordova) {
+    // Permission granted after init (prompt or Settings) — fetch the missing FCM token.
+    const syncNotificationPermission = () =>
+      checkNotificationPermission().then((enabled) => {
+        if (enabled && !Session.get("deviceToken")) {
+          requestPushRegistration();
+        }
+      });
+
     document.addEventListener(
       "deviceready",
       () => {
@@ -59,13 +72,19 @@ Meteor.startup(() => {
     document.addEventListener(
       "resume",
       () => {
-        checkNotificationPermission();
+        syncNotificationPermission();
         // The user is looking at the app, so the icon badge has served its
         // purpose — covers the case where a server sync push was missed.
         clearNotificationBadge();
       },
       false,
     );
+
+    // The permission prompt fires pause/resume on Android and resign/active on
+    // iOS; the status is unknown until the user has answered or dismissed it.
+    document.addEventListener("pause", markNotificationPermissionUnknown);
+    document.addEventListener("resign", markNotificationPermissionUnknown);
+    document.addEventListener("active", syncNotificationPermission);
   } else {
     // non-Cordova environment – skip device capture and push notifications
   }
