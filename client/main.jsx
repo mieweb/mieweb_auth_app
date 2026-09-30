@@ -14,6 +14,7 @@ import {
 import { checkNotificationPermission } from "./mobile/notification-permissions";
 import { initializeIdentityMigration } from "./mobile/identity-migration";
 import { initializeDiagnostics } from "./mobile/diagnostics";
+import { initializeAppUpdateCheck } from "./mobile/app-update";
 
 // During a hot code push the WebView is fully reloaded while the new bundle
 // loads. Without covering that gap the user sees a blank/black screen. Show the
@@ -42,6 +43,7 @@ Meteor.startup(() => {
       "deviceready",
       () => {
         captureDeviceInfo();
+        initializeAppUpdateCheck();
         initializeBiometrics();
         initializeDeepLinks();
         initializePushNotifications();
