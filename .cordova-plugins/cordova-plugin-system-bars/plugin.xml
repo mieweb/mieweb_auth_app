@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
+    id="cordova-plugin-system-bars"
+    version="1.0.0">
+    <name>SystemBars</name>
+    <description>Keeps the WebView out of the Android 15+ edge-to-edge system bars and display cutout.</description>
+
+    <platform name="android">
+        <js-module src="www/system-bars.js" name="SystemBars">
+            <clobbers target="SystemBars" />
+        </js-module>
+
+        <config-file target="res/xml/config.xml" parent="/*">
+            <feature name="SystemBars">
+                <param name="android-package" value="org.mieweb.systembars.SystemBars" />
+                <param name="onload" value="true" />
+            </feature>
+        </config-file>
+
+        <source-file src="src/android/SystemBars.java" target-dir="src/org/mieweb/systembars" />
+    </platform>
+</plugin>

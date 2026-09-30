@@ -1,0 +1,13 @@
+{
+  "name": "cordova-plugin-system-bars",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Keeps the WebView out of the Android 15+ edge-to-edge system bars and display cutout.",
+  "cordova": {
+    "id": "cordova-plugin-system-bars",
+    "platforms": [
+      "android"
+    ]
+  },
+  "license": "MIT"
+}
