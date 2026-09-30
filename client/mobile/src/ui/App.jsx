@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useDeviceRegistration } from "./hooks/useDeviceRegistration";
 import { AppRoutes } from "./components/AppRoutes";
+import NotificationPermissionModal from "./Modal/NotificationPermissionModal";
 import { openSupportLink } from "../../../../utils/openExternal";
 import { Spinner, Button, Card, CardContent } from "@mieweb/ui";
 
@@ -97,6 +98,7 @@ export const App = () => {
           />
         </div>
       )}
+      <NotificationPermissionModal />
     </>
   );
 };
