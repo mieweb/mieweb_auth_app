@@ -7,5 +7,5 @@ cordova-plugin-fingerprint-aio@6.0.0
 cordova-plugin-inappbrowser@6.0.0
 cordova-plugin-native-logs@1.0.5
 cordova-plugin-splashscreen@6.0.2
-cordova-plugin-system-bars@file://.cordova-plugins/cordova-plugin-system-bars
+cordova-plugin-system-bars@https://github.com/mieweb/cordova-plugin-system-bars/tarball/7b58ab0c7ab9c3bc83f2fa1cfe2d650ccaeff9b0
 cordova.plugins.diagnostic@7.3.1
