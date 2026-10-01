@@ -141,8 +141,14 @@ export const RegistrationPage = ({ deviceDetails }) => {
       const sessionDeviceInfo = Session.get("capturedDeviceInfo");
       const fcmDeviceToken = Session.get("deviceToken");
 
-      if (!sessionDeviceInfo?.uuid || !fcmDeviceToken) {
-        throw new Error("Device information or FCM token not available");
+      if (!sessionDeviceInfo?.uuid) {
+        throw new Error("Device information not available");
+      }
+
+      if (!fcmDeviceToken) {
+        throw new Error(
+          "Push notifications aren't ready on this device yet. Make sure notifications are enabled, then try again.",
+        );
       }
 
       if (sessionDeviceInfo.uuid !== deviceDetails) {
