@@ -133,15 +133,16 @@ so the two can be installed side by side.
 [mobile-config.js](mobile-config.js) is left untouched in the repo — it belongs to
 the opensource app. The workflow patches it at build time:
 
-| Field        | Patched to                                |
-| ------------ | ----------------------------------------- |
-| `id`         | `org.mieweb.auth`                         |
-| `URL_SCHEME` | `miewebauth` (opensource keeps `mieauth`) |
-| `website`    | `https://mieauth.mieweb.org`              |
-| `version`    | from the `mie-v*` tag                     |
+| Field        | Patched to                                                         |
+| ------------ | ------------------------------------------------------------------ |
+| `id`         | `org.mieweb.auth`                                                  |
+| `URL_SCHEME` | `miewebauth` (opensource keeps `mieauth`, Beta uses `mieauthbeta`) |
+| `website`    | `https://mieauth.mieweb.org`                                       |
+| `version`    | from the `mie-v*` tag                                              |
 
 The URL scheme must differ, otherwise an invite deep link is ambiguous when both
-apps are installed on one device. Deep links use the custom scheme only — there
+apps are installed on one device. The web "Open in MIE Auth" button reads the
+scheme from `buildInfo.json` (stamped from `variants/<target>.env`). Deep links use the custom scheme only — there
 are no Universal Links, so no `assetlinks.json` or `apple-app-site-association`
 to host.
 
