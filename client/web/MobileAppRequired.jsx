@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { AppStoreButtons } from "./components/AppStoreButtons";
 import { useStoreUrls } from "../hooks/useStoreUrls";
-import { Button } from "@mieweb/ui";
+import { Alert, AlertDescription, Button, Spinner } from "@mieweb/ui";
 import { motion } from "framer-motion";
 import {
   Smartphone,
@@ -12,6 +12,7 @@ import {
   Shield,
   QrCode,
   ArrowLeft,
+  AlertTriangle,
 } from "lucide-react";
 
 /**
@@ -82,15 +83,20 @@ const features = [
 export const MobileAppRequired = ({ mode = "login" }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { appStoreUrl, playStoreUrl, urlScheme } = useStoreUrls();
+  const {
+    appStoreUrl,
+    playStoreUrl,
+    urlScheme,
+    loading: schemeLoading,
+  } = useStoreUrls();
   const isLogin = mode === "login";
   const inviteToken = useMemo(
     () => new URLSearchParams(location.search).get("token")?.trim() || "",
     [location.search],
   );
-  const openInAppUrl = inviteToken
+  const openInAppUrl = urlScheme
     ? `${urlScheme}://register?token=${encodeURIComponent(inviteToken)}`
-    : `${urlScheme}://register`;
+    : null;
 
   return (
     <Layout>
@@ -174,13 +180,34 @@ export const MobileAppRequired = ({ mode = "login" }) => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.25 }}
                   className="mb-6"
+                  aria-live="polite"
                 >
-                  <a
-                    href={openInAppUrl}
-                    className="inline-flex items-center justify-center w-full sm:w-auto rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground no-underline shadow-sm transition-colors hover:bg-primary/90"
-                  >
-                    Open in MIE Auth
-                  </a>
+                  {openInAppUrl ? (
+                    <a
+                      href={openInAppUrl}
+                      className="inline-flex items-center justify-center w-full sm:w-auto rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground no-underline shadow-sm transition-colors hover:bg-primary/90"
+                    >
+                      Open in MIE Auth
+                    </a>
+                  ) : schemeLoading ? (
+                    <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                      <Spinner size="sm" />
+                      Preparing your app link…
+                    </div>
+                  ) : (
+                    <Alert
+                      variant="warning"
+                      icon={<AlertTriangle className="h-4 w-4" />}
+                      className="text-left"
+                    >
+                      <AlertDescription>
+                        We couldn't confirm which app this invite is for, so the
+                        Open button is hidden to avoid opening the wrong app.
+                        Refresh this page to try again. If it keeps happening,
+                        make sure the app is installed using the buttons below.
+                      </AlertDescription>
+                    </Alert>
+                  )}
                 </motion.div>
               )}
 
