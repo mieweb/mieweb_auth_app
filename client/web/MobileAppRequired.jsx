@@ -82,15 +82,15 @@ const features = [
 export const MobileAppRequired = ({ mode = "login" }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { appStoreUrl, playStoreUrl } = useStoreUrls();
+  const { appStoreUrl, playStoreUrl, urlScheme } = useStoreUrls();
   const isLogin = mode === "login";
   const inviteToken = useMemo(
     () => new URLSearchParams(location.search).get("token")?.trim() || "",
     [location.search],
   );
   const openInAppUrl = inviteToken
-    ? `mieauth://register?token=${encodeURIComponent(inviteToken)}`
-    : "mieauth://register";
+    ? `${urlScheme}://register?token=${encodeURIComponent(inviteToken)}`
+    : `${urlScheme}://register`;
 
   return (
     <Layout>

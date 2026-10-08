@@ -5,12 +5,18 @@ import { useEffect, useState } from "react";
 const DEFAULT_STORE_URLS = {
   appStoreUrl: "https://apps.apple.com/us/app/mieweb-auth/id6802469232",
   playStoreUrl: "https://play.google.com/store/apps/details?id=org.mieweb.auth",
+  urlScheme: "miewebauth",
 };
 
 // buildInfo.json is same-origin, but its values end up in href/src attributes,
 // so only absolute https URLs are accepted.
 const safeUrl = (value, fallback) =>
   typeof value === "string" && value.startsWith("https://") ? value : fallback;
+
+const safeScheme = (value, fallback) =>
+  typeof value === "string" && /^[a-z][a-z0-9+.-]*$/.test(value)
+    ? value
+    : fallback;
 
 let storeUrlsPromise;
 
@@ -24,6 +30,7 @@ const loadStoreUrls = () => {
           info.playStoreUrl,
           DEFAULT_STORE_URLS.playStoreUrl,
         ),
+        urlScheme: safeScheme(info.urlScheme, DEFAULT_STORE_URLS.urlScheme),
       }))
       .catch(() => DEFAULT_STORE_URLS);
   }
@@ -32,7 +39,7 @@ const loadStoreUrls = () => {
 };
 
 /**
- * Store listings for the instance this client was served from.
+ * Store listings and deep-link scheme for the instance this client was served from.
  * Renders with the defaults until buildInfo.json resolves.
  */
 export const useStoreUrls = () => {
