@@ -171,6 +171,7 @@ export const auth = async (ctx, res) => {
   const type = param(params, "type");
   const displayUsername = param(params, "display_username");
   const pushinfo = param(params, "pushinfo");
+  const ipaddr = param(params, "ipaddr");
   const asyncMode = param(params, "async");
 
   if (!username && !userId) {
@@ -211,6 +212,7 @@ export const auth = async (ctx, res) => {
     type,
     displayUsername,
     pushinfo,
+    ipaddr,
   });
   return sendOk(res, result);
 };

@@ -162,7 +162,7 @@ const ActionsModal = ({
 
           {/* Body — only if present */}
           {notification?.body && (
-            <p className="text-[13px] text-muted-foreground mt-2 text-center leading-relaxed">
+            <p className="text-[13px] text-muted-foreground mt-2 text-center leading-relaxed whitespace-pre-line break-words">
               {notification.body}
             </p>
           )}
