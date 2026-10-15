@@ -3,6 +3,7 @@ import { Random } from "meteor/random";
 import { sendNotification } from "../firebase.js";
 import { approvedDevices } from "./users.js";
 import { TIMEOUT_DURATION_MS } from "../../utils/constants.js";
+import { formatPushBody } from "./pushinfo.js";
 
 /**
  * Select which of a subject's approved devices should receive the push.
@@ -32,6 +33,7 @@ export const selectDevices = (subject, device = "auto") => {
  * @param {string} o.type             optional "type" string shown to the user
  * @param {string} o.displayUsername  optional display username
  * @param {string} o.pushinfo         optional URL-encoded key/value info
+ * @param {string} o.ipaddr           optional client IP of the login attempt
  * @returns {Promise<{result: string, status: string, status_msg: string}>}
  */
 export const sendPushAndWait = async ({
@@ -40,6 +42,7 @@ export const sendPushAndWait = async ({
   type = "Login Request",
   displayUsername,
   pushinfo,
+  ipaddr,
 }) => {
   const username = subject?.username;
   if (!username) {
@@ -63,9 +66,7 @@ export const sendPushAndWait = async ({
 
   const title = type || "Login Request";
   const who = displayUsername || username;
-  const body = pushinfo
-    ? `Approve login for ${who} (${decodeURIComponent(pushinfo)})`
-    : `Approve login for ${who}`;
+  const body = formatPushBody({ who, ipaddr, pushinfo });
 
   // Pre-create notification history so tray actions can be correlated.
   const primary = targets.find((d) => d.isPrimary) || targets[0];
@@ -102,6 +103,7 @@ export const sendPushAndWait = async ({
     sound: "default",
     platform: "both",
     timestamp: new Date().toISOString(),
+    ...(ipaddr ? { ipaddr: String(ipaddr) } : {}),
   };
 
   // Fan out the push to every targeted device.

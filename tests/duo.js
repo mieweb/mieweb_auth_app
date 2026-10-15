@@ -29,6 +29,11 @@ if (Meteor.isServer) {
     buildDuoUser,
     buildDuoUserFromInvite,
   } = require("../server/duo/adminModel.js");
+  const {
+    parsePushinfo,
+    formatPushBody,
+    humanizeKey,
+  } = require("../server/duo/pushinfo.js");
 
   describe("Duo signature canonicalization", function () {
     it("quotes values with ~ left unescaped (duo style)", function () {
@@ -194,6 +199,53 @@ if (Meteor.isServer) {
         false,
       );
       assert.strictEqual(isDateFresh("not a date", now), false);
+    });
+  });
+
+  describe("Duo pushinfo formatting", function () {
+    it("humanizes keys", function () {
+      assert.strictEqual(humanizeKey("remote_host"), "Remote host");
+      assert.strictEqual(humanizeKey("from"), "From");
+    });
+
+    it("parses URL-encoded key/value pairs in order", function () {
+      const entries = parsePushinfo("from=login%20portal&domain=example.com");
+      assert.deepStrictEqual(
+        entries.map((e) => [e.label, e.value]),
+        [
+          ["From", "login portal"],
+          ["Domain", "example.com"],
+        ],
+      );
+    });
+
+    it("tolerates empty and malformed input", function () {
+      assert.deepStrictEqual(parsePushinfo(undefined), []);
+      assert.deepStrictEqual(parsePushinfo(""), []);
+      assert.deepStrictEqual(parsePushinfo("%E0%A4%A&=x&y="), []);
+    });
+
+    it("strips control characters so values cannot inject lines", function () {
+      const [e] = parsePushinfo("from=a%0AIP%20address%3A%201.1.1.1");
+      assert.strictEqual(e.value, "a IP address: 1.1.1.1");
+    });
+
+    it("builds a multi-line body with IP and pushinfo", function () {
+      assert.strictEqual(
+        formatPushBody({
+          who: "alice",
+          ipaddr: "203.0.113.7",
+          pushinfo: "from=VPN&domain=example.com",
+        }),
+        "Approve login for alice\nIP address: 203.0.113.7\nFrom: VPN\nDomain: example.com",
+      );
+    });
+
+    it("omits optional lines when absent", function () {
+      assert.strictEqual(
+        formatPushBody({ who: "bob" }),
+        "Approve login for bob",
+      );
     });
   });
 
