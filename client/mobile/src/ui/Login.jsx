@@ -21,6 +21,7 @@ import {
 
 const BIOMETRIC_SECRET_NOT_FOUND = -113;
 const BIOMETRIC_RECOVERY_NEEDED_KEY = "biometricRecoveryNeeded";
+const BIOMETRIC_SETUP_PROMPT_DISMISSED_KEY = "biometricSetupPromptDismissed";
 
 const isMissingBiometricSecret = (error) => {
   if (Number(error?.code) === BIOMETRIC_SECRET_NOT_FOUND) return true;
@@ -287,7 +288,12 @@ export const LoginPage = ({ deviceDetails }) => {
     Session.set("userProfile", { email, _id: userId });
     localStorage.setItem("lastLoggedInEmail", email);
 
-    if (needsBiometricRecovery || !hasBiometricCredentials) {
+    const biometricSetupPromptDismissed =
+      localStorage.getItem(BIOMETRIC_SETUP_PROMPT_DISMISSED_KEY) === "true";
+    if (
+      (needsBiometricRecovery || !hasBiometricCredentials) &&
+      !biometricSetupPromptDismissed
+    ) {
       setRecoveryError("");
       setShowRecoveryPrompt(true);
       return;
@@ -328,6 +334,7 @@ export const LoginPage = ({ deviceDetails }) => {
           });
           localStorage.setItem("biometricsEnabled", "true");
           localStorage.removeItem("biometricUserId");
+          localStorage.removeItem(BIOMETRIC_SETUP_PROMPT_DISMISSED_KEY);
           setBiometricRecoveryNeeded(false);
           setNeedsBiometricRecovery(false);
           setShowRecoveryPrompt(false);
@@ -606,6 +613,21 @@ export const LoginPage = ({ deviceDetails }) => {
             fullWidth
           >
             Skip for Now
+          </Button>
+          <Button
+            onClick={() => {
+              localStorage.setItem(
+                BIOMETRIC_SETUP_PROMPT_DISMISSED_KEY,
+                "true",
+              );
+              setShowRecoveryPrompt(false);
+              navigate("/dashboard");
+            }}
+            disabled={isRecoveringBiometrics}
+            variant="link"
+            fullWidth
+          >
+            Do not ask again
           </Button>
         </ModalBody>
       </Modal>
