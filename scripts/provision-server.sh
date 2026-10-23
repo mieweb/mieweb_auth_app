@@ -18,7 +18,8 @@
 # ──────────────────────────────────────────────────────────
 set -euo pipefail
 
-NODE_VERSION="20.19.6"
+# Exact pin: the install step is skipped if `nvm ls` already matches this version.
+NODE_VERSION="22.23.4"
 NVM_VERSION="v0.40.1"
 SWAP_SIZE_GB=4
 
