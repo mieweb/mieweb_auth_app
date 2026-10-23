@@ -196,3 +196,7 @@ branding/*/resources/
 
 # Android App Bundles
 *.aab
+
+# Meteor Modern-Tools build context directories
+*/build-assets*
+*/build-chunks*
