@@ -10,7 +10,9 @@ describe("biometric error messages", function () {
 
   it("maps known plugin codes to actionable messages", function () {
     assert.match(
-      getBiometricErrorMessage(pluginError(-106, "BIOMETRIC_NOT_ENROLLED")),
+      getBiometricErrorMessage(pluginError(-106, "BIOMETRIC_NOT_ENROLLED"), {
+        platform: "Android",
+      }),
       /No fingerprint is set up for this profile/,
     );
     assert.match(
@@ -35,13 +37,26 @@ describe("biometric error messages", function () {
 
   it("chooses the message by numeric code, not message text", function () {
     assert.match(
-      getBiometricErrorMessage(pluginError("-106", "BIOMETRIC_DISMISSED")),
+      getBiometricErrorMessage(pluginError("-106", "BIOMETRIC_DISMISSED"), {
+        platform: "Android",
+      }),
       /No fingerprint is set up/,
     );
     assert.strictEqual(
       getBiometricErrorMessage({ message: "BIOMETRIC_NOT_ENROLLED" }),
       "Unable to set up biometrics. Please try again or use your PIN.",
     );
+  });
+
+  it("gives platform-specific enrollment guidance for -106", function () {
+    const notEnrolled = pluginError(-106, "BIOMETRIC_NOT_ENROLLED");
+    const ios = getBiometricErrorMessage(notEnrolled, { platform: "iOS" });
+    assert.match(ios, /Face ID or Touch ID isn't set up/);
+    assert.ok(!/fingerprint|work profile|Face unlock/i.test(ios), ios);
+
+    const unknown = getBiometricErrorMessage(notEnrolled, { platform: "" });
+    assert.match(unknown, /No biometrics are set up on this device/);
+    assert.ok(!/work profile|Face unlock/i.test(unknown), unknown);
   });
 
   it("uses context-specific wording for cancel and fallback", function () {

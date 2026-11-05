@@ -11,9 +11,17 @@ export const BIOMETRIC_ERROR_CODES = Object.freeze({
   SECRET_NOT_FOUND: -113,
 });
 
-const SHARED_MESSAGES = {
-  [BIOMETRIC_ERROR_CODES.NOT_ENROLLED]:
+// Android only accepts Class 3 (fingerprint) biometrics with this plugin, while
+// iOS supports Face ID and Touch ID, so enrollment guidance differs by platform.
+const NOT_ENROLLED_MESSAGES = {
+  android:
     "No fingerprint is set up for this profile. Add one in Settings. If this app is in a work profile, enable biometrics for work apps. Face unlock alone isn't supported. You can keep using your PIN.",
+  ios: "Face ID or Touch ID isn't set up on this device. Turn it on in Settings, then try again. You can keep using your PIN.",
+  default:
+    "No biometrics are set up on this device. Add them in Settings, then try again. You can keep using your PIN.",
+};
+
+const SHARED_MESSAGES = {
   [BIOMETRIC_ERROR_CODES.HARDWARE_NOT_SUPPORTED]:
     "Biometrics aren't available on this device, or they're disabled by your organization. You can keep using your PIN.",
   [BIOMETRIC_ERROR_CODES.SCREEN_GUARD_UNSECURED]:
@@ -56,15 +64,27 @@ export const isBiometricPluginError = (error) => {
   return code !== null && code < 0;
 };
 
+// cordova-plugin-device exposes a global `device`; absent outside Cordova.
+const getDevicePlatform = () =>
+  typeof device !== "undefined" ? device?.platform : undefined;
+
 /**
  * User-facing message for a fingerprint plugin error, chosen by numeric code.
  * @param {*} error plugin error (`{ code, message }`), string, or undefined
- * @param {{ context?: "setup" | "login" | "verify" }} [options]
+ * @param {{ context?: "setup" | "login" | "verify", platform?: string }} [options]
+ *   `platform` defaults to the Cordova `device.platform` ("Android" / "iOS").
  */
-export const getBiometricErrorMessage = (error, { context = "setup" } = {}) => {
+export const getBiometricErrorMessage = (
+  error,
+  { context = "setup", platform = getDevicePlatform() } = {},
+) => {
   const messages = CONTEXT_MESSAGES[context] || CONTEXT_MESSAGES.setup;
   const code = getErrorCode(error);
 
   if (code === BIOMETRIC_ERROR_CODES.DISMISSED) return messages.dismissed;
+  if (code === BIOMETRIC_ERROR_CODES.NOT_ENROLLED) {
+    const key = String(platform || "").toLowerCase();
+    return NOT_ENROLLED_MESSAGES[key] || NOT_ENROLLED_MESSAGES.default;
+  }
   return SHARED_MESSAGES[code] || messages.fallback;
 };
