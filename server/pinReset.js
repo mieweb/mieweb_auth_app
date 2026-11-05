@@ -115,17 +115,19 @@ export const issueTemporaryPin = async ({ userId, adminUser }) => {
   const issuedAt = new Date();
   const expiresAt = new Date(issuedAt.getTime() + PIN_RESET_EXPIRY_MS);
 
-  // Atomic cooldown claim: holds across restarts and multiple instances.
+  // Atomic cooldown claim: holds across restarts and multiple instances. The
+  // timestamp lives outside `pinReset` so it survives redemption/invalidation.
   const claimed = await Meteor.users.updateAsync(
     {
       _id: userId,
       ...cooldownElapsed(
-        "services.pinReset.issuedAt",
+        "services.pinResetIssuedAt",
         PIN_RESET_RESEND_COOLDOWN_MS,
       ),
     },
     {
       $set: {
+        "services.pinResetIssuedAt": issuedAt,
         "services.pinReset": {
           hash,
           issuedAt,
@@ -260,6 +262,18 @@ Meteor.methods({
 
     // Sessions were already cleared when the reset was issued.
     await Accounts.setPasswordAsync(user._id, newPin, { logout: false });
+
+    // A reset issued while the new PIN was being saved takes precedence, so
+    // put the account back into the locked state that reset expects.
+    const superseded = await Meteor.users.findOneAsync(
+      { _id: user._id, "services.pinReset": { $exists: true } },
+      { fields: { _id: 1 } },
+    );
+    if (superseded) {
+      await Accounts.setPasswordAsync(user._id, Random.secret());
+      throw invalidTempPinError();
+    }
+
     await logDeviceAudit({ userId: user._id, action: "pin_reset_completed" });
 
     return { success: true };

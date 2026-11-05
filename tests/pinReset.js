@@ -40,10 +40,10 @@ if (Meteor.isServer) {
     const wrongPinFor = (tempPin) =>
       String((Number(tempPin) + 1) % 1_000_000).padStart(6, "0");
 
-    const backdateReset = (ms) =>
+    const backdateLastIssue = (ms) =>
       Meteor.users.updateAsync(
         { _id: userId },
-        { $set: { "services.pinReset.issuedAt": new Date(Date.now() - ms) } },
+        { $set: { "services.pinResetIssuedAt": new Date(Date.now() - ms) } },
       );
 
     const waitUntil = async (predicate, timeoutMs = 2000) => {
@@ -140,7 +140,7 @@ if (Meteor.isServer) {
           /rate-limited/,
         );
 
-        await backdateReset(PIN_RESET_RESEND_COOLDOWN_MS + 1000);
+        await backdateLastIssue(PIN_RESET_RESEND_COOLDOWN_MS + 1000);
         const second = await issueTemporaryPin({ userId, adminUser: ADMIN });
 
         if (first.tempPin !== second.tempPin) {
@@ -148,6 +148,32 @@ if (Meteor.isServer) {
         }
         await resetWith(second.tempPin);
         assert.strictEqual(await pinVerifies("5678"), true);
+      });
+
+      it("keeps the cooldown after the PIN is redeemed or invalidated", async function () {
+        const { tempPin } = await issueTemporaryPin({
+          userId,
+          adminUser: ADMIN,
+        });
+        await resetWith(tempPin);
+        await assert.rejects(
+          issueTemporaryPin({ userId, adminUser: ADMIN }),
+          /rate-limited/,
+        );
+
+        await backdateLastIssue(PIN_RESET_RESEND_COOLDOWN_MS + 1000);
+        const second = await issueTemporaryPin({ userId, adminUser: ADMIN });
+        for (let i = 0; i < PIN_RESET_MAX_ATTEMPTS; i++) {
+          await assert.rejects(
+            resetWith(wrongPinFor(second.tempPin)),
+            GENERIC_ERROR,
+          );
+        }
+        assert.strictEqual((await getUser()).services.pinReset, undefined);
+        await assert.rejects(
+          issueTemporaryPin({ userId, adminUser: ADMIN }),
+          /rate-limited/,
+        );
       });
 
       it("refuses unknown and non-approved users", async function () {
@@ -199,6 +225,29 @@ if (Meteor.isServer) {
           { $set: { "services.pinReset.expiresAt": new Date(Date.now() - 1) } },
         );
         await assert.rejects(resetWith(tempPin), GENERIC_ERROR);
+      });
+
+      it("lets an admin resend issued mid-redemption win over the redeemed PIN", async function () {
+        const originalSetPassword = Accounts.setPasswordAsync;
+        let resend;
+        Accounts.setPasswordAsync = async (id, password, options) => {
+          if (password === "5678" && !resend) {
+            // Admin resends after the claim but before the new PIN is written.
+            await backdateLastIssue(PIN_RESET_RESEND_COOLDOWN_MS + 1000);
+            resend = await issueTemporaryPin({ userId, adminUser: ADMIN });
+          }
+          return originalSetPassword.call(Accounts, id, password, options);
+        };
+        try {
+          await assert.rejects(resetWith(tempPin), GENERIC_ERROR);
+        } finally {
+          Accounts.setPasswordAsync = originalSetPassword;
+        }
+
+        assert.strictEqual(await pinVerifies("5678"), false);
+        assert.ok((await getUser()).services.pinReset);
+        await resetWith(resend.tempPin, "2468");
+        assert.strictEqual(await pinVerifies("2468"), true);
       });
 
       it("counts wrong attempts and invalidates the reset at the limit", async function () {
