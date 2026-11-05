@@ -3,6 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { openSupportLink } from "../../../../utils/openExternal";
 import { migrateWithBiometricSecret } from "../../identity-migration";
 import { ResetPinModal } from "./ResetPinModal";
+import {
+  getBiometricErrorMessage,
+  isBiometricPluginError,
+} from "../../../../utils/biometricErrors";
 import { Meteor } from "meteor/meteor";
 import { Session } from "meteor/session";
 import { Random } from "meteor/random";
@@ -23,6 +27,7 @@ import {
 
 const BIOMETRIC_SECRET_NOT_FOUND = -113;
 const BIOMETRIC_RECOVERY_NEEDED_KEY = "biometricRecoveryNeeded";
+const BIOMETRIC_PROMPT_DISMISSED_KEY = "biometricPromptDismissed";
 
 const isMissingBiometricSecret = (error) => {
   if (Number(error?.code) === BIOMETRIC_SECRET_NOT_FOUND) return true;
@@ -279,8 +284,14 @@ export const LoginPage = ({ deviceDetails }) => {
         setError(
           "Your biometric setup is no longer available on this device. Sign in with your PIN to set it up again.",
         );
+      } else if (isBiometricPluginError(err)) {
+        setError(getBiometricErrorMessage(err, { context: "login" }));
       } else {
-        setError(err.message || "Biometric login failed. Use PIN instead.");
+        setError(
+          err?.reason ||
+            err?.message ||
+            getBiometricErrorMessage(err, { context: "login" }),
+        );
       }
     } finally {
       setIsLoggingIn(false);
@@ -291,12 +302,26 @@ export const LoginPage = ({ deviceDetails }) => {
     Session.set("userProfile", { email, _id: userId });
     localStorage.setItem("lastLoggedInEmail", email);
 
-    if (needsBiometricRecovery || !hasBiometricCredentials) {
+    const promptDismissed =
+      localStorage.getItem(BIOMETRIC_PROMPT_DISMISSED_KEY) === "true";
+
+    if (
+      !promptDismissed &&
+      (needsBiometricRecovery || !hasBiometricCredentials)
+    ) {
       setRecoveryError("");
       setShowRecoveryPrompt(true);
       return;
     }
 
+    navigate("/dashboard");
+  };
+
+  const skipBiometricSetup = (dontAskAgain = false) => {
+    if (dontAskAgain) {
+      localStorage.setItem(BIOMETRIC_PROMPT_DISMISSED_KEY, "true");
+    }
+    setShowRecoveryPrompt(false);
     navigate("/dashboard");
   };
 
@@ -348,9 +373,7 @@ export const LoginPage = ({ deviceDetails }) => {
         }
       },
       (err) => {
-        setRecoveryError(
-          err?.message || "Unable to register biometrics. Please try again.",
-        );
+        setRecoveryError(getBiometricErrorMessage(err, { context: "setup" }));
         setIsRecoveringBiometrics(false);
       },
     );
@@ -596,8 +619,7 @@ export const LoginPage = ({ deviceDetails }) => {
         open={showRecoveryPrompt}
         onOpenChange={(open) => {
           if (!open && !isRecoveringBiometrics) {
-            setShowRecoveryPrompt(false);
-            navigate("/dashboard");
+            skipBiometricSetup();
           }
         }}
         size="sm"
@@ -634,15 +656,20 @@ export const LoginPage = ({ deviceDetails }) => {
             Set Up Biometrics
           </Button>
           <Button
-            onClick={() => {
-              setShowRecoveryPrompt(false);
-              navigate("/dashboard");
-            }}
+            onClick={() => skipBiometricSetup()}
             disabled={isRecoveringBiometrics}
             variant="secondary"
             fullWidth
           >
             Skip for Now
+          </Button>
+          <Button
+            onClick={() => skipBiometricSetup(true)}
+            disabled={isRecoveringBiometrics}
+            variant="ghost"
+            fullWidth
+          >
+            Do Not Ask Again
           </Button>
         </ModalBody>
       </Modal>

@@ -4,6 +4,7 @@ import { Meteor } from "meteor/meteor";
 const LOCAL_CREDENTIAL_KEYS = [
   "biometricsEnabled",
   "biometricUserId",
+  "biometricPromptDismissed",
   "lastLoggedInEmail",
   "pendingNotification",
 ];
