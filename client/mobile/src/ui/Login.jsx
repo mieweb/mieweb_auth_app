@@ -2,6 +2,10 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { openSupportLink } from "../../../../utils/openExternal";
 import { migrateWithBiometricSecret } from "../../identity-migration";
+import {
+  getBiometricErrorMessage,
+  isBiometricPluginError,
+} from "../../../../utils/biometricErrors";
 import { Meteor } from "meteor/meteor";
 import { Session } from "meteor/session";
 import { Random } from "meteor/random";
@@ -275,8 +279,14 @@ export const LoginPage = ({ deviceDetails }) => {
         setError(
           "Your biometric setup is no longer available on this device. Sign in with your PIN to set it up again.",
         );
+      } else if (isBiometricPluginError(err)) {
+        setError(getBiometricErrorMessage(err, { context: "login" }));
       } else {
-        setError(err.message || "Biometric login failed. Use PIN instead.");
+        setError(
+          err?.reason ||
+            err?.message ||
+            getBiometricErrorMessage(err, { context: "login" }),
+        );
       }
     } finally {
       setIsLoggingIn(false);
@@ -344,9 +354,7 @@ export const LoginPage = ({ deviceDetails }) => {
         }
       },
       (err) => {
-        setRecoveryError(
-          err?.message || "Unable to register biometrics. Please try again.",
-        );
+        setRecoveryError(getBiometricErrorMessage(err, { context: "setup" }));
         setIsRecoveringBiometrics(false);
       },
     );
