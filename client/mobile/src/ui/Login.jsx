@@ -25,6 +25,7 @@ import {
 
 const BIOMETRIC_SECRET_NOT_FOUND = -113;
 const BIOMETRIC_RECOVERY_NEEDED_KEY = "biometricRecoveryNeeded";
+const BIOMETRIC_PROMPT_DISMISSED_KEY = "biometricPromptDismissed";
 
 const isMissingBiometricSecret = (error) => {
   if (Number(error?.code) === BIOMETRIC_SECRET_NOT_FOUND) return true;
@@ -297,12 +298,26 @@ export const LoginPage = ({ deviceDetails }) => {
     Session.set("userProfile", { email, _id: userId });
     localStorage.setItem("lastLoggedInEmail", email);
 
-    if (needsBiometricRecovery || !hasBiometricCredentials) {
+    const promptDismissed =
+      localStorage.getItem(BIOMETRIC_PROMPT_DISMISSED_KEY) === "true";
+
+    if (
+      !promptDismissed &&
+      (needsBiometricRecovery || !hasBiometricCredentials)
+    ) {
       setRecoveryError("");
       setShowRecoveryPrompt(true);
       return;
     }
 
+    navigate("/dashboard");
+  };
+
+  const skipBiometricSetup = (dontAskAgain = false) => {
+    if (dontAskAgain) {
+      localStorage.setItem(BIOMETRIC_PROMPT_DISMISSED_KEY, "true");
+    }
+    setShowRecoveryPrompt(false);
     navigate("/dashboard");
   };
 
@@ -567,8 +582,7 @@ export const LoginPage = ({ deviceDetails }) => {
         open={showRecoveryPrompt}
         onOpenChange={(open) => {
           if (!open && !isRecoveringBiometrics) {
-            setShowRecoveryPrompt(false);
-            navigate("/dashboard");
+            skipBiometricSetup();
           }
         }}
         size="sm"
@@ -605,15 +619,20 @@ export const LoginPage = ({ deviceDetails }) => {
             Set Up Biometrics
           </Button>
           <Button
-            onClick={() => {
-              setShowRecoveryPrompt(false);
-              navigate("/dashboard");
-            }}
+            onClick={() => skipBiometricSetup()}
             disabled={isRecoveringBiometrics}
             variant="secondary"
             fullWidth
           >
             Skip for Now
+          </Button>
+          <Button
+            onClick={() => skipBiometricSetup(true)}
+            disabled={isRecoveringBiometrics}
+            variant="ghost"
+            fullWidth
+          >
+            Do Not Ask Again
           </Button>
         </ModalBody>
       </Modal>
