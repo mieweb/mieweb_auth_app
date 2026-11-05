@@ -135,7 +135,7 @@ const deviceLabel = (device) =>
   device.deviceModel ||
   `Device ${device.deviceUUID.substring(0, 8)}...`;
 
-const logDeviceAudit = async (entry) => {
+export const logDeviceAudit = async (entry) => {
   try {
     await DeviceAuditLog.insertAsync({ ...entry, createdAt: new Date() });
   } catch (error) {

@@ -430,6 +430,8 @@ const UsersTab = ({ toast, toastErr }) => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [confirm, setConfirm] = useState(null);
+  const [pinResult, setPinResult] = useState(null);
+  const [resettingId, setResettingId] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -475,6 +477,28 @@ const UsersTab = ({ toast, toastErr }) => {
     });
   };
 
+  const handleResetPin = (userId, username) => {
+    setConfirm({
+      title: 'Reset PIN',
+      message: \`Issue a temporary PIN for "\${username}"? Their current PIN (and any earlier temporary PIN) stops working and all their devices will be signed out.\`,
+      danger: true,
+      onConfirm: async () => {
+        setConfirm(null);
+        setResettingId(userId);
+        try {
+          const res = await api('/api/admin/users/reset-pin', { method: 'POST', body: JSON.stringify({ userId }) });
+          setPinResult({ username, tempPin: res.tempPin, emailSent: res.emailSent, expiresAt: res.expiresAt });
+          toast('Temporary PIN issued', 'success');
+          load();
+        } catch (err) {
+          toastErr(err.message || 'An unexpected error occurred', 'error', err);
+        } finally {
+          setResettingId(null);
+        }
+      }
+    });
+  };
+
   const statusBadge = (status) => {
     const colors = { approved: 'bg-green-100 text-green-700', pending: 'bg-yellow-100 text-yellow-700', rejected: 'bg-red-100 text-red-700' };
     return <span className={\`text-xs px-2 py-0.5 rounded-full font-medium \${colors[status] || 'bg-gray-100 text-gray-600'}\`}>{status}</span>;
@@ -483,6 +507,21 @@ const UsersTab = ({ toast, toastErr }) => {
   return (
     <div className="fade-in">
       {confirm && <ConfirmDialog {...confirm} onCancel={() => setConfirm(null)} />}
+      {pinResult && (
+        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-xs font-medium text-green-800 mb-1">⚠️ Temporary PIN for "{pinResult.username}" — it won't be shown again. Expires {new Date(pinResult.expiresAt).toLocaleString()}.</p>
+            <button onClick={() => setPinResult(null)} aria-label="Dismiss" className="text-green-700 hover:text-green-900 text-xs">✕</button>
+          </div>
+          <div className="flex items-center gap-2">
+            <code className="text-lg tracking-widest select-all bg-green-100 p-2 rounded block flex-1">{pinResult.tempPin}</code>
+            <button onClick={() => { navigator.clipboard.writeText(pinResult.tempPin); toast('Copied to clipboard', 'success'); }} className="shrink-0 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg">📋 Copy</button>
+          </div>
+          {!pinResult.emailSent && (
+            <p className="text-xs text-yellow-800 bg-yellow-50 border border-yellow-200 rounded p-2 mt-2">Email could not be sent — share this PIN with the user securely.</p>
+          )}
+        </div>
+      )}
       <div className="bg-white rounded-xl shadow-sm border">
         <div className="px-5 py-4 border-b"><h3 className="font-semibold text-gray-900">Registered Users</h3></div>
         {loading ? <div className="p-8 text-center"><span className="spinner" /></div> : users.length === 0 ? (
@@ -498,6 +537,11 @@ const UsersTab = ({ toast, toastErr }) => {
                 <div className="flex gap-2">
                   {u.registrationStatus === 'pending' && (
                     <button onClick={() => handleApprove(u._id, u.username)} className="text-green-600 hover:text-green-800 text-xs font-medium px-3 py-1 rounded hover:bg-green-50">Approve</button>
+                  )}
+                  {u.registrationStatus === 'approved' && (
+                    <button onClick={() => handleResetPin(u._id, u.username)} disabled={resettingId === u._id} className="text-blue-600 hover:text-blue-800 disabled:text-gray-400 text-xs font-medium px-3 py-1 rounded hover:bg-blue-50">
+                      {u.pinResetExpiresAt && new Date(u.pinResetExpiresAt) > new Date() ? 'Resend PIN' : 'Reset PIN'}
+                    </button>
                   )}
                   <button onClick={() => handleDelete(u._id, u.username)} className="text-red-500 hover:text-red-700 text-xs font-medium px-3 py-1 rounded hover:bg-red-50">Delete</button>
                 </div>
@@ -682,7 +726,9 @@ const EmailsTab = ({ toast, toastErr }) => {
       registration_approval: { label: 'Registration', color: 'bg-blue-100 text-blue-700' },
       support_request: { label: 'Support', color: 'bg-purple-100 text-purple-700' },
       account_deletion_admin: { label: 'Deletion (Admin)', color: 'bg-red-100 text-red-700' },
-      account_deletion_user: { label: 'Deletion (User)', color: 'bg-orange-100 text-orange-700' }
+      account_deletion_user: { label: 'Deletion (User)', color: 'bg-orange-100 text-orange-700' },
+      pin_reset_temp: { label: 'PIN Reset', color: 'bg-teal-100 text-teal-700' },
+      pin_reset_request: { label: 'PIN Reset Request', color: 'bg-teal-100 text-teal-700' }
     };
     const info = map[type] || { label: type, color: 'bg-gray-100 text-gray-600' };
     return <span className={\`text-xs px-2 py-0.5 rounded-full font-medium \${info.color}\`}>{info.label}</span>;

@@ -44,7 +44,7 @@ No database seeding required — admin access is determined by LDAP group member
 | Tab            | Description                                                                                                                                                                                                                                                                                                                                                                                    |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 🔑 API Keys    | Create / delete client API keys. Key shown once with copy button; list shows first-5-char prefix + masked remainder.                                                                                                                                                                                                                                                                           |
-| 👤 Users       | List all users with registration status. Approve pending users or delete any user.                                                                                                                                                                                                                                                                                                             |
+| 👤 Users       | List all users with registration status. Approve pending users, reset an approved user's PIN, or delete any user.                                                                                                                                                                                                                                                                              |
 | 📱 Devices     | Devices grouped by user. Approve pending devices or revoke any device.                                                                                                                                                                                                                                                                                                                         |
 | 📧 Emails      | Log of every outgoing email (registration approval, support, account deletion). Filter by type. Approve / reject users inline from registration emails.                                                                                                                                                                                                                                        |
 | 🩺 Diagnostics | Look up a user (username / email / userId) to inspect their account, devices, stored FCM token state (masked preview + SHA-256 fingerprint), and recent notification history — without direct MongoDB access. Send a per-device test push to verify the stored token against live FCM (a `registration-token-not-registered` result means the token is stale and the device must re-register). |
@@ -71,11 +71,23 @@ All endpoints require `Authorization: Bearer <token>` except login.
 
 ### Users
 
-| Method | Path                       | Body         | Description                |
-| ------ | -------------------------- | ------------ | -------------------------- |
-| GET    | `/api/admin/users/list`    | —            | List all users             |
-| POST   | `/api/admin/users/approve` | `{ userId }` | Approve user + all devices |
-| POST   | `/api/admin/users/delete`  | `{ userId }` | Delete user + all data     |
+| Method | Path                         | Body         | Description                                                 |
+| ------ | ---------------------------- | ------------ | ----------------------------------------------------------- |
+| GET    | `/api/admin/users/list`      | —            | List all users                                              |
+| POST   | `/api/admin/users/approve`   | `{ userId }` | Approve user + all devices                                  |
+| POST   | `/api/admin/users/reset-pin` | `{ userId }` | Issue a temporary PIN → `{ tempPin, emailSent, expiresAt }` |
+| POST   | `/api/admin/users/delete`    | `{ userId }` | Delete user + all data                                      |
+
+### Resetting a user's PIN
+
+Users cannot reset their own PIN. In the app, **Forgot PIN?** lets them enter a temporary PIN or tap **Notify my administrator**, which emails `EMAIL_ADMIN` (at most once per 15 minutes per account).
+
+1. On the **Users** tab, click **Reset PIN** on an approved user.
+2. The user's current PIN stops working right away and they are signed out on all devices. Biometric sign-in keeps working.
+3. A 6-digit temporary PIN is emailed to the user and shown to you **once**. If the email could not be sent, share the PIN with the user securely.
+4. In the app, the user taps **Forgot PIN?**, enters the temporary PIN and chooses a new PIN.
+
+The temporary PIN expires after 24 hours, works only once, and is invalidated after 5 wrong attempts. It cannot be used to sign in. **Resend PIN** issues a new temporary PIN (the previous one stops working) and is limited to once per minute per user.
 
 ### Devices
 

@@ -75,6 +75,8 @@ export const HTTP_STATUS_MAP = {
   "invalid-username": { status: 404, msg: "Invalid username" },
   "not-found": { status: 404, msg: "Not found" },
   "invalid-device-id": { status: 404, msg: "Device not found" },
+  "invalid-state": { status: 409, msg: "Action not allowed in current state" },
+  "rate-limited": { status: 429, msg: "Too many requests. Please wait." },
   "database-error": {
     status: 500,
     msg: "A database error occurred. Please try again.",
