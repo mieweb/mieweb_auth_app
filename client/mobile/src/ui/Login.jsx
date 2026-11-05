@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { openSupportLink } from "../../../../utils/openExternal";
 import { migrateWithBiometricSecret } from "../../identity-migration";
+import { ResetPinModal } from "./ResetPinModal";
 import {
   getBiometricErrorMessage,
   isBiometricPluginError,
@@ -13,6 +14,7 @@ import {
   Fingerprint as FingerprintIcon,
   KeyRound,
   AlertCircle,
+  CheckCircle2,
 } from "lucide-react";
 import {
   Input,
@@ -115,6 +117,8 @@ export const LoginPage = ({ deviceDetails }) => {
   );
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
+  const [showResetPin, setShowResetPin] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [showPinForm, setShowPinForm] = useState(false);
@@ -407,6 +411,7 @@ export const LoginPage = ({ deviceDetails }) => {
 
     setIsLoggingIn(true);
     setError("");
+    setInfo("");
 
     try {
       let userId;
@@ -491,6 +496,14 @@ export const LoginPage = ({ deviceDetails }) => {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
+          {info && !error && (
+            <Alert
+              variant="success"
+              icon={<CheckCircle2 className="h-4 w-4" />}
+            >
+              <AlertDescription>{info}</AlertDescription>
+            </Alert>
+          )}
 
           {/* Email field */}
           <div>
@@ -522,21 +535,32 @@ export const LoginPage = ({ deviceDetails }) => {
           </div>
 
           {/* PIN field */}
-          <Input
-            id="pin"
-            type="password"
-            required
-            value={pin}
-            onChange={(e) => setPin(e.target.value)}
-            label="PIN"
-            placeholder="Enter your PIN"
-            maxLength={6}
-            minLength={4}
-            pattern="[0-9]*"
-            inputMode="numeric"
-            autoComplete="current-password"
-            disabled={isLoggingIn || checkingStatus}
-          />
+          <div>
+            <Input
+              id="pin"
+              type="password"
+              required
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              label="PIN"
+              placeholder="Enter your PIN"
+              maxLength={6}
+              minLength={4}
+              pattern="[0-9]*"
+              inputMode="numeric"
+              autoComplete="current-password"
+              disabled={isLoggingIn || checkingStatus}
+            />
+            <Button
+              variant="link"
+              size="sm"
+              type="button"
+              onClick={() => setShowResetPin(true)}
+              disabled={isLoggingIn || checkingStatus}
+            >
+              Forgot PIN?
+            </Button>
+          </div>
 
           {/* Submit */}
           <Button
@@ -577,6 +601,19 @@ export const LoginPage = ({ deviceDetails }) => {
           </Button>
         )}
       </div>
+
+      {showResetPin && (
+        <ResetPinModal
+          initialEmail={email}
+          onClose={() => setShowResetPin(false)}
+          onSuccess={() => {
+            setShowResetPin(false);
+            setPin("");
+            setError("");
+            setInfo("PIN updated. Sign in with your new PIN.");
+          }}
+        />
+      )}
 
       <Modal
         open={showRecoveryPrompt}

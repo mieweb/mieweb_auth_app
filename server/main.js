@@ -39,9 +39,11 @@ import "../utils/api/duoIntegrations.js"; // Duo integration credential methods
 import "./duo/index.js"; // Duo Auth API v2 compatibility layer (/auth/v2/*)
 import "./duo/adminApiV1.js"; // Duo Admin API v1 compatibility layer (/admin/v1/*)
 import "./diagnostics.js"; // Diagnostics log email method
+import "./pinReset.js"; // Admin-initiated PIN reset methods + rate limiting
 import { adminPageTemplate } from "./templates/admin";
 import { APPROVAL_TOKEN_EXPIRY_MS } from "../utils/constants.js";
 import {
+  escapeHtml,
   isValidToken,
   isNotificationExpired,
   determineTokenErrorReason,
@@ -115,14 +117,6 @@ const saveUserNotificationHistory = async (notification) => {
     return null;
   }
 };
-
-const escapeHtml = (unsafe = "") =>
-  String(unsafe)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
-    .replace(/'/g, "&#039;");
 
 const sanitizeInviteInput = (payload = {}) => ({
   email: String(payload.email || "").trim(),
@@ -1777,6 +1771,8 @@ Meteor.methods({
                 "profile.lastName": normalizedRegistration.lastName,
                 "profile.registrationStatus": "approved",
               },
+              // The PIN chosen here supersedes any pending admin PIN reset.
+              $unset: { "services.pinReset": "" },
             },
           );
           await Accounts.setPasswordAsync(userId, pin);

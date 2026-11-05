@@ -18,6 +18,7 @@ import {
   decryptPassword,
 } from "./adminAuth";
 import { mapMeteorError } from "../utils/errorHelpers";
+import { issueTemporaryPin } from "./pinReset";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -285,7 +286,13 @@ WebApp.connectHandlers.use("/api/admin/users/list", async (req, res) => {
         .find(
           {},
           {
-            fields: { username: 1, emails: 1, profile: 1, createdAt: 1 },
+            fields: {
+              username: 1,
+              emails: 1,
+              profile: 1,
+              createdAt: 1,
+              "services.pinReset.expiresAt": 1,
+            },
           },
         )
         .fetchAsync();
@@ -300,6 +307,7 @@ WebApp.connectHandlers.use("/api/admin/users/list", async (req, res) => {
           lastName: u.profile?.lastName,
           registrationStatus: u.profile?.registrationStatus || "pending",
           createdAt: u.createdAt,
+          pinResetExpiresAt: u.services?.pinReset?.expiresAt,
         })),
       });
     } catch (err) {
@@ -349,6 +357,42 @@ WebApp.connectHandlers.use("/api/admin/users/approve", async (req, res) => {
       );
 
       sendJson(res, 200, { success: true, message: "User approved" });
+    } catch (err) {
+      const mapped = mapMeteorError(err);
+      sendJson(res, mapped.status, {
+        error: mapped.error,
+        errorCode: mapped.errorCode,
+      });
+    }
+  });
+});
+
+// Issue (or resend) a temporary PIN; the PIN is returned once and never cached
+WebApp.connectHandlers.use("/api/admin/users/reset-pin", async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  if (req.method !== "POST")
+    return sendJson(res, 405, { error: "Method not allowed" });
+
+  await requireAdminAuth(req, res, async () => {
+    res.setHeader("Cache-Control", "no-store");
+    try {
+      const { userId } = await parseJsonBody(req);
+      if (!userId || typeof userId !== "string")
+        return sendJson(res, 400, {
+          error: "userId required",
+          errorCode: "missing-field",
+        });
+
+      const result = await issueTemporaryPin({
+        userId,
+        adminUser: req.adminUser,
+      });
+      sendJson(res, 200, { success: true, ...result });
     } catch (err) {
       const mapped = mapMeteorError(err);
       sendJson(res, mapped.status, {

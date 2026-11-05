@@ -4,6 +4,7 @@ import "./healthcheck.js";
 import "./deviceManagement.js";
 import "./identityMigration.js";
 import "./notificationBadge.js";
+import "./pinReset.js";
 import "./biometricErrors.js";
 
 describe("meteor-app", function () {

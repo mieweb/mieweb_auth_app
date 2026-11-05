@@ -1,6 +1,14 @@
 import { ApprovalTokens } from "./api/approvalTokens";
 import { TIMEOUT_DURATION_MS } from "./constants";
 
+export const escapeHtml = (unsafe = "") =>
+  String(unsafe)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
 export const formatDateTime = (isoString) => {
   if (!isoString) return "";
 
