@@ -40,7 +40,6 @@ import "./duo/index.js"; // Duo Auth API v2 compatibility layer (/auth/v2/*)
 import "./duo/adminApiV1.js"; // Duo Admin API v1 compatibility layer (/admin/v1/*)
 import "./diagnostics.js"; // Diagnostics log email method
 import "./pinReset.js"; // Admin-initiated PIN reset methods + rate limiting
-import { adminPageTemplate } from "./templates/admin";
 import { APPROVAL_TOKEN_EXPIRY_MS } from "../utils/constants.js";
 import {
   escapeHtml,
@@ -62,17 +61,8 @@ import dotenv from "dotenv";
 //load the env to process.env
 dotenv.config();
 
-// Serve admin UI at /admin
-WebApp.connectHandlers.use("/admin", (req, res, next) => {
-  // Only serve the admin page for GET requests to exactly /admin or /admin/.
-  // Sub-paths (e.g. the Duo Admin API at /admin/v1/*) must fall through so
-  // they are not shadowed by the dashboard HTML.
-  if (req.method !== "GET") return next();
-  const sub = (req.url || "/").split("?")[0];
-  if (sub !== "/" && sub !== "") return next();
-  res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-  res.end(adminPageTemplate());
-});
+// The admin console is a client route (/admin/*, client/admin); only the Duo
+// Admin API under /admin/v1 is served by a server handler.
 
 WebApp.connectHandlers.use("/healthcheck", async (req, res, next) => {
   if (req.method !== "GET" && req.method !== "HEAD") return next();

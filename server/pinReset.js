@@ -12,6 +12,8 @@ import {
   PIN_PATTERN,
   PIN_RESET_EXPIRY_MS,
   PIN_RESET_RESEND_COOLDOWN_MS,
+  PIN_RESET_RESEND_COOLDOWN_MIN_MS,
+  PIN_RESET_RESEND_COOLDOWN_MAX_MS,
   PIN_RESET_MAX_ATTEMPTS,
   PIN_RESET_REQUEST_COOLDOWN_MS,
 } from "../utils/constants.js";
@@ -48,6 +50,28 @@ const DUMMY_HASH_PROMISE = hashPin(Random.secret());
 const cooldownElapsed = (field, ms) => ({
   [field]: { $not: { $gt: new Date(Date.now() - ms) } },
 });
+
+/**
+ * Admin resend cooldown in ms. Read per call so it can be tuned via
+ * PIN_RESET_RESEND_COOLDOWN_SECONDS; always clamped to the allowed range.
+ */
+export const getResendCooldownMs = () => {
+  const raw = process.env.PIN_RESET_RESEND_COOLDOWN_SECONDS;
+  const seconds = raw ? Number(raw) : NaN;
+  if (!Number.isFinite(seconds)) return PIN_RESET_RESEND_COOLDOWN_MS;
+  return Math.min(
+    PIN_RESET_RESEND_COOLDOWN_MAX_MS,
+    Math.max(PIN_RESET_RESEND_COOLDOWN_MIN_MS, Math.round(seconds * 1000)),
+  );
+};
+
+/** Milliseconds left before another temporary PIN may be issued (0 if none). */
+export const resendCooldownRemainingMs = (lastIssuedAt, now = Date.now()) => {
+  if (!lastIssuedAt) return 0;
+  const cooldownMs = getResendCooldownMs();
+  const elapsed = now - new Date(lastIssuedAt).getTime();
+  return Math.min(cooldownMs, Math.max(0, cooldownMs - elapsed));
+};
 
 const invalidTempPinError = () =>
   new Meteor.Error("invalid-temp-pin", "Invalid or expired temporary PIN.");
@@ -95,7 +119,7 @@ const sendTempPinEmail = async ({ user, tempPin, expiresAt }) => {
 
 /**
  * Issue (or re-issue) a temporary PIN for an approved user.
- * @returns {Promise<{ tempPin: string, emailSent: boolean, expiresAt: Date }>}
+ * @returns {Promise<{ tempPin: string, emailSent: boolean, expiresAt: Date, cooldownMs: number }>}
  */
 export const issueTemporaryPin = async ({ userId, adminUser }) => {
   const user = await Meteor.users.findOneAsync(
@@ -114,16 +138,14 @@ export const issueTemporaryPin = async ({ userId, adminUser }) => {
   const hash = await hashPin(tempPin);
   const issuedAt = new Date();
   const expiresAt = new Date(issuedAt.getTime() + PIN_RESET_EXPIRY_MS);
+  const cooldownMs = getResendCooldownMs();
 
   // Atomic cooldown claim: holds across restarts and multiple instances. The
   // timestamp lives outside `pinReset` so it survives redemption/invalidation.
   const claimed = await Meteor.users.updateAsync(
     {
       _id: userId,
-      ...cooldownElapsed(
-        "services.pinResetIssuedAt",
-        PIN_RESET_RESEND_COOLDOWN_MS,
-      ),
+      ...cooldownElapsed("services.pinResetIssuedAt", cooldownMs),
     },
     {
       $set: {
@@ -139,9 +161,19 @@ export const issueTemporaryPin = async ({ userId, adminUser }) => {
     },
   );
   if (!claimed) {
+    const latest = await Meteor.users.findOneAsync(
+      { _id: userId },
+      { fields: { "services.pinResetIssuedAt": 1 } },
+    );
+    // Never report 0 here: the claim lost, so the caller must wait at least a moment.
+    const retryAfterMs = Math.max(
+      1000,
+      resendCooldownRemainingMs(latest?.services?.pinResetIssuedAt),
+    );
     throw new Meteor.Error(
       "rate-limited",
-      "A temporary PIN was just issued. Please wait a minute before resending.",
+      `A temporary PIN was just issued. Try again in ${Math.ceil(retryAfterMs / 1000)}s.`,
+      { retryAfterMs },
     );
   }
 
@@ -155,7 +187,7 @@ export const issueTemporaryPin = async ({ userId, adminUser }) => {
     details: `by ${adminUser}`,
   });
 
-  return { tempPin, emailSent, expiresAt };
+  return { tempPin, emailSent, expiresAt, cooldownMs };
 };
 
 const notifyAdminOfPinResetRequest = async (user) => {

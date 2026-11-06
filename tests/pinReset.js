@@ -4,7 +4,11 @@ if (Meteor.isServer) {
   describe("Admin-initiated PIN reset", function () {
     const { Accounts } = require("meteor/accounts-base");
     const { Email } = require("meteor/email");
-    const { issueTemporaryPin } = require("../server/pinReset");
+    const {
+      issueTemporaryPin,
+      getResendCooldownMs,
+      resendCooldownRemainingMs,
+    } = require("../server/pinReset");
     const { DeviceAuditLog } = require("../server/deviceManagement");
     const { EmailLog } = require("../utils/api/emailLog");
     const {
@@ -22,6 +26,8 @@ if (Meteor.isServer) {
     const originalEnv = {
       EMAIL_FROM: process.env.EMAIL_FROM,
       EMAIL_ADMIN: process.env.EMAIL_ADMIN,
+      PIN_RESET_RESEND_COOLDOWN_SECONDS:
+        process.env.PIN_RESET_RESEND_COOLDOWN_SECONDS,
     };
     let sentEmails;
     let userId;
@@ -62,6 +68,7 @@ if (Meteor.isServer) {
       };
       process.env.EMAIL_FROM = "noreply@example.com";
       process.env.EMAIL_ADMIN = "admin@example.com";
+      delete process.env.PIN_RESET_RESEND_COOLDOWN_SECONDS;
 
       await Meteor.users.removeAsync({ "emails.address": EMAIL });
       userId = await Accounts.createUserAsync({
@@ -135,9 +142,21 @@ if (Meteor.isServer) {
 
       it("rate-limits resends, and a later resend replaces the previous PIN", async function () {
         const first = await issueTemporaryPin({ userId, adminUser: ADMIN });
-        await assert.rejects(
-          issueTemporaryPin({ userId, adminUser: ADMIN }),
-          /rate-limited/,
+        assert.strictEqual(first.cooldownMs, PIN_RESET_RESEND_COOLDOWN_MS);
+        const hashAfterFirst = (await getUser()).services.pinReset.hash;
+
+        const rateLimited = await issueTemporaryPin({
+          userId,
+          adminUser: ADMIN,
+        }).catch((err) => err);
+        assert.strictEqual(rateLimited.error, "rate-limited");
+        assert.ok(rateLimited.details.retryAfterMs > 0);
+        assert.ok(
+          rateLimited.details.retryAfterMs <= PIN_RESET_RESEND_COOLDOWN_MS,
+        );
+        assert.strictEqual(
+          (await getUser()).services.pinReset.hash,
+          hashAfterFirst,
         );
 
         await backdateLastIssue(PIN_RESET_RESEND_COOLDOWN_MS + 1000);
@@ -192,6 +211,65 @@ if (Meteor.isServer) {
           );
         }
         assert.strictEqual(await pinVerifies(OLD_PIN), true);
+      });
+    });
+
+    describe("resend cooldown", function () {
+      it("defaults to 30 seconds and clamps the configured value to 15–30s", function () {
+        assert.strictEqual(getResendCooldownMs(), 30 * 1000);
+        const cases = {
+          20: 20000,
+          15: 15000,
+          5: 15000,
+          120: 30000,
+          abc: 30000,
+          "": 30000,
+        };
+        Object.entries(cases).forEach(([value, expected]) => {
+          process.env.PIN_RESET_RESEND_COOLDOWN_SECONDS = value;
+          assert.strictEqual(
+            getResendCooldownMs(),
+            expected,
+            `value "${value}"`,
+          );
+        });
+      });
+
+      it("reports the remaining time from the last issue", function () {
+        const now = Date.now();
+        assert.strictEqual(resendCooldownRemainingMs(undefined, now), 0);
+        assert.strictEqual(
+          resendCooldownRemainingMs(new Date(now - 10000), now),
+          20000,
+        );
+        assert.strictEqual(
+          resendCooldownRemainingMs(new Date(now - 60000), now),
+          0,
+        );
+        // A future timestamp (clock skew) never exceeds the full cooldown.
+        assert.strictEqual(
+          resendCooldownRemainingMs(new Date(now + 60000), now),
+          30000,
+        );
+      });
+
+      it("enforces a shorter configured cooldown server-side", async function () {
+        process.env.PIN_RESET_RESEND_COOLDOWN_SECONDS = "15";
+        const { cooldownMs } = await issueTemporaryPin({
+          userId,
+          adminUser: ADMIN,
+        });
+        assert.strictEqual(cooldownMs, 15000);
+
+        await backdateLastIssue(10000);
+        const err = await issueTemporaryPin({ userId, adminUser: ADMIN }).catch(
+          (e) => e,
+        );
+        assert.strictEqual(err.error, "rate-limited");
+        assert.ok(err.details.retryAfterMs <= 5000);
+
+        await backdateLastIssue(15000 + 1000);
+        await issueTemporaryPin({ userId, adminUser: ADMIN });
       });
     });
 

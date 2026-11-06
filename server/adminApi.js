@@ -18,7 +18,12 @@ import {
   decryptPassword,
 } from "./adminAuth";
 import { mapMeteorError } from "../utils/errorHelpers";
-import { issueTemporaryPin } from "./pinReset";
+import {
+  issueTemporaryPin,
+  getResendCooldownMs,
+  resendCooldownRemainingMs,
+} from "./pinReset";
+import { logDeviceAudit } from "./deviceManagement";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -292,13 +297,17 @@ WebApp.connectHandlers.use("/api/admin/users/list", async (req, res) => {
               profile: 1,
               createdAt: 1,
               "services.pinReset.expiresAt": 1,
+              "services.pinResetIssuedAt": 1,
             },
           },
         )
         .fetchAsync();
 
+      const now = Date.now();
       sendJson(res, 200, {
         success: true,
+        // Server-authoritative cooldown so the UI can render the countdown.
+        pinResetCooldownTotalMs: getResendCooldownMs(),
         users: users.map((u) => ({
           _id: u._id,
           username: u.username,
@@ -308,6 +317,10 @@ WebApp.connectHandlers.use("/api/admin/users/list", async (req, res) => {
           registrationStatus: u.profile?.registrationStatus || "pending",
           createdAt: u.createdAt,
           pinResetExpiresAt: u.services?.pinReset?.expiresAt,
+          pinResetCooldownMs: resendCooldownRemainingMs(
+            u.services?.pinResetIssuedAt,
+            now,
+          ),
         })),
       });
     } catch (err) {
@@ -355,6 +368,11 @@ WebApp.connectHandlers.use("/api/admin/users/approve", async (req, res) => {
         { userId },
         { $set: { "devices.$[].deviceRegistrationStatus": "approved" } },
       );
+      await logDeviceAudit({
+        userId,
+        action: "admin_user_approved",
+        details: `by ${req.adminUser}`,
+      });
 
       sendJson(res, 200, { success: true, message: "User approved" });
     } catch (err) {
@@ -395,9 +413,13 @@ WebApp.connectHandlers.use("/api/admin/users/reset-pin", async (req, res) => {
       sendJson(res, 200, { success: true, ...result });
     } catch (err) {
       const mapped = mapMeteorError(err);
+      const retryAfterMs = err.details?.retryAfterMs;
+      if (retryAfterMs)
+        res.setHeader("Retry-After", String(Math.ceil(retryAfterMs / 1000)));
       sendJson(res, mapped.status, {
         error: mapped.error,
         errorCode: mapped.errorCode,
+        retryAfterMs,
       });
     }
   });
@@ -518,6 +540,12 @@ WebApp.connectHandlers.use("/api/admin/devices/approve", async (req, res) => {
           },
         },
       );
+      await logDeviceAudit({
+        userId,
+        action: "admin_device_approved",
+        deviceUUID,
+        details: `by ${req.adminUser}`,
+      });
 
       sendJson(res, 200, { success: true, message: "Device approved" });
     } catch (err) {
@@ -565,6 +593,12 @@ WebApp.connectHandlers.use("/api/admin/devices/revoke", async (req, res) => {
         { userId },
         { $pull: { devices: { deviceUUID } } },
       );
+      await logDeviceAudit({
+        userId,
+        action: "admin_device_revoked",
+        deviceUUID,
+        details: `by ${req.adminUser}`,
+      });
 
       sendJson(res, 200, {
         success: true,
