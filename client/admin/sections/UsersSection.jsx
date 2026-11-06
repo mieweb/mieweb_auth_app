@@ -125,12 +125,17 @@ export const UsersSection = () => {
     });
     if (!confirmed) return;
 
+    // Time the server answered, taken before run() waits for the list refresh,
+    // so the local countdown isn't stretched by the refetch duration.
+    let answeredAt = 0;
     const { ok, result, error } = await run(
       userActionKey(user._id, "pin"),
       () =>
         api("/api/admin/users/reset-pin", {
           method: "POST",
           body: { userId: user._id },
+        }).finally(() => {
+          answeredAt = Date.now();
         }),
       {
         success: `Temporary PIN issued for ${user.username}`,
@@ -143,7 +148,7 @@ export const UsersSection = () => {
     if (cooldownMs) {
       setLocalDeadlines((prev) => ({
         ...prev,
-        [user._id]: Date.now() + cooldownMs,
+        [user._id]: answeredAt + cooldownMs,
       }));
     }
     if (!ok) return;

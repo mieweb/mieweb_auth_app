@@ -28,6 +28,9 @@ export const isSessionError = (err) => err?.errorCode === "session-expired";
  * via the registered handler.
  */
 export const api = async (path, { method = "GET", body, auth = true } = {}) => {
+  // Remember which session sent this request so a late 401/403 from an old
+  // session can't sign out a newer one.
+  const requestToken = auth ? getToken() : null;
   let response;
   try {
     response = await fetch(path, {
@@ -36,7 +39,7 @@ export const api = async (path, { method = "GET", body, auth = true } = {}) => {
       signal: AbortSignal.timeout?.(REQUEST_TIMEOUT_MS),
       headers: {
         "Content-Type": "application/json",
-        ...(auth && { Authorization: `Bearer ${getToken() || ""}` }),
+        ...(auth && { Authorization: `Bearer ${requestToken || ""}` }),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
@@ -53,7 +56,7 @@ export const api = async (path, { method = "GET", body, auth = true } = {}) => {
   const data = await response.json().catch(() => ({}));
 
   if (auth && (response.status === 401 || response.status === 403)) {
-    handleUnauthorized();
+    if (requestToken === getToken()) handleUnauthorized();
     throw new ApiError("Your session has expired. Please sign in again.", {
       status: response.status,
       errorCode: "session-expired",

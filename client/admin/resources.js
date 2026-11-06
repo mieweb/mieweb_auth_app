@@ -37,15 +37,19 @@ const update = (entry, patch) => {
   entry.listeners.forEach((listener) => listener());
 };
 
-export const refresh = (path) => {
+/**
+ * Fetch `path` into the cache. If a request is already in flight it is reused;
+ * with `queue: true` (used after mutations) one more fetch runs after it, so
+ * the caller sees data fetched after its mutation. Polling never queues, so a
+ * slow endpoint can't keep the refresh loop alive forever.
+ */
+export const refresh = (path, { queue = false } = {}) => {
   const entry = getEntry(path);
   if (entry.inFlight) {
-    entry.rerun = true;
+    if (queue) entry.rerun = true;
     return entry.inFlight;
   }
   update(entry, { refreshing: true });
-  // Resolves only after any rerun queued mid-flight, so callers awaiting a
-  // refresh see data fetched after their mutation.
   entry.inFlight = (async () => {
     do {
       entry.rerun = false;
@@ -66,7 +70,9 @@ export const refresh = (path) => {
 /** Refetch cached resources after a mutation; resolves once they are fresh. */
 export const invalidate = (...paths) =>
   Promise.all(
-    paths.filter((path) => entries.has(path)).map((path) => refresh(path)),
+    paths
+      .filter((path) => entries.has(path))
+      .map((path) => refresh(path, { queue: true })),
   );
 
 const refreshActive = () => {
