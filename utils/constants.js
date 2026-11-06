@@ -5,7 +5,10 @@ export const APPROVAL_TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 // --- Admin-initiated PIN reset (shared by server/pinReset.js and the mobile UI) ---
 export const PIN_PATTERN = /^\d{4,6}$/;
 export const PIN_RESET_EXPIRY_MS = 24 * 60 * 60 * 1000;
-export const PIN_RESET_RESEND_COOLDOWN_MS = 60 * 1000;
+// Resend cooldown: 30s by default; PIN_RESET_RESEND_COOLDOWN_SECONDS may tune it within [15, 30].
+export const PIN_RESET_RESEND_COOLDOWN_MS = 30 * 1000;
+export const PIN_RESET_RESEND_COOLDOWN_MIN_MS = 15 * 1000;
+export const PIN_RESET_RESEND_COOLDOWN_MAX_MS = 30 * 1000;
 export const PIN_RESET_MAX_ATTEMPTS = 5;
 export const PIN_RESET_REQUEST_COOLDOWN_MS = 15 * 60 * 1000;
 
