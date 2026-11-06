@@ -61,7 +61,7 @@ SSH: `ssh aabrol@mie-fwdc-auth1.med-web.com` (password + YubiKey, port 22).
 | **Service + runner user** | **`actions`** — owns `/home/actions/{Builds,scripts,certs}` |
 | Runner                    | `actions.runner.mieweb-mieweb_auth_app.mie-fwdc-auth1`      |
 | Ingress                   | cloudflared tunnel (no nginx, no certbot)                   |
-| Node / Meteor             | 20.19.6 via nvm, Meteor 3.5 — installed for `actions`       |
+| Node / Meteor             | 22.23.4 via nvm, Meteor 3.5 — installed for `actions`       |
 
 ### Key paths
 

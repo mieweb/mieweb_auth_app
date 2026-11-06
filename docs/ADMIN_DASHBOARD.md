@@ -39,15 +39,20 @@ No database seeding required — admin access is determined by LDAP group member
 4. On success, returns a Bearer session token (8 h TTL, in-memory).
 5. All subsequent API calls include `Authorization: Bearer <token>`.
 
-## Dashboard Tabs
+## Dashboard Sections
 
-| Tab            | Description                                                                                                                                                                                                                                                                                                                                                                                    |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 🔑 API Keys    | Create / delete client API keys. Key shown once with copy button; list shows first-5-char prefix + masked remainder.                                                                                                                                                                                                                                                                           |
-| 👤 Users       | List all users with registration status. Approve pending users or delete any user.                                                                                                                                                                                                                                                                                                             |
-| 📱 Devices     | Devices grouped by user. Approve pending devices or revoke any device.                                                                                                                                                                                                                                                                                                                         |
-| 📧 Emails      | Log of every outgoing email (registration approval, support, account deletion). Filter by type. Approve / reject users inline from registration emails.                                                                                                                                                                                                                                        |
-| 🩺 Diagnostics | Look up a user (username / email / userId) to inspect their account, devices, stored FCM token state (masked preview + SHA-256 fingerprint), and recent notification history — without direct MongoDB access. Send a per-device test push to verify the stored token against live FCM (a `registration-token-not-registered` result means the token is stale and the device must re-register). |
+The console is a client route (`client/admin/`) built with `@mieweb/ui`. Each section has its own URL (`/admin/<section>`), so refreshes and bookmarks keep your place. Desktop shows a sidebar; tablet/mobile show a header with scrollable section links. Light/dark mode follows the site-wide `darkMode` preference.
+
+| Section                     | Description                                                                                                                                                                                                                                                                                                                                                |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Users (`users`)             | Search by name / username / email, filter by status (pending first, with a review banner and nav badge). Approve pending users, reset or resend an approved user's PIN (with a live cooldown countdown), delete users, copy a user ID, or jump to Diagnostics.                                                                                             |
+| Devices (`devices`)         | Searchable table of every device (pending first, nav badge). Approve pending devices or revoke any device.                                                                                                                                                                                                                                                 |
+| API Keys (`api-keys`)       | Create / delete client API keys. The key is shown once in a dialog with a copy button; the list shows the prefix + masked remainder.                                                                                                                                                                                                                       |
+| Duo (`duo`)                 | Create Duo integrations (auth / admin), enable or disable them, rotate credentials, delete. The skey is shown once.                                                                                                                                                                                                                                        |
+| Emails (`emails`)           | Outgoing email log (masked). Filter by type or failures, search, and approve / reject pending registrations inline.                                                                                                                                                                                                                                        |
+| Diagnostics (`diagnostics`) | Identity-migration coverage, plus a user lookup (`?q=`) showing account, devices, stored FCM token state (masked preview + SHA-256 fingerprint) and recent notifications. Send a per-device test push to verify the stored token against live FCM (a `registration-token-not-registered` result means the token is stale and the device must re-register). |
+
+**Live updates:** lists are cached per endpoint and refetched every 15 s while the page is visible, on window focus, and after every action (including from other sections, e.g. approving from Emails updates Users and Devices). Action buttons stay busy until the refreshed data arrives, and repeat clicks are ignored. If a refresh fails, the last data stays visible with a retry link; an expired session returns to the sign-in page.
 
 ## REST API Reference
 
@@ -71,11 +76,23 @@ All endpoints require `Authorization: Bearer <token>` except login.
 
 ### Users
 
-| Method | Path                       | Body         | Description                |
-| ------ | -------------------------- | ------------ | -------------------------- |
-| GET    | `/api/admin/users/list`    | —            | List all users             |
-| POST   | `/api/admin/users/approve` | `{ userId }` | Approve user + all devices |
-| POST   | `/api/admin/users/delete`  | `{ userId }` | Delete user + all data     |
+| Method | Path                         | Body         | Description                                                                                                                         |
+| ------ | ---------------------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/api/admin/users/list`      | —            | List all users, incl. `pinResetCooldownMs` (remaining resend cooldown) and top-level `pinResetCooldownTotalMs`                      |
+| POST   | `/api/admin/users/approve`   | `{ userId }` | Approve user + all devices                                                                                                          |
+| POST   | `/api/admin/users/reset-pin` | `{ userId }` | Issue a temporary PIN → `{ tempPin, emailSent, expiresAt, cooldownMs }`; `429` + `Retry-After` / `retryAfterMs` during the cooldown |
+| POST   | `/api/admin/users/delete`    | `{ userId }` | Delete user + all data                                                                                                              |
+
+### Resetting a user's PIN
+
+Users cannot reset their own PIN. In the app, **Forgot PIN?** lets them enter a temporary PIN or tap **Notify my administrator**, which emails `EMAIL_ADMIN` (at most once per 15 minutes per account).
+
+1. On the **Users** tab, click **Reset PIN** on an approved user.
+2. The user's current PIN stops working right away and they are signed out on all devices. Biometric sign-in keeps working.
+3. A 6-digit temporary PIN is emailed to the user and shown to you **once**. If the email could not be sent, share the PIN with the user securely.
+4. In the app, the user taps **Forgot PIN?**, enters the temporary PIN and chooses a new PIN.
+
+The temporary PIN expires after 24 hours, works only once, and is invalidated after 5 wrong attempts. It cannot be used to sign in. **Resend PIN** issues a new temporary PIN (the previous one stops working). Issuing is limited per user by a server-enforced cooldown — 30 seconds by default, configurable with `PIN_RESET_RESEND_COOLDOWN_SECONDS` (clamped to 15–30). The cooldown is claimed atomically in MongoDB, so it holds across browser tabs, admins, direct API calls and server instances; the dashboard shows the remaining time as a countdown, which survives page reloads.
 
 ### Devices
 
@@ -102,9 +119,10 @@ Full FCM tokens are never returned — only a masked preview (first 12 + last 6 
 
 ## Files
 
-| File                        | Purpose                                                       |
-| --------------------------- | ------------------------------------------------------------- |
-| `server/adminAuth.js`       | LDAP bind + group membership check, session store, middleware |
-| `server/adminApi.js`        | All REST endpoints                                            |
-| `server/templates/admin.js` | Self-contained React SPA (served as HTML)                     |
-| `utils/api/emailLog.js`     | `EmailLog` Mongo collection                                   |
+| File                    | Purpose                                                       |
+| ----------------------- | ------------------------------------------------------------- |
+| `server/adminAuth.js`   | LDAP bind + group membership check, session store, middleware |
+| `server/adminApi.js`    | All REST endpoints                                            |
+| `client/admin/`         | Admin console (React route `/admin/*`, `@mieweb/ui`)          |
+| `utils/adminHelpers.js` | Pure formatting / filtering helpers (unit-tested)             |
+| `utils/api/emailLog.js` | `EmailLog` Mongo collection                                   |

@@ -8,6 +8,10 @@ import {
   Modal,
   ModalBody,
 } from "@mieweb/ui";
+import {
+  getBiometricErrorMessage,
+  isBiometricPluginError,
+} from "../../../../../utils/biometricErrors";
 
 // Prompt the OS biometric dialog and resolve with the device-bound secret.
 // The secret is only released by the OS after a successful biometric check,
@@ -30,8 +34,7 @@ const getBiometricProof = () =>
         secret
           ? resolve({ biometricSecret: secret })
           : reject(new Error("No biometric credential found on this device.")),
-      (err) =>
-        reject(new Error(err?.message || "Biometric verification cancelled.")),
+      (err) => reject(err || new Error("Biometric verification cancelled.")),
     );
   });
 
@@ -68,7 +71,11 @@ export const ConfirmActionModal = ({
       onConfirm(proof);
     } catch (err) {
       // Fall back to PIN entry when biometrics fail or are cancelled.
-      setLocalError(`${err.message} Enter your PIN to continue.`);
+      setLocalError(
+        isBiometricPluginError(err)
+          ? getBiometricErrorMessage(err, { context: "verify" })
+          : `${err?.message || "Biometric verification failed."} Enter your PIN to continue.`,
+      );
       setMode("pin");
     } finally {
       setVerifying(false);

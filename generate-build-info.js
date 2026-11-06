@@ -72,12 +72,16 @@ function getCommitDate() {
   }
 }
 
+// Values are rendered into href/src attributes, so each is validated by shape.
+const isHttpsUrl = (value) => value.startsWith("https://");
+const isUrlScheme = (value) => /^[a-z][a-z0-9+.-]*$/.test(value);
+
 /**
- * Per-variant store listings, read from variants/<target>.env.
- * No target (local dev) or no keys set leaves them out of buildInfo.json, and
- * the client falls back to its own defaults.
+ * Per-variant store listings and deep-link scheme, read from
+ * variants/<target>.env. No target (local dev) or no keys set leaves them out
+ * of buildInfo.json, and the client falls back to its own defaults.
  */
-function getStoreUrls(target) {
+function getVariantInfo(target) {
   if (!target) return {};
 
   const variantPath = path.join(__dirname, "variants", `${target}.env`);
@@ -93,25 +97,25 @@ function getStoreUrls(target) {
   // A Map keeps the lookup off Object.prototype, so a stray key like
   // "constructor" cannot match.
   const fields = new Map([
-    ["APP_STORE_URL", "appStoreUrl"],
-    ["PLAY_STORE_URL", "playStoreUrl"],
+    ["APP_STORE_URL", ["appStoreUrl", isHttpsUrl]],
+    ["PLAY_STORE_URL", ["playStoreUrl", isHttpsUrl]],
+    ["URL_SCHEME", ["urlScheme", isUrlScheme]],
   ]);
-  const urls = {};
+  const info = {};
 
   for (const line of contents.split("\n")) {
     const separator = line.indexOf("=");
     if (line.startsWith("#") || separator === -1) continue;
 
-    const field = fields.get(line.slice(0, separator).trim());
+    const entry = fields.get(line.slice(0, separator).trim());
     const value = line.slice(separator + 1).trim();
 
-    // These are rendered as href/src attributes, so only absolute https URLs.
-    if (field && value.startsWith("https://")) {
-      urls[field] = value;
+    if (entry && entry[1](value)) {
+      info[entry[0]] = value;
     }
   }
 
-  return urls;
+  return info;
 }
 
 /**
@@ -169,7 +173,7 @@ function generateBuildInfo() {
     buildNumber: getCommitHash(),
     buildDate: new Date().toISOString(),
     commitDate: getCommitDate(),
-    ...getStoreUrls(target),
+    ...getVariantInfo(target),
   };
 
   const outputPath = path.join(__dirname, "public", "buildInfo.json");

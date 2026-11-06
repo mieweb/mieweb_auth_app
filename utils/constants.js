@@ -2,6 +2,16 @@ export const PAGE_SIZE = 5;
 export const TIMEOUT_DURATION_MS = 55000;
 export const APPROVAL_TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
+// --- Admin-initiated PIN reset (shared by server/pinReset.js and the mobile UI) ---
+export const PIN_PATTERN = /^\d{4,6}$/;
+export const PIN_RESET_EXPIRY_MS = 24 * 60 * 60 * 1000;
+// Resend cooldown: 30s by default; PIN_RESET_RESEND_COOLDOWN_SECONDS may tune it within [15, 30].
+export const PIN_RESET_RESEND_COOLDOWN_MS = 30 * 1000;
+export const PIN_RESET_RESEND_COOLDOWN_MIN_MS = 15 * 1000;
+export const PIN_RESET_RESEND_COOLDOWN_MAX_MS = 30 * 1000;
+export const PIN_RESET_MAX_ATTEMPTS = 5;
+export const PIN_RESET_REQUEST_COOLDOWN_MS = 15 * 60 * 1000;
+
 // --- Approval notification / watch-support action contract ---
 // Single source of truth shared by the server FCM payload (server/firebase.js)
 // and the client push handlers (client/mobile/push-notifications.js). The iOS

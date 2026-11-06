@@ -5,6 +5,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { Modal, ModalBody, Button } from "@mieweb/ui";
+import { getBiometricErrorMessage } from "../../../../../utils/biometricErrors";
 
 const BiometricRegistrationModal = ({
   isOpen,
@@ -40,7 +41,8 @@ const BiometricRegistrationModal = ({
         disableBackup: true,
       },
       () => handleSuccess(),
-      (error) => handleError(error.message),
+      (error) =>
+        handleError(getBiometricErrorMessage(error, { context: "setup" })),
     );
   };
 

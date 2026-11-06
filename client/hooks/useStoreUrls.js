@@ -7,36 +7,57 @@ const DEFAULT_STORE_URLS = {
   playStoreUrl: "https://play.google.com/store/apps/details?id=org.mieweb.auth",
 };
 
+// No default scheme: guessing one opens the wrong app on other instances.
+const INITIAL_STATE = { ...DEFAULT_STORE_URLS, urlScheme: null, loading: true };
+const FAILED_STATE = { ...DEFAULT_STORE_URLS, urlScheme: null, loading: false };
+
+const BUILD_INFO_TIMEOUT_MS = 5000;
+
 // buildInfo.json is same-origin, but its values end up in href/src attributes,
 // so only absolute https URLs are accepted.
 const safeUrl = (value, fallback) =>
   typeof value === "string" && value.startsWith("https://") ? value : fallback;
 
+const safeScheme = (value) =>
+  typeof value === "string" && /^[a-z][a-z0-9+.-]*$/.test(value) ? value : null;
+
 let storeUrlsPromise;
 
 const loadStoreUrls = () => {
   if (!storeUrlsPromise) {
-    storeUrlsPromise = fetch("/buildInfo.json")
-      .then((response) => response.json())
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), BUILD_INFO_TIMEOUT_MS);
+
+    storeUrlsPromise = fetch("/buildInfo.json", {
+      cache: "no-cache",
+      signal: controller.signal,
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+      })
       .then((info) => ({
         appStoreUrl: safeUrl(info.appStoreUrl, DEFAULT_STORE_URLS.appStoreUrl),
         playStoreUrl: safeUrl(
           info.playStoreUrl,
           DEFAULT_STORE_URLS.playStoreUrl,
         ),
+        urlScheme: safeScheme(info.urlScheme),
+        loading: false,
       }))
-      .catch(() => DEFAULT_STORE_URLS);
+      .catch(() => FAILED_STATE)
+      .finally(() => clearTimeout(timer));
   }
 
   return storeUrlsPromise;
 };
 
 /**
- * Store listings for the instance this client was served from.
- * Renders with the defaults until buildInfo.json resolves.
+ * Store listings and deep-link scheme for the instance this client was served from.
+ * `urlScheme` stays null while loading and when it could not be determined.
  */
 export const useStoreUrls = () => {
-  const [urls, setUrls] = useState(DEFAULT_STORE_URLS);
+  const [urls, setUrls] = useState(INITIAL_STATE);
 
   useEffect(() => {
     let active = true;

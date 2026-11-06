@@ -18,6 +18,12 @@ import {
   decryptPassword,
 } from "./adminAuth";
 import { mapMeteorError } from "../utils/errorHelpers";
+import {
+  issueTemporaryPin,
+  getResendCooldownMs,
+  resendCooldownRemainingMs,
+} from "./pinReset";
+import { logDeviceAudit } from "./deviceManagement";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -285,13 +291,23 @@ WebApp.connectHandlers.use("/api/admin/users/list", async (req, res) => {
         .find(
           {},
           {
-            fields: { username: 1, emails: 1, profile: 1, createdAt: 1 },
+            fields: {
+              username: 1,
+              emails: 1,
+              profile: 1,
+              createdAt: 1,
+              "services.pinReset.expiresAt": 1,
+              "services.pinResetIssuedAt": 1,
+            },
           },
         )
         .fetchAsync();
 
+      const now = Date.now();
       sendJson(res, 200, {
         success: true,
+        // Server-authoritative cooldown so the UI can render the countdown.
+        pinResetCooldownTotalMs: getResendCooldownMs(),
         users: users.map((u) => ({
           _id: u._id,
           username: u.username,
@@ -300,6 +316,11 @@ WebApp.connectHandlers.use("/api/admin/users/list", async (req, res) => {
           lastName: u.profile?.lastName,
           registrationStatus: u.profile?.registrationStatus || "pending",
           createdAt: u.createdAt,
+          pinResetExpiresAt: u.services?.pinReset?.expiresAt,
+          pinResetCooldownMs: resendCooldownRemainingMs(
+            u.services?.pinResetIssuedAt,
+            now,
+          ),
         })),
       });
     } catch (err) {
@@ -347,6 +368,11 @@ WebApp.connectHandlers.use("/api/admin/users/approve", async (req, res) => {
         { userId },
         { $set: { "devices.$[].deviceRegistrationStatus": "approved" } },
       );
+      await logDeviceAudit({
+        userId,
+        action: "admin_user_approved",
+        details: `by ${req.adminUser}`,
+      });
 
       sendJson(res, 200, { success: true, message: "User approved" });
     } catch (err) {
@@ -354,6 +380,46 @@ WebApp.connectHandlers.use("/api/admin/users/approve", async (req, res) => {
       sendJson(res, mapped.status, {
         error: mapped.error,
         errorCode: mapped.errorCode,
+      });
+    }
+  });
+});
+
+// Issue (or resend) a temporary PIN; the PIN is returned once and never cached
+WebApp.connectHandlers.use("/api/admin/users/reset-pin", async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  if (req.method !== "POST")
+    return sendJson(res, 405, { error: "Method not allowed" });
+
+  await requireAdminAuth(req, res, async () => {
+    res.setHeader("Cache-Control", "no-store");
+    try {
+      const { userId } = await parseJsonBody(req);
+      if (!userId || typeof userId !== "string")
+        return sendJson(res, 400, {
+          error: "userId required",
+          errorCode: "missing-field",
+        });
+
+      const result = await issueTemporaryPin({
+        userId,
+        adminUser: req.adminUser,
+      });
+      sendJson(res, 200, { success: true, ...result });
+    } catch (err) {
+      const mapped = mapMeteorError(err);
+      const retryAfterMs = err.details?.retryAfterMs;
+      if (retryAfterMs)
+        res.setHeader("Retry-After", String(Math.ceil(retryAfterMs / 1000)));
+      sendJson(res, mapped.status, {
+        error: mapped.error,
+        errorCode: mapped.errorCode,
+        retryAfterMs,
       });
     }
   });
@@ -474,6 +540,12 @@ WebApp.connectHandlers.use("/api/admin/devices/approve", async (req, res) => {
           },
         },
       );
+      await logDeviceAudit({
+        userId,
+        action: "admin_device_approved",
+        deviceUUID,
+        details: `by ${req.adminUser}`,
+      });
 
       sendJson(res, 200, { success: true, message: "Device approved" });
     } catch (err) {
@@ -521,6 +593,12 @@ WebApp.connectHandlers.use("/api/admin/devices/revoke", async (req, res) => {
         { userId },
         { $pull: { devices: { deviceUUID } } },
       );
+      await logDeviceAudit({
+        userId,
+        action: "admin_device_revoked",
+        deviceUUID,
+        details: `by ${req.adminUser}`,
+      });
 
       sendJson(res, 200, {
         success: true,

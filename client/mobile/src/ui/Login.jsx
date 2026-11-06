@@ -2,6 +2,11 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { openSupportLink } from "../../../../utils/openExternal";
 import { migrateWithBiometricSecret } from "../../identity-migration";
+import { ResetPinModal } from "./ResetPinModal";
+import {
+  getBiometricErrorMessage,
+  isBiometricPluginError,
+} from "../../../../utils/biometricErrors";
 import { Meteor } from "meteor/meteor";
 import { Session } from "meteor/session";
 import { Random } from "meteor/random";
@@ -9,6 +14,7 @@ import {
   Fingerprint as FingerprintIcon,
   KeyRound,
   AlertCircle,
+  CheckCircle2,
 } from "lucide-react";
 import {
   Input,
@@ -21,6 +27,7 @@ import {
 
 const BIOMETRIC_SECRET_NOT_FOUND = -113;
 const BIOMETRIC_RECOVERY_NEEDED_KEY = "biometricRecoveryNeeded";
+const BIOMETRIC_PROMPT_DISMISSED_KEY = "biometricPromptDismissed";
 
 const isMissingBiometricSecret = (error) => {
   if (Number(error?.code) === BIOMETRIC_SECRET_NOT_FOUND) return true;
@@ -110,6 +117,8 @@ export const LoginPage = ({ deviceDetails }) => {
   );
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
+  const [showResetPin, setShowResetPin] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [showPinForm, setShowPinForm] = useState(false);
@@ -275,8 +284,14 @@ export const LoginPage = ({ deviceDetails }) => {
         setError(
           "Your biometric setup is no longer available on this device. Sign in with your PIN to set it up again.",
         );
+      } else if (isBiometricPluginError(err)) {
+        setError(getBiometricErrorMessage(err, { context: "login" }));
       } else {
-        setError(err.message || "Biometric login failed. Use PIN instead.");
+        setError(
+          err?.reason ||
+            err?.message ||
+            getBiometricErrorMessage(err, { context: "login" }),
+        );
       }
     } finally {
       setIsLoggingIn(false);
@@ -287,12 +302,26 @@ export const LoginPage = ({ deviceDetails }) => {
     Session.set("userProfile", { email, _id: userId });
     localStorage.setItem("lastLoggedInEmail", email);
 
-    if (needsBiometricRecovery || !hasBiometricCredentials) {
+    const promptDismissed =
+      localStorage.getItem(BIOMETRIC_PROMPT_DISMISSED_KEY) === "true";
+
+    if (
+      !promptDismissed &&
+      (needsBiometricRecovery || !hasBiometricCredentials)
+    ) {
       setRecoveryError("");
       setShowRecoveryPrompt(true);
       return;
     }
 
+    navigate("/dashboard");
+  };
+
+  const skipBiometricSetup = (dontAskAgain = false) => {
+    if (dontAskAgain) {
+      localStorage.setItem(BIOMETRIC_PROMPT_DISMISSED_KEY, "true");
+    }
+    setShowRecoveryPrompt(false);
     navigate("/dashboard");
   };
 
@@ -344,9 +373,7 @@ export const LoginPage = ({ deviceDetails }) => {
         }
       },
       (err) => {
-        setRecoveryError(
-          err?.message || "Unable to register biometrics. Please try again.",
-        );
+        setRecoveryError(getBiometricErrorMessage(err, { context: "setup" }));
         setIsRecoveringBiometrics(false);
       },
     );
@@ -384,6 +411,7 @@ export const LoginPage = ({ deviceDetails }) => {
 
     setIsLoggingIn(true);
     setError("");
+    setInfo("");
 
     try {
       let userId;
@@ -468,6 +496,14 @@ export const LoginPage = ({ deviceDetails }) => {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
+          {info && !error && (
+            <Alert
+              variant="success"
+              icon={<CheckCircle2 className="h-4 w-4" />}
+            >
+              <AlertDescription>{info}</AlertDescription>
+            </Alert>
+          )}
 
           {/* Email field */}
           <div>
@@ -499,21 +535,32 @@ export const LoginPage = ({ deviceDetails }) => {
           </div>
 
           {/* PIN field */}
-          <Input
-            id="pin"
-            type="password"
-            required
-            value={pin}
-            onChange={(e) => setPin(e.target.value)}
-            label="PIN"
-            placeholder="Enter your PIN"
-            maxLength={6}
-            minLength={4}
-            pattern="[0-9]*"
-            inputMode="numeric"
-            autoComplete="current-password"
-            disabled={isLoggingIn || checkingStatus}
-          />
+          <div>
+            <Input
+              id="pin"
+              type="password"
+              required
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              label="PIN"
+              placeholder="Enter your PIN"
+              maxLength={6}
+              minLength={4}
+              pattern="[0-9]*"
+              inputMode="numeric"
+              autoComplete="current-password"
+              disabled={isLoggingIn || checkingStatus}
+            />
+            <Button
+              variant="link"
+              size="sm"
+              type="button"
+              onClick={() => setShowResetPin(true)}
+              disabled={isLoggingIn || checkingStatus}
+            >
+              Forgot PIN?
+            </Button>
+          </div>
 
           {/* Submit */}
           <Button
@@ -555,12 +602,24 @@ export const LoginPage = ({ deviceDetails }) => {
         )}
       </div>
 
+      {showResetPin && (
+        <ResetPinModal
+          initialEmail={email}
+          onClose={() => setShowResetPin(false)}
+          onSuccess={() => {
+            setShowResetPin(false);
+            setPin("");
+            setError("");
+            setInfo("PIN updated. Sign in with your new PIN.");
+          }}
+        />
+      )}
+
       <Modal
         open={showRecoveryPrompt}
         onOpenChange={(open) => {
           if (!open && !isRecoveringBiometrics) {
-            setShowRecoveryPrompt(false);
-            navigate("/dashboard");
+            skipBiometricSetup();
           }
         }}
         size="sm"
@@ -597,15 +656,20 @@ export const LoginPage = ({ deviceDetails }) => {
             Set Up Biometrics
           </Button>
           <Button
-            onClick={() => {
-              setShowRecoveryPrompt(false);
-              navigate("/dashboard");
-            }}
+            onClick={() => skipBiometricSetup()}
             disabled={isRecoveringBiometrics}
             variant="secondary"
             fullWidth
           >
             Skip for Now
+          </Button>
+          <Button
+            onClick={() => skipBiometricSetup(true)}
+            disabled={isRecoveringBiometrics}
+            variant="ghost"
+            fullWidth
+          >
+            Do Not Ask Again
           </Button>
         </ModalBody>
       </Modal>

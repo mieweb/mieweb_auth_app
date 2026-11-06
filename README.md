@@ -84,7 +84,7 @@ the user's other devices.
 <!-- prettier-ignore -->
 | Area | Current implementation |
 | --- | --- |
-| Application platform | Meteor 3.4 and Node.js 20 in CI/deployment |
+| Application platform | Meteor 3.4 and Node.js 22 in CI/deployment |
 | Client | React 18, React Router 6, `@mieweb/ui`, Framer Motion |
 | Mobile | Cordova for iOS and Android |
 | Server | Meteor methods, publications, and `WebApp` HTTP handlers |
@@ -101,7 +101,7 @@ the user's other devices.
 
 For server and web development:
 
-- Node.js 20 and npm
+- Node.js 22 and npm
 - [Meteor](https://docs.meteor.com/about/install.html) 3.4
 - Git
 

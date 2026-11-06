@@ -65,6 +65,7 @@ const MobileAppRequired = lazy(
   () => import("../../../../web/MobileAppRequired"),
 );
 const NotFoundPage = lazy(() => import("../../../../web/NotFoundPage"));
+const AdminApp = lazy(() => import("../../../../admin/AdminApp"));
 
 const PageLoader = () => (
   <div className="flex items-center justify-center h-screen bg-background">
@@ -225,6 +226,12 @@ export const AppRoutes = ({ isRegistered, deviceUuid }) => {
             <Route
               path="/pending-registration"
               element={<PendingRegistrationPage />}
+            />
+
+            {/* --- Admin console (web only) --- */}
+            <Route
+              path="/admin/*"
+              element={isMobile ? <NotFoundPage /> : <AdminApp />}
             />
 
             {/* --- Catch-all 404 --- */}
