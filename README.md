@@ -155,11 +155,17 @@ the deployment environment or be created with the management tools below.
 npm run start-dev
 ```
 
-This is an organization-specific workflow. `bin/start.mjs` requests a YubiKey
-OTP, registers a temporary public URL with the BlueHive Magic Box service,
-sets `ROOT_URL`, chooses an available port, and starts Meteor with
-`settings.json`. Arguments such as `android-device` are passed through and the
-generated URL is used as `--mobile-server`.
+This is an organization-specific workflow. `bin/start.mjs` chooses an available
+port and registers `https://{user}-mieauth.dev.bluehive.com` with the BlueHive
+dev proxy (api-magic-box). The proxy sends an "Open dev tunnel?" push through
+MIE Auth itself; the tunnel opens once you tap Approve. You must be on the VPN.
+The script then sets `ROOT_URL` and starts Meteor with `settings.json`.
+Arguments such as `android-device` are passed through and the generated URL is
+used as `--mobile-server`. When Meteor exits, the tunnel is closed again.
+
+Set `MIEAUTH_USER` if your MIE Auth username differs from your OS username,
+`DEV_PROXY_IP` if the wrong VPN/LAN address is detected, or `DEV_PROXY=0` to
+skip the tunnel and run on localhost.
 
 Developers without access to that service should use `npm run start` or
 `meteor run --settings settings.json` instead.
@@ -239,7 +245,7 @@ not being built, because the Cordova configuration references both resources.
 | Command | Purpose |
 | --- | --- |
 | `npm run start` | Generate build metadata and run the local Meteor app. |
-| `npm run start-dev` | Run through the private YubiKey/Magic Box tunnel launcher. |
+| `npm run start-dev` | Run through the internal dev proxy tunnel (approve the MIE Auth push). |
 | `npm test` | Run the Meteor Mocha suite once. |
 | `npm run test-app` | Run the full-app test target in watch mode. |
 | `npm run lint` | Check JavaScript, JSX, and MJS with ESLint. |
@@ -629,7 +635,7 @@ when building only one platform.
 
 ## Known constraints
 
-- The YubiKey/Magic Box development launcher and server deployment scripts are
+- The dev proxy (api-magic-box) development launcher and server deployment scripts are
   tied to internal MIEWeb infrastructure; no public replacement service or
   generic deployment manifest is included.
 - Firebase projects, LDAP schema values, mail service, app-store accounts, and
