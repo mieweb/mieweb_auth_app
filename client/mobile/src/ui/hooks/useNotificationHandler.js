@@ -3,6 +3,7 @@ import { Meteor } from "meteor/meteor";
 import { Session } from "meteor/session";
 import { Tracker } from "meteor/tracker";
 import { isNotificationExpired } from "../../../../../utils/utils.js";
+import { getHandleResponseError } from "../../../../../utils/notificationResponse.js";
 
 export const useNotificationHandler = (userId, username) => {
   const [isActionsModalOpen, setIsActionsModalOpen] = useState(false);
@@ -162,7 +163,7 @@ export const useNotificationHandler = (userId, username) => {
           `${notificationIdForAction}:${action}`,
         );
 
-        await Meteor.callAsync(
+        const result = await Meteor.callAsync(
           "notifications.handleResponse",
           userId,
           action,
@@ -170,6 +171,14 @@ export const useNotificationHandler = (userId, username) => {
           deviceUUID,
           identityProof,
         );
+
+        // The server answers expired / already-handled requests without
+        // throwing — don't report those as a successful approval.
+        const resultError = getHandleResponseError(result, action);
+        if (resultError) {
+          setActionError(`Failed to ${action}: ${resultError}`);
+          return;
+        }
 
         setIsActionsModalOpen(false);
         if (action === "approve") {
