@@ -1503,6 +1503,7 @@ Meteor.methods({
       return {
         success: true,
         message: `Using existing status: ${targetNotification.status}`,
+        status: targetNotification.status,
       };
     }
 
