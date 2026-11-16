@@ -20,6 +20,31 @@ export const canSendTrayAction = ({
 export const isNotAuthenticatedError = (error) =>
   error?.error === "not-authenticated";
 
+// Pending tray actions form a FIFO queue with at most one entry per
+// notification: actions for different requests are all kept, while a newer
+// action for the same request replaces the older one (the user's latest
+// answer wins). Entries are matched by notificationId + queuedAt so a result
+// for a replaced entry can't touch its replacement.
+const isSameEntry = (a, b) =>
+  a.notificationId === b.notificationId && a.queuedAt === b.queuedAt;
+
+export const enqueueTrayAction = (queue = [], entry) => {
+  const existing = queue.findIndex(
+    (e) => e.notificationId === entry.notificationId,
+  );
+  if (existing === -1) return [...queue, entry];
+  return queue.map((e, i) => (i === existing ? entry : e));
+};
+
+export const removeTrayAction = (queue = [], entry) =>
+  queue.filter((e) => !isSameEntry(e, entry));
+
+export const updateTrayAction = (queue = [], entry, changes) =>
+  queue.map((e) => (isSameEntry(e, entry) ? { ...e, ...changes } : e));
+
+export const hasTrayAction = (queue = [], entry) =>
+  queue.some((e) => isSameEntry(e, entry));
+
 /**
  * Classify the result of notifications.handleResponse for a queued action.
  * @returns {{type: "retry"} | {type: "error", message: string} | {type: "success"}}

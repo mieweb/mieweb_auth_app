@@ -3,6 +3,8 @@ import { getHandleResponseError } from "../utils/notificationResponse";
 import {
   MAX_TRAY_ACTION_AUTH_RETRIES,
   canSendTrayAction,
+  enqueueTrayAction,
+  removeTrayAction,
   resolveTrayActionOutcome,
 } from "../utils/trayAction";
 
@@ -31,6 +33,27 @@ describe("notification tray actions", function () {
       false,
     );
     assert.strictEqual(canSendTrayAction(ready), true);
+  });
+
+  it("keeps actions for different requests queued in tap order", function () {
+    // Reject A, then approve B before re-login: both must be sent.
+    const rejectA = { notificationId: "A", action: "reject", queuedAt: 1 };
+    const approveB = { notificationId: "B", action: "approve", queuedAt: 2 };
+    const queue = enqueueTrayAction(enqueueTrayAction([], rejectA), approveB);
+
+    assert.deepStrictEqual(queue, [rejectA, approveB]);
+    assert.deepStrictEqual(removeTrayAction(queue, rejectA), [approveB]);
+  });
+
+  it("replaces an earlier action for the same request in place", function () {
+    const rejectA = { notificationId: "A", action: "reject", queuedAt: 1 };
+    const approveB = { notificationId: "B", action: "approve", queuedAt: 2 };
+    const approveA = { notificationId: "A", action: "approve", queuedAt: 3 };
+    const queue = enqueueTrayAction([rejectA, approveB], approveA);
+
+    assert.deepStrictEqual(queue, [approveA, approveB]);
+    // A late result for the replaced entry must not remove its replacement.
+    assert.deepStrictEqual(removeTrayAction(queue, rejectA), queue);
   });
 
   it("re-queues not-authenticated failures up to the retry limit, then reports them", function () {

@@ -6,36 +6,38 @@ import { Tracker } from "meteor/tracker";
 import { IOS_APPROVAL_CATEGORIES } from "../../utils/constants.js";
 import {
   canSendTrayAction,
+  enqueueTrayAction,
+  hasTrayAction,
+  removeTrayAction,
   resolveTrayActionOutcome,
+  updateTrayAction,
 } from "../../utils/trayAction.js";
 import { completePushMigration, signOperation } from "./identity-migration.js";
 import { wipeLocalCredentialsAndLogout } from "./local-session.js";
 
-// A notification action (tray / lock screen / watch) waiting to be sent.
+// Notification actions (tray / lock screen / watch) waiting to be sent.
 // Opening the app from the action fires `resume`, which triggers the
-// screen-lock logout (useSessionTimeout). The action is therefore queued and
+// screen-lock logout (useSessionTimeout). Actions are therefore queued and
 // only sent once the user is really logged in; if the logout still wins the
 // race the server answers `not-authenticated` and the action is re-sent after
-// the user re-authenticates (issue #552).
-const PENDING_TRAY_ACTION_KEY = "pendingTrayAction";
+// the user re-authenticates (issue #552). One entry per notification, sent
+// one at a time in tap order.
+const PENDING_TRAY_ACTIONS_KEY = "pendingTrayActions";
 const trayActionInFlight = new ReactiveVar(false);
+
+const getTrayActionQueue = () => Session.get(PENDING_TRAY_ACTIONS_KEY) || [];
 
 const queueTrayAction = (userId, action, notificationId) => {
   Session.set("actionPerformedFromTray", true);
-  Session.set(PENDING_TRAY_ACTION_KEY, {
-    userId,
-    action,
-    notificationId,
-    queuedAt: new Date().getTime(),
-    authRetries: 0,
-  });
-};
-
-const isCurrentPendingAction = (pending) => {
-  const current = Session.get(PENDING_TRAY_ACTION_KEY);
-  return (
-    current?.notificationId === pending.notificationId &&
-    current?.queuedAt === pending.queuedAt
+  Session.set(
+    PENDING_TRAY_ACTIONS_KEY,
+    enqueueTrayAction(getTrayActionQueue(), {
+      userId,
+      action,
+      notificationId,
+      queuedAt: new Date().getTime(),
+      authRetries: 0,
+    }),
   );
 };
 
@@ -56,9 +58,13 @@ const dispatchTrayAction = async (pending) => {
     deviceUUID,
     identityProof,
     (error, result) => {
-      trayActionInFlight.set(false);
-      // A newer action replaced this one while the call was in flight.
-      if (!isCurrentPendingAction(pending)) return;
+      const queue = getTrayActionQueue();
+      // A newer action for the same notification replaced this one while the
+      // call was in flight; the replacement is dispatched next.
+      if (!hasTrayAction(queue, pending)) {
+        trayActionInFlight.set(false);
+        return;
+      }
 
       const outcome = resolveTrayActionOutcome({
         error,
@@ -69,16 +75,22 @@ const dispatchTrayAction = async (pending) => {
 
       if (outcome.type === "retry") {
         // Keep the action queued; the dispatcher re-sends it after login.
-        Session.set(PENDING_TRAY_ACTION_KEY, {
-          ...pending,
-          authRetries: pending.authRetries + 1,
-        });
+        Session.set(
+          PENDING_TRAY_ACTIONS_KEY,
+          updateTrayAction(queue, pending, {
+            authRetries: pending.authRetries + 1,
+          }),
+        );
+        trayActionInFlight.set(false);
         return;
       }
 
-      Session.set(PENDING_TRAY_ACTION_KEY, null);
-      // Clear the in-flight flag so future notifications can open the modal
-      Session.set("actionPerformedFromTray", false);
+      const remaining = removeTrayAction(queue, pending);
+      Session.set(PENDING_TRAY_ACTIONS_KEY, remaining);
+      if (remaining.length === 0) {
+        // Clear the flag so future notifications can open the modal
+        Session.set("actionPerformedFromTray", false);
+      }
       // Clear any stale persisted notification so a later resume event
       // doesn't reopen the modal for an already-handled notification.
       try {
@@ -101,14 +113,15 @@ const dispatchTrayAction = async (pending) => {
           timestamp: new Date().getTime(),
         });
       }
+      trayActionInFlight.set(false);
     },
   );
 };
 
 const setupTrayActionDispatcher = () => {
   Tracker.autorun(() => {
-    const pending = Session.get(PENDING_TRAY_ACTION_KEY);
-    if (!pending || trayActionInFlight.get()) return;
+    const [next] = getTrayActionQueue();
+    if (!next || trayActionInFlight.get()) return;
 
     const ready = canSendTrayAction({
       userId: Meteor.userId(),
@@ -118,7 +131,7 @@ const setupTrayActionDispatcher = () => {
     });
     if (!ready) return;
 
-    Tracker.nonreactive(() => dispatchTrayAction(pending));
+    Tracker.nonreactive(() => dispatchTrayAction(next));
   });
 
   // A tray result from the previous session must not resurface (as a stale
