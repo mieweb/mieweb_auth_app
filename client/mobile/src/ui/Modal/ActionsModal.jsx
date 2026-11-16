@@ -15,6 +15,9 @@ const ActionsModal = ({
   error,
 }) => {
   const [timeLeft, setTimeLeft] = useState(0);
+  // Set once the countdown reaches zero so Approve/Deny can't be tapped while
+  // the modal is closing.
+  const [isExpired, setIsExpired] = useState(false);
 
   const calculateInitialTime = () => {
     if (!notification?.createdAt) return 0;
@@ -53,24 +56,23 @@ const ActionsModal = ({
       }
     };
 
-    const handleTimeout = async () => {
-      if (!notification?.notificationId) {
-        onTimeOut();
-        return;
-      }
+    const handleTimeout = () => {
+      setIsExpired(true);
 
-      try {
-        await Meteor.callAsync(
+      // Close immediately — don't keep an actionable modal on screen while the
+      // status update round-trips (or hangs on a reconnecting connection).
+      // The server rejects late answers on its own expiry check regardless.
+      if (notification?.notificationId) {
+        Meteor.callAsync(
           "notificationHistory.updateStatus",
           notification.notificationId,
           "timeout",
-        );
-        console.log("Notification marked as timeout");
-      } catch (error) {
-        console.error(
-          "Failed to update notification status to timeout:",
-          error,
-        );
+        ).catch((error) => {
+          console.error(
+            "Failed to update notification status to timeout:",
+            error,
+          );
+        });
       }
 
       onTimeOut();
@@ -82,23 +84,24 @@ const ActionsModal = ({
 
     if (isOpen && notification) {
       const initialTime = calculateInitialTime();
+      setTimeLeft(initialTime);
 
       if (initialTime <= 0) {
         handleTimeout();
         return;
       }
 
-      setTimeLeft(initialTime);
+      setIsExpired(false);
 
+      // Recompute from the clock on every tick so throttled/backgrounded
+      // intervals can't leave the countdown lagging behind the real expiry.
       timer = setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            handleTimeout();
-            return 0;
-          }
-          return prev - 1;
-        });
+        const remaining = calculateInitialTime();
+        setTimeLeft(remaining);
+        if (remaining <= 0) {
+          clearInterval(timer);
+          handleTimeout();
+        }
       }, 1000);
 
       statusCheckInterval = setInterval(checkStatus, 2000);
@@ -177,7 +180,11 @@ const ActionsModal = ({
                 <span
                   className={`text-xs font-medium ${isUrgent ? "text-destructive" : "text-muted-foreground"}`}
                 >
-                  {isUrgent ? "Expiring soon" : "Expires in"}
+                  {isExpired
+                    ? "Expired"
+                    : isUrgent
+                      ? "Expiring soon"
+                      : "Expires in"}
                 </span>
               </div>
               <span
@@ -214,7 +221,7 @@ const ActionsModal = ({
         <div className="px-6 pb-6 space-y-2.5">
           <Button
             onClick={onApprove}
-            disabled={isLoading}
+            disabled={isLoading || isExpired}
             fullWidth
             size="lg"
             leftIcon={<Check className="h-5 w-5" strokeWidth={2.5} />}
@@ -228,7 +235,7 @@ const ActionsModal = ({
 
           <Button
             onClick={onReject}
-            disabled={isLoading}
+            disabled={isLoading || isExpired}
             variant="danger"
             fullWidth
             size="lg"

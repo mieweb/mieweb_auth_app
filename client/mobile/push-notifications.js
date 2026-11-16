@@ -1,77 +1,142 @@
 import { Meteor } from "meteor/meteor";
+import { Accounts } from "meteor/accounts-base";
+import { ReactiveVar } from "meteor/reactive-var";
 import { Session } from "meteor/session";
 import { Tracker } from "meteor/tracker";
 import { IOS_APPROVAL_CATEGORIES } from "../../utils/constants.js";
+import {
+  canSendTrayAction,
+  enqueueTrayAction,
+  hasTrayAction,
+  removeTrayAction,
+  resolveTrayActionOutcome,
+  updateTrayAction,
+} from "../../utils/trayAction.js";
 import { completePushMigration, signOperation } from "./identity-migration.js";
 import { wipeLocalCredentialsAndLogout } from "./local-session.js";
 
-// Session validation with retry logic
-const validateSessionWithRetry = (callback, retries = 3, interval = 1000) => {
-  let attempts = 0;
-  const checkSession = () => {
-    if (Session.get("userProfile")) {
-      callback();
-    } else if (attempts < retries) {
-      attempts++;
-      setTimeout(checkSession, interval);
-    } else {
-      Session.set("notificationReceivedId", {
-        appId: notification.additionalData.appId,
-        status: "pending",
-      });
-    }
-  };
-  checkSession();
-};
+// Notification actions (tray / lock screen / watch) waiting to be sent.
+// Opening the app from the action fires `resume`, which triggers the
+// screen-lock logout (useSessionTimeout). Actions are therefore queued and
+// only sent once the user is really logged in; if the logout still wins the
+// race the server answers `not-authenticated` and the action is re-sent after
+// the user re-authenticates (issue #552). One entry per notification, sent
+// one at a time in tap order.
+const PENDING_TRAY_ACTIONS_KEY = "pendingTrayActions";
+const trayActionInFlight = new ReactiveVar(false);
 
-const sendUserAction = (userId, action, notificationId, deviceUUID) => {
-  validateSessionWithRetry(async () => {
-    // Phase 5: sign the exact notification + action with the installation
-    // key. Null when unavailable — server accepts that until enforcement.
-    const identityProof = await signOperation(`${notificationId}:${action}`);
-    Meteor.call(
-      "notifications.handleResponse",
+const getTrayActionQueue = () => Session.get(PENDING_TRAY_ACTIONS_KEY) || [];
+
+const queueTrayAction = (userId, action, notificationId) => {
+  Session.set("actionPerformedFromTray", true);
+  Session.set(
+    PENDING_TRAY_ACTIONS_KEY,
+    enqueueTrayAction(getTrayActionQueue(), {
       userId,
       action,
       notificationId,
-      deviceUUID,
-      identityProof,
-      (error, result) => {
-        // Clear the in-flight flag so future notifications can open the modal
+      queuedAt: new Date().getTime(),
+      authRetries: 0,
+    }),
+  );
+};
+
+const dispatchTrayAction = async (pending) => {
+  const { userId, action, notificationId } = pending;
+  trayActionInFlight.set(true);
+
+  const deviceUUID = Session.get("capturedDeviceInfo")?.uuid || null;
+  // Phase 5: sign the exact notification + action with the installation
+  // key. Null when unavailable — server accepts that until enforcement.
+  const identityProof = await signOperation(`${notificationId}:${action}`);
+
+  Meteor.call(
+    "notifications.handleResponse",
+    userId,
+    action,
+    notificationId,
+    deviceUUID,
+    identityProof,
+    (error, result) => {
+      const queue = getTrayActionQueue();
+      // A newer action for the same notification replaced this one while the
+      // call was in flight; the replacement is dispatched next.
+      if (!hasTrayAction(queue, pending)) {
+        trayActionInFlight.set(false);
+        return;
+      }
+
+      const outcome = resolveTrayActionOutcome({
+        error,
+        result,
+        action,
+        authRetries: pending.authRetries,
+      });
+
+      if (outcome.type === "retry") {
+        // Keep the action queued; the dispatcher re-sends it after login.
+        Session.set(
+          PENDING_TRAY_ACTIONS_KEY,
+          updateTrayAction(queue, pending, {
+            authRetries: pending.authRetries + 1,
+          }),
+        );
+        trayActionInFlight.set(false);
+        return;
+      }
+
+      const remaining = removeTrayAction(queue, pending);
+      Session.set(PENDING_TRAY_ACTIONS_KEY, remaining);
+      if (remaining.length === 0) {
+        // Clear the flag so future notifications can open the modal
         Session.set("actionPerformedFromTray", false);
-        // Clear any stale persisted notification so a later resume event
-        // doesn't reopen the modal for an already-handled notification.
-        try {
-          localStorage.removeItem("pendingNotification");
-        } catch {}
+      }
+      // Clear any stale persisted notification so a later resume event
+      // doesn't reopen the modal for an already-handled notification.
+      try {
+        localStorage.removeItem("pendingNotification");
+      } catch {}
 
-        // Treat both transport errors and server-returned { success: false }
-        // as failures — otherwise the success modal lies when the server
-        // couldn't find/update the notification (e.g. expired or missing).
-        const failed = error || (result && result.success === false);
+      if (outcome.type === "error") {
+        // Surface the error to the UI layer so it can fall back to the modal
+        Session.set("trayActionResult", {
+          notificationId,
+          action,
+          status: "error",
+          error: outcome.message,
+        });
+      } else {
+        Session.set("trayActionResult", {
+          notificationId,
+          action,
+          status: action === "approve" ? "approved" : "rejected",
+          timestamp: new Date().getTime(),
+        });
+      }
+      trayActionInFlight.set(false);
+    },
+  );
+};
 
-        if (failed) {
-          const errorMsg = error
-            ? error.message || error.reason || String(error)
-            : result.message || "Unable to process action";
-          // Surface the error to the UI layer so it can fall back to the modal
-          Session.set("trayActionResult", {
-            notificationId,
-            action,
-            status: "error",
-            error: errorMsg,
-          });
-        } else {
-          Session.set("trayActionResult", {
-            notificationId,
-            action,
-            status: action === "approve" ? "approved" : "rejected",
-            timestamp: new Date().getTime(),
-          });
-        }
-      },
-    );
+const setupTrayActionDispatcher = () => {
+  Tracker.autorun(() => {
+    const [next] = getTrayActionQueue();
+    if (!next || trayActionInFlight.get()) return;
+
+    const ready = canSendTrayAction({
+      userId: Meteor.userId(),
+      loggingIn: Meteor.loggingIn(),
+      loggingOut: Meteor.loggingOut(),
+      hasProfile: !!Session.get("userProfile"),
+    });
+    if (!ready) return;
+
+    Tracker.nonreactive(() => dispatchTrayAction(next));
   });
+
+  // A tray result from the previous session must not resurface (as a stale
+  // error modal) after the user logs back in.
+  Accounts.onLogout(() => Session.set("trayActionResult", null));
 };
 
 const createNotificationChannel = () => {
@@ -203,20 +268,9 @@ const handleActionFromTray = (push, action, data) => {
     return;
   }
 
-  const deviceUUID = Session.get("capturedDeviceInfo")?.uuid || null;
-
-  Session.set("actionPerformedFromTray", true);
-
-  if (additionalData.coldstart) {
-    // sendUserAction internally wraps the Meteor call in validateSessionWithRetry,
-    // so we only need a short delay to give the app a chance to boot. A second
-    // outer retry loop here would just multiply the wait time.
-    setTimeout(() => {
-      sendUserAction(userId, action, notificationId, deviceUUID);
-    }, 2000);
-  } else {
-    sendUserAction(userId, action, notificationId, deviceUUID);
-  }
+  // Sent by the dispatcher once the user is logged in — immediately when the
+  // app is already unlocked, or after re-authentication on cold start / resume.
+  queueTrayAction(userId, action, notificationId);
 
   push.finish(
     () => {},
@@ -244,37 +298,6 @@ const setupNotificationHandler = (push) => {
       if (additionalData.notificationType === "migration_challenge") {
         completePushMigration(additionalData);
         return;
-      }
-
-      // Skip if action was already handled from the notification tray. Do NOT
-      // clear the flag here — the tray-action request may still be in flight,
-      // and clearing early can let the resume/tracker paths reopen the actions
-      // modal for the same notification. The sendUserAction callback clears
-      // the flag once the server call settles.
-      if (Session.get("actionPerformedFromTray")) {
-        return;
-      }
-
-      // Cold start handling — if the server attached an explicit action to the
-      // notification body (rare; main flow uses dedicated approve/reject
-      // events), forward it. Requires both userId and notificationId.
-      if (
-        additionalData.coldstart &&
-        additionalData.action &&
-        additionalData.userId &&
-        additionalData.notificationId
-      ) {
-        const deviceUUID = Session.get("capturedDeviceInfo")?.uuid || null;
-        setTimeout(() => {
-          validateSessionWithRetry(() => {
-            sendUserAction(
-              additionalData.userId,
-              additionalData.action,
-              additionalData.notificationId,
-              deviceUUID,
-            );
-          });
-        }, 2000);
       }
 
       // This device was revoked from the account (via My Devices on another
@@ -321,6 +344,32 @@ const setupNotificationHandler = (push) => {
           timestamp: new Date().getTime(),
         });
         return;
+      }
+
+      // Skip if action was already handled from the notification tray. Do NOT
+      // clear the flag here — the tray action may still be queued (waiting for
+      // re-login) or in flight, and clearing early can let the resume/tracker
+      // paths reopen the actions modal for the same notification. The
+      // dispatcher clears the flag once the server call settles. Checked after
+      // the revoke/info handlers above so those are never suppressed.
+      if (Session.get("actionPerformedFromTray")) {
+        return;
+      }
+
+      // Cold start handling — if the server attached an explicit action to the
+      // notification body (rare; main flow uses dedicated approve/reject
+      // events), forward it. Requires both userId and notificationId.
+      if (
+        additionalData.coldstart &&
+        additionalData.action &&
+        additionalData.userId &&
+        additionalData.notificationId
+      ) {
+        queueTrayAction(
+          additionalData.userId,
+          additionalData.action,
+          additionalData.notificationId,
+        );
       }
 
       // Standard notification handling
@@ -389,6 +438,8 @@ export const initializePushNotifications = () => {
     // Android channel setup
     createNotificationChannel();
 
+    // Before registerPush so a cold-start action finds the dispatcher ready.
+    setupTrayActionDispatcher();
     registerPush();
     console.log(
       `[PushPlugin] init complete — registered iOS categories: ${Object.keys(

@@ -8,6 +8,7 @@ import "./pinReset.js";
 import "./adminApi.js";
 import "./adminHelpers.js";
 import "./biometricErrors.js";
+import "./trayAction.js";
 
 describe("meteor-app", function () {
   it("package.json has correct name", async function () {
